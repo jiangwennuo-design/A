@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789550588198,
+      "tag": "0000_k_diary_penpal_initial_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789607096223,
+      "tag": "0001_create_ai_configs",
+      "breakpoints": true
+    }
+  ]
+}
