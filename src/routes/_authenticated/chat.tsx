@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 import { clearCurrentChat, rerollPenpalTurn, sendPenpalMessage } from "@/lib/penpal.functions";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/_authenticated/chat")({
 
 function ChatPage() {
   const db = supabase as any;
+  const { profile } = useAuth();
   const navigate = useNavigate();
   const router = useRouter();
   const { diary: initialDiaryId } = Route.useSearch();
@@ -41,7 +43,8 @@ function ChatPage() {
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<string | null>(null);
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
-  const [avatar, setAvatar] = useState("");
+  const [assistantAvatar, setAssistantAvatar] = useState("");
+  const [userAvatar, setUserAvatar] = useState("");
   const [mode, setMode] = useState<DiaryContextMode>(initialDiaryId ? "current" : "none");
   const bottom = useRef<HTMLDivElement>(null);
   const current = chars.find((item) => item.id === charId);
@@ -110,12 +113,37 @@ function ChatPage() {
   useEffect(() => {
     let active = true;
     void resolveAvatarUrl(current?.avatar_url).then((url) => {
-      if (active) setAvatar(url);
+      if (active) setAssistantAvatar(url);
     });
     return () => {
       active = false;
     };
   }, [current?.avatar_url]);
+  useEffect(() => {
+    let active = true;
+    void resolveAvatarUrl(profile?.avatar_url).then((url) => {
+      if (active) setUserAvatar(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [profile?.avatar_url]);
+
+  async function revealAssistantMessages(nextMessages: ChatMessage[], insertionIndex?: number) {
+    const ordered = [...nextMessages]
+      .filter((message) => message.role === "assistant")
+      .sort((a, b) => a.message_order - b.message_order);
+    for (let index = 0; index < ordered.length; index += 1) {
+      if (index > 0) await pause(480);
+      const message = ordered[index]!;
+      setMessages((previous) => {
+        if (insertionIndex === undefined) return [...previous, message];
+        const updated = [...previous];
+        updated.splice(Math.min(insertionIndex + index, updated.length), 0, message);
+        return updated;
+      });
+    }
+  }
 
   async function switchChar(id: string) {
     localStorage.setItem("current-char-id", id);
@@ -134,9 +162,25 @@ function ChatPage() {
     event.preventDefault();
     if (!input.trim() || !sessionId || !charId || sending) return;
     const text = input.trim();
+    const now = new Date().toISOString();
+    const optimisticId = `pending-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: optimisticId,
+      session_id: sessionId,
+      user_id: profile?.id ?? "",
+      role: "user",
+      content: text,
+      turn_id: null,
+      message_order: 0,
+      edited: false,
+      created_at: now,
+      updated_at: now,
+    };
     setInput("");
     setSending(true);
     setError("");
+    setMenu(null);
+    setMessages((previous) => [...previous, optimisticMessage]);
     try {
       const result = await send({
         data: {
@@ -147,8 +191,17 @@ function ChatPage() {
           context_diary_id: initialDiaryId ?? null,
         },
       });
-      setMessages((previous) => [...previous, ...(result.messages as ChatMessage[])]);
+      const returned = result.messages as ChatMessage[];
+      const savedUser = returned.find((message) => message.role === "user");
+      if (savedUser) {
+        setMessages((previous) =>
+          previous.map((message) => (message.id === optimisticId ? savedUser : message)),
+        );
+      }
+      await revealAssistantMessages(returned);
     } catch (reason) {
+      setMessages((previous) => previous.filter((message) => message.id !== optimisticId));
+      setInput((currentInput) => currentInput || text);
       setError(reason instanceof Error ? reason.message : "发送失败。");
     } finally {
       setSending(false);
@@ -181,7 +234,12 @@ function ChatPage() {
 
   async function rerollTurn(turnId: string) {
     if (!sessionId || !charId || sending) return;
+    const originalTurn = messages.filter((message) => message.turn_id === turnId);
+    const insertionIndex = messages.findIndex((message) => message.turn_id === turnId);
+    setMessages((previous) => previous.filter((message) => message.turn_id !== turnId));
     setSending(true);
+    setMenu(null);
+    setError("");
     try {
       const result = await reroll({
         data: {
@@ -192,15 +250,13 @@ function ChatPage() {
           context_diary_id: initialDiaryId ?? null,
         },
       });
-      setMessages((previous) =>
-        [
-          ...previous.filter((item) => item.turn_id !== turnId),
-          ...(result.messages as ChatMessage[]),
-        ].sort(
-          (a, b) => a.created_at.localeCompare(b.created_at) || a.message_order - b.message_order,
-        ),
-      );
+      await revealAssistantMessages(result.messages as ChatMessage[], Math.max(insertionIndex, 0));
     } catch (reason) {
+      setMessages((previous) => {
+        const restored = [...previous];
+        restored.splice(Math.max(insertionIndex, 0), 0, ...originalTurn);
+        return restored;
+      });
       setError(reason instanceof Error ? reason.message : "重新生成失败，原回复仍保留。");
     } finally {
       setSending(false);
@@ -265,9 +321,9 @@ function ChatPage() {
           ←
         </button>
         <div className="w-9 h-9 rounded-full overflow-hidden border border-[var(--color-border)] bg-white flex items-center justify-center">
-          {avatar ? (
+          {assistantAvatar ? (
             <img
-              src={avatar}
+              src={assistantAvatar}
               alt={current?.name ?? "笔友"}
               className="w-full h-full object-cover"
             />
@@ -277,6 +333,7 @@ function ChatPage() {
         </div>
         <select
           value={charId}
+          disabled={sending}
           onChange={(event) => void switchChar(event.target.value)}
           className="flex-1 bg-transparent font-semibold text-center"
         >
@@ -299,29 +356,41 @@ function ChatPage() {
 
       {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
       <main className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !sending ? (
           <EmptyState icon="✉️" title={`和${current?.name}聊聊`} subtitle="说点什么吧。" />
         ) : (
           messages.map((message) => (
             <div
               key={message.id}
-              className={`flex relative ${message.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`message-enter flex items-end gap-2 relative ${message.role === "user" ? "flex-row-reverse" : ""}`}
             >
+              <ChatAvatar
+                url={message.role === "user" ? userAvatar : assistantAvatar}
+                label={
+                  message.role === "user" ? profile?.display_name || "我" : current?.name || "笔友"
+                }
+              />
               <div
-                className={`message-bubble max-w-[82%] ${message.role === "user" ? "bg-[var(--color-primary)] text-white" : "bg-white border border-[var(--color-border)]"}`}
+                className={`flex items-center gap-1 max-w-[78%] ${message.role === "user" ? "flex-row-reverse" : ""}`}
               >
-                <p className="whitespace-pre-wrap text-[15px]">{message.content}</p>
+                <div
+                  className={`message-bubble max-w-full ${message.role === "user" ? "bg-[var(--color-primary)] text-white" : "bg-white border border-[var(--color-border)]"}`}
+                >
+                  <p className="whitespace-pre-wrap text-[15px]">{message.content}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="消息操作"
+                  onClick={() => setMenu(menu === message.id ? null : message.id)}
+                  className="shrink-0 self-center p-1 text-[var(--color-text-secondary)]"
+                >
+                  <MoreHorizontal size={15} />
+                </button>
               </div>
-              <button
-                type="button"
-                aria-label="消息操作"
-                onClick={() => setMenu(menu === message.id ? null : message.id)}
-                className="self-center p-1"
-              >
-                <MoreHorizontal size={15} />
-              </button>
               {menu === message.id && (
-                <div className="absolute z-10 top-full mt-1 bg-white border rounded-xl shadow p-1 text-xs">
+                <div
+                  className={`absolute z-10 top-full mt-1 bg-white border rounded-xl shadow p-1 text-xs ${message.role === "user" ? "right-10" : "left-10"}`}
+                >
                   <button
                     type="button"
                     onClick={() =>
@@ -363,7 +432,20 @@ function ChatPage() {
             </div>
           ))
         )}
-        {sending && <div className="text-sm text-[var(--color-text-secondary)]">笔友正在回复…</div>}
+        {sending && (
+          <div
+            className="message-enter flex items-end gap-2"
+            role="status"
+            aria-label="笔友正在回复"
+          >
+            <ChatAvatar url={assistantAvatar} label={current?.name || "笔友"} />
+            <div className="message-bubble typing-bubble bg-white border border-[var(--color-border)]">
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+            </div>
+          </div>
+        )}
         <div ref={bottom} />
       </main>
 
@@ -442,4 +524,20 @@ function ChatPage() {
       )}
     </div>
   );
+}
+
+function ChatAvatar({ url, label }: { url: string; label: string }) {
+  return (
+    <div className="chat-avatar" title={label} aria-label={label}>
+      {url ? (
+        <img src={url} alt={label} className="w-full h-full object-cover" />
+      ) : (
+        <span aria-hidden="true">{label.trim().slice(0, 1) || "友"}</span>
+      )}
+    </div>
+  );
+}
+
+function pause(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
