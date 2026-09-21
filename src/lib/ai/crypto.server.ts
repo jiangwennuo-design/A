@@ -51,13 +51,20 @@ export async function decryptApiKey(payload: string): Promise<string> {
   if (parts.length !== 3 || parts[0] !== ENC_PREFIX) {
     throw new Error("保存的 API Key 无法解密，请重新填写一次 API Key。");
   }
-  const key = await getAesKey();
-  const plain = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: fromBase64(parts[1]!) },
-    key,
-    fromBase64(parts[2]!),
-  );
-  return new TextDecoder().decode(plain);
+  try {
+    const key = await getAesKey();
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: fromBase64(parts[1]!) },
+      key,
+      fromBase64(parts[2]!),
+    );
+    return new TextDecoder().decode(plain);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("AI_CONFIG_ENCRYPTION_KEY")) {
+      throw error;
+    }
+    throw new Error("保存的 API Key 无法用当前服务密钥解密，请重新填写并保存一次 API Key。");
+  }
 }
 
 /** Mask for display only — never reveals enough to reuse the key. */
