@@ -2,17 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import {
-  Copy,
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-  Send,
-  Settings,
-  Trash2,
-  UserRound,
-  X,
-} from "lucide-react";
+import { Copy, Plus, RefreshCw, Send, Settings, Trash2, UserRound, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { clearCurrentChat, rerollPenpalTurn, sendPenpalMessage } from "@/lib/penpal.functions";
@@ -297,11 +287,42 @@ function ConversationPage({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<string | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
   const [assistantAvatar, setAssistantAvatar] = useState("");
   const [userAvatar, setUserAvatar] = useState("");
   const [mode, setMode] = useState<DiaryContextMode>(initialDiaryId ? "current" : "none");
   const bottom = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const selectedMessage = messages.find((message) => message.id === menu);
+  const latestTurnId = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.turn_id)?.turn_id;
+
+  function cancelLongPress() {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    longPressOrigin.current = null;
+  }
+
+  function startLongPress(messageId: string, x: number, y: number) {
+    cancelLongPress();
+    longPressOrigin.current = { x, y };
+    longPressTimer.current = window.setTimeout(() => {
+      setMenu(messageId);
+      longPressTimer.current = null;
+      longPressOrigin.current = null;
+      navigator.vibrate?.(12);
+    }, 480);
+  }
+
+  function trackLongPress(x: number, y: number) {
+    const origin = longPressOrigin.current;
+    if (origin && Math.hypot(x - origin.x, y - origin.y) > 10) cancelLongPress();
+  }
 
   useEffect(() => {
     let active = true;
@@ -369,6 +390,12 @@ function ConversationPage({
   }, [charId, initialDiaryId]);
 
   useEffect(() => bottom.current?.scrollIntoView({ behavior: "smooth" }), [messages, sending]);
+  useEffect(
+    () => () => {
+      if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    },
+    [],
+  );
   useEffect(() => {
     let active = true;
     void resolveAvatarUrl(current?.avatar_url).then((url) => {
@@ -432,6 +459,7 @@ function ConversationPage({
     setSending(true);
     setError("");
     setMenu(null);
+    setToolsOpen(false);
     setMessages((previous) => [...previous, optimisticMessage]);
     try {
       const result = await send({
@@ -491,6 +519,7 @@ function ConversationPage({
     setMessages((previous) => previous.filter((message) => message.turn_id !== turnId));
     setSending(true);
     setMenu(null);
+    setToolsOpen(false);
     setError("");
     try {
       const result = await reroll({
@@ -561,7 +590,7 @@ function ConversationPage({
     <div
       className="flex flex-col"
       style={{
-        height: "calc(100dvh - 64px - env(safe-area-inset-bottom))",
+        height: "100dvh",
         maxWidth: 480,
         margin: "0 auto",
       }}
@@ -598,7 +627,7 @@ function ConversationPage({
       </header>
 
       {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
-      <main className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+      <main className="chat-message-list flex-1 overflow-y-auto px-4 py-6 space-y-[18px]">
         {messages.length === 0 && !sending ? (
           <EmptyState icon="✉️" title={`和${current?.name}聊聊`} subtitle="说点什么吧。" />
         ) : (
@@ -614,64 +643,26 @@ function ConversationPage({
                 }
               />
               <div
-                className={`flex items-center gap-1 max-w-[78%] ${message.role === "user" ? "flex-row-reverse" : ""}`}
+                role="button"
+                tabIndex={0}
+                aria-label="长按打开消息操作"
+                onPointerDown={(event) => startLongPress(message.id, event.clientX, event.clientY)}
+                onPointerUp={cancelLongPress}
+                onPointerCancel={cancelLongPress}
+                onPointerLeave={cancelLongPress}
+                onPointerMove={(event) => trackLongPress(event.clientX, event.clientY)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  cancelLongPress();
+                  setMenu(message.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") setMenu(message.id);
+                }}
+                className={`message-bubble max-w-[78%] select-none cursor-pointer ${message.role === "user" ? "bg-[var(--color-primary)] text-white" : "bg-white border border-[var(--color-border)]"}`}
               >
-                <div
-                  className={`message-bubble max-w-full ${message.role === "user" ? "bg-[var(--color-primary)] text-white" : "bg-white border border-[var(--color-border)]"}`}
-                >
-                  <p className="whitespace-pre-wrap text-[15px]">{message.content}</p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="消息操作"
-                  onClick={() => setMenu(menu === message.id ? null : message.id)}
-                  className="shrink-0 self-center p-1 text-[var(--color-text-secondary)]"
-                >
-                  <MoreHorizontal size={15} />
-                </button>
+                <p className="whitespace-pre-wrap text-base">{message.content}</p>
               </div>
-              {menu === message.id && (
-                <div
-                  className={`absolute z-10 top-full mt-1 bg-white border rounded-xl shadow p-1 text-xs ${message.role === "user" ? "right-10" : "left-10"}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void navigator.clipboard.writeText(message.content).then(() => setMenu(null))
-                    }
-                    className="block px-3 py-2"
-                  >
-                    <Copy size={13} className="inline mr-1" />
-                    复制
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void updateMessage(message)}
-                    className="block px-3 py-2"
-                  >
-                    编辑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void deleteMessage(message)}
-                    className="block px-3 py-2 text-[var(--color-error)]"
-                  >
-                    <Trash2 size={13} className="inline mr-1" />
-                    删除
-                  </button>
-                  {message.role === "assistant" && message.turn_id && (
-                    <button
-                      type="button"
-                      disabled={sending}
-                      onClick={() => void rerollTurn(message.turn_id!)}
-                      className="block px-3 py-2"
-                    >
-                      <RefreshCw size={13} className="inline mr-1" />
-                      重新生成本轮
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
           ))
         )}
@@ -692,12 +683,38 @@ function ConversationPage({
         <div ref={bottom} />
       </main>
 
-      <form onSubmit={submit} className="p-3 border-t bg-[var(--color-bg)] flex gap-2">
+      <form
+        onSubmit={submit}
+        className="relative p-3 pb-[calc(12px+env(safe-area-inset-bottom))] border-t bg-[var(--color-bg)] flex gap-2"
+      >
+        {toolsOpen && (
+          <div className="absolute z-20 left-3 bottom-[calc(100%+8px)] min-w-48 rounded-2xl border bg-white p-2 shadow-xl slide-up">
+            <button
+              type="button"
+              disabled={!latestTurnId || sending}
+              onClick={() => latestTurnId && void rerollTurn(latestTurnId)}
+              className="w-full px-3 py-3 rounded-xl flex items-center gap-2 text-left disabled:opacity-40 hover:bg-[var(--color-bg)]"
+            >
+              <RefreshCw size={17} />
+              <span>重新生成本轮</span>
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          aria-label="更多聊天功能"
+          aria-expanded={toolsOpen}
+          onClick={() => setToolsOpen((open) => !open)}
+          className="w-11 h-11 shrink-0 self-end rounded-full border bg-white flex items-center justify-center text-[var(--color-primary)]"
+        >
+          <Plus size={21} className={`transition-transform ${toolsOpen ? "rotate-45" : ""}`} />
+        </button>
         <textarea
           value={input}
           onChange={(event) => setInput(event.target.value)}
+          onFocus={() => setToolsOpen(false)}
           placeholder="说点什么…"
-          className="input-field flex-1 resize-none"
+          className="input-field flex-1 resize-none min-h-11"
           rows={1}
         />
         <button
@@ -707,6 +724,62 @@ function ConversationPage({
           <Send size={18} />
         </button>
       </form>
+
+      {selectedMessage && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/25 flex items-end justify-center"
+          onClick={() => setMenu(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="消息操作"
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-[480px] rounded-t-3xl bg-[var(--color-bg)] p-4 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-2xl slide-up"
+          >
+            <p className="px-2 pb-3 text-xs text-[var(--color-text-secondary)] truncate">
+              {selectedMessage.content}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  void navigator.clipboard
+                    .writeText(selectedMessage.content)
+                    .then(() => setMenu(null))
+                }
+                className="btn-secondary !px-2 flex flex-col items-center gap-1 text-sm"
+              >
+                <Copy size={18} />
+                复制
+              </button>
+              <button
+                type="button"
+                onClick={() => void updateMessage(selectedMessage)}
+                className="btn-secondary !px-2 flex flex-col items-center gap-1 text-sm"
+              >
+                <span className="text-base leading-none">✎</span>
+                编辑
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteMessage(selectedMessage)}
+                className="btn-secondary !px-2 flex flex-col items-center gap-1 text-sm !text-[var(--color-error)]"
+              >
+                <Trash2 size={18} />
+                删除
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMenu(null)}
+              className="btn-secondary w-full mt-3"
+            >
+              取消
+            </button>
+          </section>
+        </div>
+      )}
 
       {chatSettingsOpen && (
         <div

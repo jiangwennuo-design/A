@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -18,16 +18,20 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const { profile } = useAuth();
+  const location = useRouterState({ select: (state) => state.location });
+  const isConversation =
+    location.pathname === "/chat" &&
+    typeof (location.search as { char?: unknown }).char === "string";
   const [wallpaper, setWallpaper] = useState("");
   useEffect(() => {
     if (!profile?.wallpaper_url) {
       setWallpaper("");
       return;
     }
-    void (supabase as any).storage
+    void supabase.storage
       .from("wallpapers")
       .createSignedUrl(profile.wallpaper_url, 3600)
-      .then(({ data }: any) => setWallpaper(data?.signedUrl ?? ""));
+      .then(({ data }) => setWallpaper(data?.signedUrl ?? ""));
   }, [profile?.wallpaper_url]);
   const opacity = Math.min(0.75, Math.max(0, Number(profile?.wallpaper_opacity ?? 0.18)));
   const blur = Math.min(24, Math.max(0, Number(profile?.wallpaper_blur ?? 0)));
@@ -47,10 +51,14 @@ function AuthenticatedLayout() {
         }
       />
       {wallpaper && <div aria-hidden className="absolute inset-0 bg-white" style={{ opacity }} />}
-      <div className="relative pb-[calc(64px+env(safe-area-inset-bottom))]">
+      <div
+        className={
+          isConversation ? "relative" : "relative pb-[calc(64px+env(safe-area-inset-bottom))]"
+        }
+      >
         <Outlet />
       </div>
-      <BottomNav />
+      {!isConversation && <BottomNav />}
     </div>
   );
 }
