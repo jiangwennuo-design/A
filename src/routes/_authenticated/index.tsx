@@ -1,135 +1,130 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  BookHeart,
+  ContactRound,
+  Image,
+  MessageCircle,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { LoadingSpinner, EmptyState } from "@/components/ui-kit";
-import type { Diary } from "@/lib/types";
-import { PenLine, BookOpen } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
-    meta: [
-      { title: "我的日记 · 此心一笺" },
-      { name: "description", content: "记录每天的心情，随时和你的 AI 笔友聊聊今天发生的事。" },
-      { property: "og:title", content: "我的日记 · 此心一笺" },
-      {
-        property: "og:description",
-        content: "记录每天的心情，随时和你的 AI 笔友聊聊今天发生的事。",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
+    meta: [{ title: "此心一笺" }, { name: "description", content: "你的日记、聊天和个人空间。" }],
   }),
-  component: DiaryHomePage,
+  component: PhoneHomePage,
 });
 
-function DiaryHomePage() {
+function PhoneHomePage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const [diaries, setDiaries] = useState<Diary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    void loadDiaries();
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
   }, []);
 
-  async function loadDiaries() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("diaries")
-      .select("*")
-      .order("diary_date", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Failed to load diaries:", error);
-    } else {
-      setDiaries((data ?? []) as Diary[]);
-    }
-    setLoading(false);
-  }
-
-  const today = new Date();
-  const dateStr = today.toLocaleDateString("zh-CN", {
-    year: "numeric",
+  const date = now.toLocaleDateString("zh-CN", {
     month: "long",
     day: "numeric",
     weekday: "long",
   });
+  const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="page-container">
-      <div className="fade-in">
-        <div className="mb-6">
-          <div>
-            <p className="text-sm text-[var(--color-text-secondary)] mb-1">{dateStr}</p>
-            <h1 className="text-2xl font-bold text-[var(--color-text)]">
-              {greeting()}, {profile?.display_name || "朋友"}
-            </h1>
-          </div>
-        </div>
+    <main className="phone-home fade-in">
+      <section className="phone-home__hero">
+        <p className="phone-home__time">{time}</p>
+        <p className="phone-home__date">{date}</p>
+        <p className="phone-home__hello">
+          {greeting()}，{profile?.display_name || "朋友"}
+        </p>
+      </section>
 
-        <button
-          onClick={() => navigate({ to: "/diary/new" })}
-          className="w-full mb-6 p-5 rounded-2xl bg-[var(--color-primary)] text-white flex items-center justify-between transition-all active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-3">
-            <PenLine size={22} />
-            <span className="font-medium text-base">写一篇日记</span>
-          </div>
-          <span className="text-lg opacity-60">→</span>
-        </button>
+      <section className="phone-app-grid" aria-label="应用列表">
+        <AppIcon
+          label="此心一笺"
+          subtitle="日记"
+          icon={BookHeart}
+          tone="paper"
+          onClick={() => navigate({ to: "/diary" })}
+        />
+        <AppIcon
+          label="聊天"
+          subtitle="笔友"
+          icon={MessageCircle}
+          tone="chat"
+          onClick={() => navigate({ to: "/chat", search: {} })}
+        />
+        <AppIcon
+          label="名册"
+          subtitle="笔友人设"
+          icon={ContactRound}
+          tone="roster"
+          onClick={() => navigate({ to: "/persona" })}
+        />
+        <AppIcon
+          label="壁纸"
+          subtitle="桌面外观"
+          icon={Image}
+          tone="wallpaper"
+          onClick={() => navigate({ to: "/wallpaper" })}
+        />
+        <AppIcon
+          label="设置"
+          subtitle="账户与 AI"
+          icon={Settings}
+          tone="settings"
+          onClick={() => navigate({ to: "/settings" })}
+        />
+      </section>
 
-        <div className="flex items-center gap-2 mb-4">
-          <BookOpen size={18} className="text-[var(--color-text-secondary)]" />
-          <h2 className="text-base font-semibold text-[var(--color-text)]">我的日记</h2>
-          {diaries.length > 0 && (
-            <span className="text-xs text-[var(--color-text-secondary)]">({diaries.length})</span>
-          )}
-        </div>
-
-        {loading ? (
-          <LoadingSpinner />
-        ) : diaries.length === 0 ? (
-          <EmptyState icon="📔" title="还没有日记" subtitle="点击上方按钮，写下你的第一篇日记吧" />
-        ) : (
-          <div className="space-y-3">
-            {diaries.map((diary) => (
-              <button
-                key={diary.id}
-                onClick={() => navigate({ to: "/diary/$id", params: { id: diary.id } })}
-                className="card w-full text-left active:scale-[0.99] transition-transform"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    {formatDate(diary.diary_date)}
-                  </p>
-                </div>
-                <h3 className="font-medium text-[var(--color-text)] mb-1 line-clamp-1">
-                  {diary.title || "无题"}
-                </h3>
-                <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 leading-relaxed">
-                  {diary.content || "（空白）"}
-                </p>
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="phone-home__quote">
+        <span aria-hidden>“</span>
+        <p>把想说的话，慢慢写进今天。</p>
       </div>
-    </div>
+      <span className="phone-home__indicator" aria-hidden />
+    </main>
+  );
+}
+
+function AppIcon({
+  label,
+  subtitle,
+  icon: Icon,
+  tone,
+  onClick,
+}: {
+  label: string;
+  subtitle: string;
+  icon: LucideIcon;
+  tone: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="phone-app"
+      aria-label={`${label}，${subtitle}`}
+    >
+      <span className={`phone-app__icon phone-app__icon--${tone}`}>
+        <Icon size={31} strokeWidth={1.8} />
+      </span>
+      <span className="phone-app__label">{label}</span>
+      <span className="phone-app__subtitle">{subtitle}</span>
+    </button>
   );
 }
 
 function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 6) return "夜深了";
-  if (h < 12) return "早上好";
-  if (h < 14) return "中午好";
-  if (h < 18) return "下午好";
+  const hour = new Date().getHours();
+  if (hour < 6) return "夜深了";
+  if (hour < 12) return "早上好";
+  if (hour < 14) return "中午好";
+  if (hour < 18) return "下午好";
   return "晚上好";
-}
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -8,13 +8,23 @@ import { AvatarPicker } from "@/components/AvatarPicker";
 import { importPersonaFile } from "@/lib/persona-file";
 
 export const Route = createFileRoute("/_authenticated/profile")({ component: ProfilePage });
+
+interface ProfileForm {
+  display_name: string;
+  avatar_url: string;
+  gender: string;
+  persona_text: string;
+  signature: string;
+}
+
 function ProfilePage() {
+  // The production profile fields are newer than the generated Supabase client types.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const { user, profile, refreshProfile } = useAuth();
-  const router = useRouter();
+  const navigate = useNavigate();
   const input = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState<any>(null);
-  const [preview, setPreview] = useState("");
+  const [form, setForm] = useState<ProfileForm | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -25,15 +35,7 @@ function ProfilePage() {
         gender: profile.gender ?? "",
         persona_text: profile.persona_text ?? "",
         signature: profile.signature ?? "",
-        wallpaper_url: profile.wallpaper_url ?? "",
-        wallpaper_blur: profile.wallpaper_blur ?? 0,
-        wallpaper_opacity: profile.wallpaper_opacity ?? 0.18,
       });
-      if (profile.wallpaper_url)
-        void db.storage
-          .from("wallpapers")
-          .createSignedUrl(profile.wallpaper_url, 3600)
-          .then(({ data }: any) => setPreview(data?.signedUrl ?? ""));
     }
   }, [profile]);
   if (!form)
@@ -42,71 +44,54 @@ function ProfilePage() {
         <LoadingSpinner />
       </div>
     );
+  const currentForm = form;
   async function importText(file?: File) {
     if (!file) return;
     try {
-      setForm({ ...form, persona_text: await importPersonaFile(file) });
+      setForm({ ...currentForm, persona_text: await importPersonaFile(file) });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "文件读取失败。");
     }
   }
-  async function uploadWallpaper(file?: File) {
-    if (!file || !user) return;
-    if (
-      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-      file.size > 5 * 1024 * 1024
-    )
-      return setError("壁纸需为 JPG、PNG 或 WebP，且不超过 5MB。");
-    const ext = file.name.split(".").pop() || "jpg";
-    const path = `${user.id}/wallpaper-${Date.now()}.${ext}`;
-    const { error: uploadError } = await db.storage
-      .from("wallpapers")
-      .upload(path, file, { upsert: false, contentType: file.type });
-    if (uploadError) return setError("壁纸上传失败。");
-    const { data } = await db.storage.from("wallpapers").createSignedUrl(path, 3600);
-    setPreview(data?.signedUrl ?? "");
-    setForm({ ...form, wallpaper_url: path });
-  }
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (!user || !form.display_name.trim()) return setError("请填写昵称。");
+    if (!user || !currentForm.display_name.trim()) return setError("请填写昵称。");
     setSaving(true);
     const { error } = await db
       .from("profiles")
       .update({
-        ...form,
-        avatar_url: form.avatar_url || null,
-        gender: form.gender || null,
-        wallpaper_url: form.wallpaper_url || null,
+        ...currentForm,
+        avatar_url: currentForm.avatar_url || null,
+        gender: currentForm.gender || null,
       })
       .eq("id", user.id);
     setSaving(false);
     if (error) setError("保存失败，请在完成数据库迁移后重试。");
     else {
       await refreshProfile();
-      router.history.back();
+      void navigate({ to: "/chat", search: {} });
     }
   }
   return (
     <div className="page-container">
       <form onSubmit={save}>
-        <Header title="我的资料" onBack={() => router.history.back()} />
+        <Header title="我的资料" onBack={() => navigate({ to: "/chat", search: {} })} />
         {error && <ErrorBanner message={error} />}
         <p className="text-sm text-[var(--color-text-secondary)] mb-5">
-          你的资料与笔友人设严格分开，只会作为 AI 上下文中的 USER PROFILE。
+          这里是你的个人资料，只会作为 AI 对话中的用户信息使用。
         </p>
         <Label
           label="昵称"
-          value={form.display_name}
-          onChange={(v) => setForm({ ...form, display_name: v })}
+          value={currentForm.display_name}
+          onChange={(v) => setForm({ ...currentForm, display_name: v })}
         />
         {user && (
           <AvatarPicker
             label="我的头像"
             owner="profile"
             userId={user.id}
-            value={form.avatar_url}
-            onChange={(value) => setForm({ ...form, avatar_url: value })}
+            value={currentForm.avatar_url}
+            onChange={(value) => setForm({ ...currentForm, avatar_url: value })}
             onError={setError}
           />
         )}
@@ -114,8 +99,8 @@ function ProfilePage() {
           性别
           <select
             className="input-field mt-2"
-            value={form.gender}
-            onChange={(e) => setForm({ ...form, gender: e.target.value })}
+            value={currentForm.gender}
+            onChange={(e) => setForm({ ...currentForm, gender: e.target.value })}
           >
             <option value="">不设置</option>
             <option value="male">男</option>
@@ -128,8 +113,8 @@ function ProfilePage() {
           <textarea
             className="input-field mt-2 resize-none"
             rows={6}
-            value={form.persona_text}
-            onChange={(e) => setForm({ ...form, persona_text: e.target.value })}
+            value={currentForm.persona_text}
+            onChange={(e) => setForm({ ...currentForm, persona_text: e.target.value })}
           />
           <input
             ref={input}
@@ -149,51 +134,9 @@ function ProfilePage() {
         </div>
         <Label
           label="个性签名"
-          value={form.signature}
-          onChange={(v) => setForm({ ...form, signature: v })}
+          value={currentForm.signature}
+          onChange={(v) => setForm({ ...currentForm, signature: v })}
         />
-        <div className="mb-5">
-          <label className="text-sm font-medium">壁纸</label>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="block mt-2 text-sm"
-            onChange={(e) => void uploadWallpaper(e.target.files?.[0])}
-          />
-          {form.wallpaper_url && (
-            <>
-              <img
-                src={preview}
-                alt="当前壁纸"
-                className="mt-3 h-28 w-full rounded-xl object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setForm({ ...form, wallpaper_url: "" });
-                  setPreview("");
-                }}
-                className="mt-2 text-sm text-[var(--color-error)]"
-              >
-                恢复默认壁纸
-              </button>
-            </>
-          )}
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <Label
-              label="模糊 0-24"
-              type="number"
-              value={String(form.wallpaper_blur)}
-              onChange={(v) => setForm({ ...form, wallpaper_blur: Number(v) })}
-            />
-            <Label
-              label="遮罩 0-0.75"
-              type="number"
-              value={String(form.wallpaper_opacity)}
-              onChange={(v) => setForm({ ...form, wallpaper_opacity: Number(v) })}
-            />
-          </div>
-        </div>
         <button className="btn-primary w-full" disabled={saving}>
           {saving ? "保存中…" : "保存我的资料"}
         </button>

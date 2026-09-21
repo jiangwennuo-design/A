@@ -17,6 +17,8 @@ import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/c
 import { Route as AuthenticatedPersonaRouteImport } from './routes/_authenticated/persona'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedWallpaperRouteImport } from './routes/_authenticated/wallpaper'
+import { Route as AuthenticatedDiaryIndexRouteImport } from './routes/_authenticated/diary.index'
 import { Route as AuthenticatedDiaryNewRouteImport } from './routes/_authenticated/diary.new'
 import { Route as AuthenticatedDiaryIdIndexRouteImport } from './routes/_authenticated/diary.$id.index'
 import { Route as AuthenticatedDiaryIdEditRouteImport } from './routes/_authenticated/diary.$id.edit'
@@ -60,6 +62,16 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWallpaperRoute = AuthenticatedWallpaperRouteImport.update({
+  id: '/wallpaper',
+  path: '/wallpaper',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDiaryIndexRoute = AuthenticatedDiaryIndexRouteImport.update({
+  id: '/diary/',
+  path: '/diary/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDiaryNewRoute = AuthenticatedDiaryNewRouteImport.update({
   id: '/diary/new',
   path: '/diary/new',
@@ -86,7 +98,9 @@ export interface FileRoutesByFullPath {
   '/persona': typeof AuthenticatedPersonaRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/wallpaper': typeof AuthenticatedWallpaperRoute
   '/diary/new': typeof AuthenticatedDiaryNewRoute
+  '/diary/': typeof AuthenticatedDiaryIndexRoute
   '/diary/$id/edit': typeof AuthenticatedDiaryIdEditRoute
   '/diary/$id/': typeof AuthenticatedDiaryIdIndexRoute
 }
@@ -97,8 +111,10 @@ export interface FileRoutesByTo {
   '/persona': typeof AuthenticatedPersonaRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/wallpaper': typeof AuthenticatedWallpaperRoute
   '/': typeof AuthenticatedIndexRoute
   '/diary/new': typeof AuthenticatedDiaryNewRoute
+  '/diary': typeof AuthenticatedDiaryIndexRoute
   '/diary/$id/edit': typeof AuthenticatedDiaryIdEditRoute
   '/diary/$id': typeof AuthenticatedDiaryIdIndexRoute
 }
@@ -111,8 +127,10 @@ export interface FileRoutesById {
   '/_authenticated/persona': typeof AuthenticatedPersonaRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/wallpaper': typeof AuthenticatedWallpaperRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/diary/new': typeof AuthenticatedDiaryNewRoute
+  '/_authenticated/diary/': typeof AuthenticatedDiaryIndexRoute
   '/_authenticated/diary/$id/edit': typeof AuthenticatedDiaryIdEditRoute
   '/_authenticated/diary/$id/': typeof AuthenticatedDiaryIdIndexRoute
 }
@@ -126,7 +144,9 @@ export interface FileRouteTypes {
     | '/persona'
     | '/profile'
     | '/settings'
+    | '/wallpaper'
     | '/diary/new'
+    | '/diary/'
     | '/diary/$id/edit'
     | '/diary/$id/'
   fileRoutesByTo: FileRoutesByTo
@@ -137,8 +157,10 @@ export interface FileRouteTypes {
     | '/persona'
     | '/profile'
     | '/settings'
+    | '/wallpaper'
     | '/'
     | '/diary/new'
+    | '/diary'
     | '/diary/$id/edit'
     | '/diary/$id'
   id:
@@ -150,8 +172,10 @@ export interface FileRouteTypes {
     | '/_authenticated/persona'
     | '/_authenticated/profile'
     | '/_authenticated/settings'
+    | '/_authenticated/wallpaper'
     | '/_authenticated/'
     | '/_authenticated/diary/new'
+    | '/_authenticated/diary/'
     | '/_authenticated/diary/$id/edit'
     | '/_authenticated/diary/$id/'
   fileRoutesById: FileRoutesById
@@ -219,6 +243,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/wallpaper': {
+      id: '/_authenticated/wallpaper'
+      path: '/wallpaper'
+      fullPath: '/wallpaper'
+      preLoaderRoute: typeof AuthenticatedWallpaperRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/diary/': {
+      id: '/_authenticated/diary/'
+      path: '/diary'
+      fullPath: '/diary/'
+      preLoaderRoute: typeof AuthenticatedDiaryIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/diary/new': {
       id: '/_authenticated/diary/new'
       path: '/diary/new'
@@ -249,8 +287,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPersonaRoute: typeof AuthenticatedPersonaRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedWallpaperRoute: typeof AuthenticatedWallpaperRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedDiaryNewRoute: typeof AuthenticatedDiaryNewRoute
+  AuthenticatedDiaryIndexRoute: typeof AuthenticatedDiaryIndexRoute
   AuthenticatedDiaryIdEditRoute: typeof AuthenticatedDiaryIdEditRoute
   AuthenticatedDiaryIdIndexRoute: typeof AuthenticatedDiaryIdIndexRoute
 }
@@ -261,8 +301,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPersonaRoute: AuthenticatedPersonaRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedWallpaperRoute: AuthenticatedWallpaperRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedDiaryNewRoute: AuthenticatedDiaryNewRoute,
+  AuthenticatedDiaryIndexRoute: AuthenticatedDiaryIndexRoute,
   AuthenticatedDiaryIdEditRoute: AuthenticatedDiaryIdEditRoute,
   AuthenticatedDiaryIdIndexRoute: AuthenticatedDiaryIdIndexRoute,
 }

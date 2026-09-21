@@ -187,6 +187,241 @@ textarea {
   font-size: 16px;
 }
 
+.phone-stage {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #e9e6e0;
+}
+
+.phone-shell {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.phone-home {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
+  padding: max(42px, calc(24px + env(safe-area-inset-top))) 24px
+    max(30px, calc(18px + env(safe-area-inset-bottom)));
+}
+
+.phone-home__hero {
+  padding: 6px 4px 30px;
+}
+
+.phone-home__time {
+  font-size: clamp(2.7rem, 14vw, 4rem);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.phone-home__date {
+  margin-top: 10px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.phone-home__hello {
+  margin-top: 4px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.phone-app-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px 14px;
+  padding: 22px 12px 26px;
+  border: 1px solid rgb(255 255 255 / 70%);
+  border-radius: 30px;
+  background: rgb(255 255 255 / 58%);
+  box-shadow: 0 18px 45px rgb(45 55 48 / 10%);
+  backdrop-filter: blur(18px);
+}
+
+.phone-app {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  color: var(--color-text);
+  text-align: center;
+  transition: transform 160ms ease;
+}
+
+.phone-app:active {
+  transform: scale(0.94);
+}
+
+.phone-app__icon {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 42%),
+    0 8px 18px rgb(35 48 40 / 15%);
+}
+
+.phone-app__icon--paper {
+  color: #fffaf2;
+  background: linear-gradient(145deg, #ad7b56, #7f563c);
+}
+
+.phone-app__icon--chat {
+  color: #f7fff9;
+  background: linear-gradient(145deg, #648b72, #385c47);
+}
+
+.phone-app__icon--roster {
+  color: #fff9f1;
+  background: linear-gradient(145deg, #c3926d, #9b6548);
+}
+
+.phone-app__icon--wallpaper {
+  color: #f8fbff;
+  background: linear-gradient(145deg, #7895a7, #49687b);
+}
+
+.phone-app__icon--settings {
+  color: #fff;
+  background: linear-gradient(145deg, #858680, #555852);
+}
+
+.phone-app__label {
+  max-width: 100%;
+  margin-top: 8px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-app__subtitle {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.phone-home__quote {
+  display: flex;
+  gap: 8px;
+  margin: auto 10px 26px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.phone-home__quote span {
+  color: var(--color-accent);
+  font-family: Georgia, serif;
+  font-size: 30px;
+  line-height: 0.8;
+}
+
+.phone-home__indicator {
+  width: 118px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: rgb(44 44 44 / 75%);
+}
+
+.app-page {
+  background: rgb(250 248 245 / 88%);
+  backdrop-filter: blur(10px);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-home-button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: rgb(255 255 255 / 88%);
+  color: var(--color-primary);
+}
+
+.chat-profile-app {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 80%);
+  text-align: left;
+}
+
+.chat-profile-app__icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 14px;
+  background: #e7eee9;
+  color: var(--color-primary);
+}
+
+.chat-profile-app strong,
+.chat-profile-app small {
+  display: block;
+}
+
+.chat-profile-app strong {
+  font-size: 14px;
+}
+
+.chat-profile-app small {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.wallpaper-preview {
+  position: relative;
+  display: grid;
+  min-height: 280px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 28px;
+  background: linear-gradient(155deg, #e8e1d7, #cad8cf);
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 16px 35px rgb(45 55 48 / 12%);
+}
+
+@media (min-width: 600px) {
+  .phone-shell {
+    box-shadow: 0 0 60px rgb(35 42 37 / 18%);
+  }
+}
+
 @layer components {
   .btn-primary {
     @apply px-5 py-3 rounded-xl font-medium transition-all duration-200 active:scale-[0.98];

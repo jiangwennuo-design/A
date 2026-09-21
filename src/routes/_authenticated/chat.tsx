@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { Copy, Plus, RefreshCw, Send, Settings, Trash2, UserRound, X } from "lucide-react";
+import { Copy, House, Plus, RefreshCw, Send, Settings, Trash2, UserRound, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -150,9 +150,14 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
   return (
     <div className="page-container !py-0 min-h-0">
       <header className="h-16 flex items-center justify-between border-b border-[var(--color-border)]">
-        <div>
-          <h1 className="text-xl font-semibold">聊天</h1>
-          <p className="text-xs text-[var(--color-text-secondary)]">选择一位笔友开始聊天</p>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => navigate({ to: "/" })} className="app-home-button">
+            <House size={18} />
+          </button>
+          <div>
+            <h1 className="text-xl font-semibold">聊天</h1>
+            <p className="text-xs text-[var(--color-text-secondary)]">选择一位笔友开始聊天</p>
+          </div>
         </div>
         <button
           type="button"
@@ -163,6 +168,23 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
           <Plus size={21} />
         </button>
       </header>
+
+      <section className="py-4 border-b border-[var(--color-border)]">
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/profile" })}
+          className="chat-profile-app"
+        >
+          <span className="chat-profile-app__icon">
+            <UserRound size={22} />
+          </span>
+          <span>
+            <strong>我的资料</strong>
+            <small>头像、昵称与个人信息</small>
+          </span>
+          <span className="ml-auto text-[var(--color-text-secondary)]">›</span>
+        </button>
+      </section>
 
       {error && <p className="mt-3 text-sm text-[var(--color-error)]">{error}</p>}
       {friends.length ? (

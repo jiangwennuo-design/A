@@ -1,0 +1,193 @@
+import { useEffect, useRef, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ImagePlus, RotateCcw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
+
+// The production profile/storage fields are newer than the generated Supabase client types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
+
+export const Route = createFileRoute("/_authenticated/wallpaper")({
+  head: () => ({ meta: [{ title: "壁纸 · 此心一笺" }] }),
+  component: WallpaperPage,
+});
+
+function WallpaperPage() {
+  const navigate = useNavigate();
+  const { user, profile, refreshProfile } = useAuth();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [wallpaperUrl, setWallpaperUrl] = useState("");
+  const [preview, setPreview] = useState("");
+  const [blur, setBlur] = useState(0);
+  const [opacity, setOpacity] = useState(0.18);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!profile) return;
+    setWallpaperUrl(profile.wallpaper_url ?? "");
+    setBlur(Number(profile.wallpaper_blur ?? 0));
+    setOpacity(Number(profile.wallpaper_opacity ?? 0.18));
+    if (!profile.wallpaper_url) {
+      setPreview("");
+      return;
+    }
+    void db.storage
+      .from("wallpapers")
+      .createSignedUrl(profile.wallpaper_url, 3600)
+      .then(({ data }: { data: { signedUrl?: string } | null }) =>
+        setPreview(data?.signedUrl ?? ""),
+      );
+  }, [profile]);
+
+  async function upload(file?: File) {
+    if (!file || !user) return;
+    setError("");
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size > 5 * 1024 * 1024
+    ) {
+      setError("壁纸需为 JPG、PNG 或 WebP，且不超过 5MB。");
+      return;
+    }
+    setUploading(true);
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${user.id}/wallpaper-${Date.now()}.${ext}`;
+    const { error: uploadError } = await db.storage
+      .from("wallpapers")
+      .upload(path, file, { upsert: false, contentType: file.type });
+    if (uploadError) {
+      setError("壁纸上传失败，请稍后重试。");
+      setUploading(false);
+      return;
+    }
+    const { data } = await db.storage.from("wallpapers").createSignedUrl(path, 3600);
+    setWallpaperUrl(path);
+    setPreview(data?.signedUrl ?? "");
+    setUploading(false);
+  }
+
+  async function save() {
+    if (!user) return;
+    setSaving(true);
+    setError("");
+    const { error: saveError } = await db
+      .from("profiles")
+      .update({
+        wallpaper_url: wallpaperUrl || null,
+        wallpaper_blur: Math.min(24, Math.max(0, blur)),
+        wallpaper_opacity: Math.min(0.75, Math.max(0, opacity)),
+      })
+      .eq("id", user.id);
+    setSaving(false);
+    if (saveError) {
+      setError("壁纸保存失败，请稍后重试。");
+      return;
+    }
+    await refreshProfile();
+  }
+
+  if (!profile)
+    return (
+      <div className="page-container">
+        <LoadingSpinner />
+      </div>
+    );
+
+  return (
+    <div className="page-container app-page">
+      <Header title="壁纸" onBack={() => navigate({ to: "/" })} />
+      {error && <ErrorBanner message={error} />}
+      <section className="wallpaper-preview">
+        {preview && (
+          <span
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: `url(${preview})`,
+              filter: `blur(${Math.min(24, Math.max(0, blur))}px)`,
+              transform: blur ? "scale(1.06)" : undefined,
+            }}
+          />
+        )}
+        {preview && (
+          <span
+            className="absolute inset-0 bg-white"
+            style={{ opacity: Math.min(0.75, Math.max(0, opacity)) }}
+          />
+        )}
+        <div className="relative z-10 text-center">
+          <p className="text-3xl font-semibold">此心一笺</p>
+          <p className="text-sm mt-2 opacity-70">桌面预览</p>
+        </div>
+      </section>
+
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(event) => void upload(event.target.files?.[0])}
+      />
+      <div className="grid grid-cols-2 gap-3 mt-5">
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileInput.current?.click()}
+          className="btn-secondary flex items-center justify-center gap-2"
+        >
+          <ImagePlus size={17} />
+          {uploading ? "上传中…" : "选择图片"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setWallpaperUrl("");
+            setPreview("");
+          }}
+          className="btn-secondary flex items-center justify-center gap-2"
+        >
+          <RotateCcw size={17} />
+          默认壁纸
+        </button>
+      </div>
+
+      <label className="block mt-7 text-sm font-medium">
+        模糊程度 <span className="text-[var(--color-text-secondary)]">{blur}</span>
+        <input
+          type="range"
+          min="0"
+          max="24"
+          step="1"
+          value={blur}
+          onChange={(event) => setBlur(Number(event.target.value))}
+          className="w-full mt-3 accent-[var(--color-primary)]"
+        />
+      </label>
+      <label className="block mt-6 text-sm font-medium">
+        浅色遮罩{" "}
+        <span className="text-[var(--color-text-secondary)]">{Math.round(opacity * 100)}%</span>
+        <input
+          type="range"
+          min="0"
+          max="0.75"
+          step="0.05"
+          value={opacity}
+          onChange={(event) => setOpacity(Number(event.target.value))}
+          className="w-full mt-3 accent-[var(--color-primary)]"
+        />
+      </label>
+
+      <button
+        type="button"
+        disabled={saving || uploading}
+        onClick={() => void save()}
+        className="btn-primary w-full mt-8"
+      >
+        {saving ? "保存中…" : "应用壁纸"}
+      </button>
+    </div>
+  );
+}

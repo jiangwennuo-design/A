@@ -1,8 +1,7 @@
-import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { BottomNav } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -18,10 +17,6 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const { profile } = useAuth();
-  const location = useRouterState({ select: (state) => state.location });
-  const isConversation =
-    location.pathname === "/chat" &&
-    typeof (location.search as { char?: unknown }).char === "string";
   const [wallpaper, setWallpaper] = useState("");
   useEffect(() => {
     if (!profile?.wallpaper_url) {
@@ -36,29 +31,26 @@ function AuthenticatedLayout() {
   const opacity = Math.min(0.75, Math.max(0, Number(profile?.wallpaper_opacity ?? 0.18)));
   const blur = Math.min(24, Math.max(0, Number(profile?.wallpaper_blur ?? 0)));
   return (
-    <div className="min-h-[100dvh] bg-[var(--color-background)] relative overflow-hidden">
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-cover bg-center"
-        style={
-          wallpaper
-            ? {
-                backgroundImage: `url(${wallpaper})`,
-                filter: `blur(${blur}px)`,
-                transform: blur ? "scale(1.04)" : undefined,
-              }
-            : undefined
-        }
-      />
-      {wallpaper && <div aria-hidden className="absolute inset-0 bg-white" style={{ opacity }} />}
-      <div
-        className={
-          isConversation ? "relative" : "relative pb-[calc(64px+env(safe-area-inset-bottom))]"
-        }
-      >
-        <Outlet />
+    <div className="phone-stage">
+      <div className="phone-shell">
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-cover bg-center"
+          style={
+            wallpaper
+              ? {
+                  backgroundImage: `url(${wallpaper})`,
+                  filter: `blur(${blur}px)`,
+                  transform: blur ? "scale(1.04)" : undefined,
+                }
+              : undefined
+          }
+        />
+        {wallpaper && <div aria-hidden className="absolute inset-0 bg-white" style={{ opacity }} />}
+        <div className="relative min-h-[100dvh]">
+          <Outlet />
+        </div>
       </div>
-      {!isConversation && <BottomNav />}
     </div>
   );
 }

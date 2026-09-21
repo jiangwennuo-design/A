@@ -11,7 +11,11 @@ export function Header({ title, onBack, rightAction }: HeaderProps) {
     <div className="flex items-center justify-between mb-6 px-1">
       <div className="flex items-center gap-3">
         {onBack && (
-          <button onClick={onBack} className="text-[var(--color-text-secondary)] text-sm">
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-[var(--color-text-secondary)] text-sm"
+          >
             ←
           </button>
         )}
