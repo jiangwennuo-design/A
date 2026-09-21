@@ -56,7 +56,7 @@ function SettingsPage() {
 
         <SectionTitle>账户</SectionTitle>
         <div className="card divide-y divide-[var(--color-border)] mb-6">
-          <SettingRow icon={User} label="昵称" value={profile?.display_name || "未设置"} />
+          <SettingRowLink icon={User} label="我的资料与人设" onClick={() => navigate({ to: "/profile" })} />
           <SettingRow icon={Mail} label="邮箱" value={user?.email || ""} />
           <SettingRow
             icon={KeyRound}
@@ -67,7 +67,7 @@ function SettingsPage() {
 
         <SectionTitle>AI 笔友</SectionTitle>
         <div className="card divide-y divide-[var(--color-border)] mb-6">
-          <SettingRowLink icon={Bot} label="人设板" onClick={() => navigate({ to: "/persona" })} />
+          <SettingRowLink icon={Bot} label="笔友名录与人设" onClick={() => navigate({ to: "/persona" })} />
           <SettingRowLink
             icon={Cpu}
             label="AI 配置"

@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Header, LoadingSpinner, ErrorBanner } from "@/components/ui-kit";
-import type { Diary } from "@/lib/types";
+import { createDiaryReply } from "@/lib/penpal.functions";
+import type { AiPersona, Diary, DiaryReply } from "@/lib/types";
 import { MessageCircle, Pencil, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/diary/$id/")({
@@ -31,6 +33,11 @@ function DiaryDetailPage() {
   const [error, setError] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [chars, setChars] = useState<AiPersona[]>([]);
+  const [charId, setCharId] = useState("");
+  const [replies, setReplies] = useState<DiaryReply[]>([]);
+  const [replying, setReplying] = useState(false);
+  const makeReply = useServerFn(createDiaryReply);
 
   useEffect(() => {
     if (!id) return;
@@ -48,6 +55,33 @@ function DiaryDetailPage() {
         setLoading(false);
       });
   }, [id]);
+
+  useEffect(() => {
+    const db = supabase as any;
+    void Promise.all([
+      db.from("ai_personas").select("*").order("updated_at", { ascending: false }),
+      db.from("diary_replies").select("*").eq("diary_id", id).order("created_at", { ascending: false }),
+    ]).then(([personas, savedReplies]) => {
+      const list = (personas.data ?? []) as AiPersona[];
+      setChars(list);
+      setCharId(localStorage.getItem("current-char-id") || list[0]?.id || "");
+      setReplies((savedReplies.data ?? []) as DiaryReply[]);
+    });
+  }, [id]);
+
+  async function handleDiaryReply() {
+    if (!charId || replying) return;
+    setReplying(true);
+    setError("");
+    try {
+      const result = await makeReply({ data: { diary_id: id, char_id: charId } });
+      setReplies((previous) => [result.reply as DiaryReply, ...previous]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "生成回信失败。");
+    } finally {
+      setReplying(false);
+    }
+  }
 
   async function handleDelete() {
     setDeleting(true);
@@ -128,6 +162,13 @@ function DiaryDetailPage() {
           </div>
           <span className="text-lg text-[var(--color-text-secondary)]">→</span>
         </button>
+
+        <section className="mt-5 border-t border-[var(--color-border)] pt-5">
+          <h2 className="font-semibold text-[var(--color-text)]">你的回信</h2>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">选择一位笔友，为这篇日记写一封完整的回信。</p>
+          {chars.length ? <div className="flex gap-2 mt-3"><select value={charId} onChange={(e) => setCharId(e.target.value)} className="input-field flex-1"><option value="">选择笔友</option>{chars.map((character) => <option key={character.id} value={character.id}>{character.name}</option>)}</select><button onClick={() => void handleDiaryReply()} disabled={!charId || replying} className="btn-primary px-4">{replying ? "生成中…" : "写回信"}</button></div> : <button onClick={() => navigate({ to: "/persona" })} className="mt-3 text-sm text-[var(--color-primary)]">先创建一位笔友</button>}
+          <div className="space-y-3 mt-4">{replies.map((reply) => { const character = chars.find((item) => item.id === reply.char_id); return <article key={reply.id} className="bg-white border border-[var(--color-border)] rounded-2xl p-4"><p className="text-xs text-[var(--color-text-secondary)] mb-2">{character?.name ?? "笔友"}的回信</p><p className="whitespace-pre-wrap leading-relaxed text-sm">{reply.content}</p></article>; })}</div>
+        </section>
       </div>
 
       {showDeleteConfirm && (

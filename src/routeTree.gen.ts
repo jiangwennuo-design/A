@@ -15,6 +15,7 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAiSettingsRouteImport } from './routes/_authenticated/ai-settings'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedPersonaRouteImport } from './routes/_authenticated/persona'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedDiaryNewRouteImport } from './routes/_authenticated/diary.new'
 import { Route as AuthenticatedDiaryIdIndexRouteImport } from './routes/_authenticated/diary.$id.index'
@@ -49,6 +50,11 @@ const AuthenticatedPersonaRoute = AuthenticatedPersonaRouteImport.update({
   path: '/persona',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/chat': typeof AuthenticatedChatRoute
   '/persona': typeof AuthenticatedPersonaRoute
+  '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/diary/new': typeof AuthenticatedDiaryNewRoute
   '/diary/$id/edit': typeof AuthenticatedDiaryIdEditRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/chat': typeof AuthenticatedChatRoute
   '/persona': typeof AuthenticatedPersonaRoute
+  '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/': typeof AuthenticatedIndexRoute
   '/diary/new': typeof AuthenticatedDiaryNewRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/_authenticated/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/persona': typeof AuthenticatedPersonaRoute
+  '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/diary/new': typeof AuthenticatedDiaryNewRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/ai-settings'
     | '/chat'
     | '/persona'
+    | '/profile'
     | '/settings'
     | '/diary/new'
     | '/diary/$id/edit'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/ai-settings'
     | '/chat'
     | '/persona'
+    | '/profile'
     | '/settings'
     | '/'
     | '/diary/new'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ai-settings'
     | '/_authenticated/chat'
     | '/_authenticated/persona'
+    | '/_authenticated/profile'
     | '/_authenticated/settings'
     | '/_authenticated/'
     | '/_authenticated/diary/new'
@@ -193,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPersonaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -228,6 +247,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAiSettingsRoute: typeof AuthenticatedAiSettingsRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedPersonaRoute: typeof AuthenticatedPersonaRoute
+  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedDiaryNewRoute: typeof AuthenticatedDiaryNewRoute
@@ -239,6 +259,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAiSettingsRoute: AuthenticatedAiSettingsRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedPersonaRoute: AuthenticatedPersonaRoute,
+  AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedDiaryNewRoute: AuthenticatedDiaryNewRoute,
