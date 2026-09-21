@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
   Copy,
   MoreHorizontal,
+  Plus,
   RefreshCw,
   Send,
   Settings,
@@ -17,24 +18,278 @@ import { useAuth } from "@/context/AuthContext";
 import { clearCurrentChat, rerollPenpalTurn, sendPenpalMessage } from "@/lib/penpal.functions";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
-import type { AiPersona, ChatMessage, DiaryContextMode } from "@/lib/types";
+import type { AiPersona, ChatMessage, ChatSession, DiaryContextMode } from "@/lib/types";
+
+// The live schema includes multi-penpal migration fields not present in the generated client types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export const Route = createFileRoute("/_authenticated/chat")({
-  validateSearch: z.object({ diary: z.string().optional() }),
+  validateSearch: z.object({ diary: z.string().optional(), char: z.string().optional() }),
   component: ChatPage,
 });
 
 function ChatPage() {
-  const db = supabase as any;
+  const { diary, char } = Route.useSearch();
+  return char ? (
+    <ConversationPage charId={char} initialDiaryId={diary} />
+  ) : (
+    <ChatFriendList initialDiaryId={diary} />
+  );
+}
+
+interface FriendPreview {
+  persona: AiPersona;
+  session: ChatSession;
+  lastMessage: ChatMessage | undefined;
+}
+
+function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined }) {
+  const navigate = useNavigate();
+  const [personas, setPersonas] = useState<AiPersona[]>([]);
+  const [friends, setFriends] = useState<FriendPreview[]>([]);
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const [{ data: personaRows }, { data: sessionRows }] = await Promise.all([
+        db.from("ai_personas").select("*").order("updated_at", { ascending: false }),
+        db.from("chat_sessions").select("*").order("updated_at", { ascending: false }),
+      ]);
+      if (!active) return;
+      const nextPersonas = (personaRows ?? []) as AiPersona[];
+      const personaById = new Map(nextPersonas.map((persona) => [persona.id, persona]));
+      const latestByPersona = new Map<string, ChatSession>();
+      for (const session of (sessionRows ?? []) as ChatSession[]) {
+        if (
+          session.char_id &&
+          personaById.has(session.char_id) &&
+          !latestByPersona.has(session.char_id)
+        ) {
+          latestByPersona.set(session.char_id, session);
+        }
+      }
+      const sessions = [...latestByPersona.values()];
+      let messageRows: ChatMessage[] = [];
+      if (sessions.length) {
+        const { data } = await db
+          .from("chat_messages")
+          .select("*")
+          .in(
+            "session_id",
+            sessions.map((session) => session.id),
+          )
+          .order("created_at", { ascending: false })
+          .limit(500);
+        messageRows = (data ?? []) as ChatMessage[];
+      }
+      if (!active) return;
+      const lastBySession = new Map<string, ChatMessage>();
+      for (const message of messageRows) {
+        if (!lastBySession.has(message.session_id)) lastBySession.set(message.session_id, message);
+      }
+      setPersonas(nextPersonas);
+      setFriends(
+        sessions.map((session) => ({
+          session,
+          persona: personaById.get(session.char_id!)!,
+          lastMessage: lastBySession.get(session.id),
+        })),
+      );
+      const resolved = await Promise.all(
+        nextPersonas.map(async (persona) => [
+          persona.id,
+          await resolveAvatarUrl(persona.avatar_url),
+        ]),
+      );
+      if (!active) return;
+      setAvatars(Object.fromEntries(resolved));
+      setLoading(false);
+    })().catch((reason) => {
+      if (!active) return;
+      setError(reason instanceof Error ? reason.message : "聊天列表加载失败。");
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function openChat(persona: AiPersona) {
+    if (adding) return;
+    setAdding(persona.id);
+    setError("");
+    try {
+      const existing = friends.find((friend) => friend.persona.id === persona.id);
+      if (!existing) {
+        const { error: insertError } = await db.from("chat_sessions").insert({
+          char_id: persona.id,
+          diary_context_mode: initialDiaryId ? "current" : "none",
+          context_diary_id: initialDiaryId ?? null,
+        });
+        if (insertError) throw new Error("新增聊天失败，请稍后重试。");
+      }
+      localStorage.setItem("current-char-id", persona.id);
+      await navigate({
+        to: "/chat",
+        search: initialDiaryId ? { char: persona.id, diary: initialDiaryId } : { char: persona.id },
+      });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "新增聊天失败。");
+      setAdding("");
+    }
+  }
+
+  if (loading)
+    return (
+      <div className="page-container">
+        <LoadingSpinner />
+      </div>
+    );
+
+  return (
+    <div className="page-container !py-0 min-h-0">
+      <header className="h-16 flex items-center justify-between border-b border-[var(--color-border)]">
+        <div>
+          <h1 className="text-xl font-semibold">聊天</h1>
+          <p className="text-xs text-[var(--color-text-secondary)]">选择一位笔友开始聊天</p>
+        </div>
+        <button
+          type="button"
+          aria-label="新增聊天"
+          onClick={() => setPickerOpen(true)}
+          className="w-10 h-10 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center shadow-sm"
+        >
+          <Plus size={21} />
+        </button>
+      </header>
+
+      {error && <p className="mt-3 text-sm text-[var(--color-error)]">{error}</p>}
+      {friends.length ? (
+        <main className="divide-y divide-[var(--color-border)]">
+          {friends.map(({ persona, session, lastMessage }) => (
+            <button
+              key={session.id}
+              type="button"
+              onClick={() => void openChat(persona)}
+              className="w-full py-4 flex items-center gap-3 text-left active:bg-white/70 transition-colors"
+            >
+              <FriendAvatar url={avatars[persona.id] ?? ""} label={persona.name} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="font-medium truncate">{persona.name}</h2>
+                  <time className="shrink-0 text-[11px] text-[var(--color-text-secondary)]">
+                    {formatChatTime(lastMessage?.created_at ?? session.updated_at)}
+                  </time>
+                </div>
+                <p className="mt-1 text-sm text-[var(--color-text-secondary)] truncate">
+                  {lastMessage
+                    ? `${lastMessage.role === "user" ? "我：" : ""}${lastMessage.content}`
+                    : "点击开始聊天"}
+                </p>
+              </div>
+            </button>
+          ))}
+        </main>
+      ) : (
+        <div className="pt-14">
+          <EmptyState icon="💬" title="还没有聊天" subtitle="点击右上角加号，选择一位笔友。" />
+        </div>
+      )}
+
+      {pickerOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/30 flex items-end justify-center"
+          onClick={() => setPickerOpen(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="选择笔友"
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-[480px] max-h-[72dvh] overflow-hidden rounded-t-3xl bg-[var(--color-bg)] shadow-2xl"
+          >
+            <div className="p-5 pb-3 flex items-center justify-between border-b">
+              <div>
+                <h2 className="text-lg font-semibold">选择笔友</h2>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                  每位笔友都有独立聊天记录
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭"
+                onClick={() => setPickerOpen(false)}
+                className="w-9 h-9 rounded-full bg-white border flex items-center justify-center"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-3 pb-[calc(16px+env(safe-area-inset-bottom))]">
+              {personas.length ? (
+                personas.map((persona) => {
+                  const exists = friends.some((friend) => friend.persona.id === persona.id);
+                  return (
+                    <button
+                      key={persona.id}
+                      type="button"
+                      disabled={Boolean(adding)}
+                      onClick={() => void openChat(persona)}
+                      className="w-full p-3 rounded-2xl flex items-center gap-3 text-left hover:bg-white disabled:opacity-50"
+                    >
+                      <FriendAvatar url={avatars[persona.id] ?? ""} label={persona.name} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{persona.name}</p>
+                        <p className="text-xs text-[var(--color-text-secondary)] truncate">
+                          {adding === persona.id
+                            ? "正在打开…"
+                            : exists
+                              ? "已有聊天，点击进入"
+                              : persona.relationship || persona.description || "新建聊天"}
+                        </p>
+                      </div>
+                      <span className="text-[var(--color-primary)]">›</span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="p-3">
+                  <EmptyState icon="✉️" title="还没有笔友" subtitle="先创建一位笔友人设吧。" />
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/persona" })}
+                    className="btn-primary w-full mt-4"
+                  >
+                    创建笔友
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConversationPage({
+  charId,
+  initialDiaryId,
+}: {
+  charId: string;
+  initialDiaryId: string | undefined;
+}) {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const router = useRouter();
-  const { diary: initialDiaryId } = Route.useSearch();
   const send = useServerFn(sendPenpalMessage);
   const reroll = useServerFn(rerollPenpalTurn);
   const clear = useServerFn(clearCurrentChat);
-  const [chars, setChars] = useState<AiPersona[]>([]);
-  const [charId, setCharId] = useState("");
+  const [current, setCurrent] = useState<AiPersona | null>(null);
   const [sessionId, setSessionId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -47,16 +302,29 @@ function ChatPage() {
   const [userAvatar, setUserAvatar] = useState("");
   const [mode, setMode] = useState<DiaryContextMode>(initialDiaryId ? "current" : "none");
   const bottom = useRef<HTMLDivElement>(null);
-  const current = chars.find((item) => item.id === charId);
 
-  const loadForChar = useCallback(
-    async (selected: string, list = chars) => {
-      if (!selected) return;
+  useEffect(() => {
+    let active = true;
+    void (async () => {
       setLoading(true);
+      setError("");
+      const { data: persona } = await db
+        .from("ai_personas")
+        .select("*")
+        .eq("id", charId)
+        .maybeSingle();
+      if (!active) return;
+      if (!persona) {
+        setCurrent(null);
+        setLoading(false);
+        return;
+      }
+      setCurrent(persona as AiPersona);
+      localStorage.setItem("current-char-id", charId);
       const { data: existing } = await db
         .from("chat_sessions")
         .select("*")
-        .eq("char_id", selected)
+        .eq("char_id", charId)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -65,7 +333,7 @@ function ChatPage() {
         const { data } = await db
           .from("chat_sessions")
           .insert({
-            char_id: selected,
+            char_id: charId,
             diary_context_mode: initialDiaryId ? "current" : "none",
             context_diary_id: initialDiaryId ?? null,
           })
@@ -73,6 +341,7 @@ function ChatPage() {
           .single();
         currentSession = data;
       }
+      if (!active) return;
       if (!currentSession) {
         setError("无法创建聊天会话，请先完成数据库迁移。");
         setLoading(false);
@@ -86,28 +355,18 @@ function ChatPage() {
         .eq("session_id", currentSession.id)
         .order("created_at", { ascending: true })
         .order("message_order", { ascending: true });
+      if (!active) return;
       setMessages((rows ?? []) as ChatMessage[]);
-      setChars(list);
       setLoading(false);
-    },
-    [chars, db, initialDiaryId],
-  );
-
-  useEffect(() => {
-    void (async () => {
-      const { data } = await db
-        .from("ai_personas")
-        .select("*")
-        .order("updated_at", { ascending: false });
-      const list = (data ?? []) as AiPersona[];
-      const saved = localStorage.getItem("current-char-id");
-      const selected = list.find((item) => item.id === saved)?.id ?? list[0]?.id ?? "";
-      setChars(list);
-      setCharId(selected);
-      if (selected) await loadForChar(selected, list);
-      else setLoading(false);
-    })();
-  }, []);
+    })().catch((reason) => {
+      if (!active) return;
+      setError(reason instanceof Error ? reason.message : "聊天加载失败。");
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [charId, initialDiaryId]);
 
   useEffect(() => bottom.current?.scrollIntoView({ behavior: "smooth" }), [messages, sending]);
   useEffect(() => {
@@ -143,13 +402,6 @@ function ChatPage() {
         return updated;
       });
     }
-  }
-
-  async function switchChar(id: string) {
-    localStorage.setItem("current-char-id", id);
-    setCharId(id);
-    setMenu(null);
-    await loadForChar(id);
   }
 
   async function changeMode(nextMode: DiaryContextMode) {
@@ -288,16 +540,19 @@ function ChatPage() {
         <LoadingSpinner />
       </div>
     );
-  if (!chars.length)
+  if (!current)
     return (
       <div className="page-container">
         <EmptyState
           icon="✉️"
-          title="先创建一位笔友"
-          subtitle="笔友名录中的每一位都有独立聊天记录。"
+          title="找不到这位笔友"
+          subtitle="这位笔友可能已被删除，请返回聊天列表重新选择。"
         />
-        <button onClick={() => navigate({ to: "/persona" })} className="btn-primary w-full mt-5">
-          创建笔友
+        <button
+          onClick={() => navigate({ to: "/chat", search: {} })}
+          className="btn-primary w-full mt-5"
+        >
+          返回聊天列表
         </button>
       </div>
     );
@@ -314,8 +569,8 @@ function ChatPage() {
       <header className="px-4 py-3 border-b bg-[var(--color-bg)] flex items-center gap-2">
         <button
           type="button"
-          aria-label="返回"
-          onClick={() => router.history.back()}
+          aria-label="返回聊天列表"
+          onClick={() => navigate({ to: "/chat", search: {} })}
           className="w-9 h-9 flex items-center justify-center"
         >
           ←
@@ -331,19 +586,7 @@ function ChatPage() {
             <UserRound size={18} className="text-[var(--color-text-secondary)]" />
           )}
         </div>
-        <select
-          value={charId}
-          disabled={sending}
-          onChange={(event) => void switchChar(event.target.value)}
-          className="flex-1 bg-transparent font-semibold text-center"
-        >
-          <option value="">选择笔友</option>
-          {chars.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
+        <h1 className="flex-1 font-semibold text-center truncate">{current.name}</h1>
         <button
           type="button"
           aria-label="聊天设置"
@@ -536,6 +779,31 @@ function ChatAvatar({ url, label }: { url: string; label: string }) {
       )}
     </div>
   );
+}
+
+function FriendAvatar({ url, label }: { url: string; label: string }) {
+  return (
+    <div className="w-13 h-13 shrink-0 rounded-2xl overflow-hidden border border-[var(--color-border)] bg-white flex items-center justify-center text-lg font-semibold text-[var(--color-primary)]">
+      {url ? (
+        <img src={url} alt={label} className="w-full h-full object-cover" />
+      ) : (
+        <span aria-hidden="true">{label.trim().slice(0, 1) || "友"}</span>
+      )}
+    </div>
+  );
+}
+
+function formatChatTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  }
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+  }
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 function pause(milliseconds: number) {

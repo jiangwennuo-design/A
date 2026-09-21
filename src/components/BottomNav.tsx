@@ -45,7 +45,9 @@ export function BottomNav() {
               key={label}
               type="button"
               aria-current={selected ? "page" : undefined}
-              onClick={() => navigate({ to })}
+              onClick={() =>
+                to === "/chat" ? navigate({ to: "/chat", search: {} }) : navigate({ to })
+              }
               className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${selected ? "text-[var(--color-primary)] font-medium" : "text-[var(--color-text-secondary)]"}`}
             >
               <Icon size={20} strokeWidth={selected ? 2.4 : 2} />
