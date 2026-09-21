@@ -288,17 +288,17 @@ textarea {
 
 .message-bubble {
   max-width: 85%;
-  padding: 13px 16px;
-  border-radius: 18px;
+  padding: 10px 14px;
+  border-radius: 16px;
   word-break: break-word;
-  line-height: 1.65;
+  line-height: 1.55;
   touch-action: pan-y;
 }
 
 .chat-avatar {
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: 10px;

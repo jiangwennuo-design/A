@@ -3,8 +3,12 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const uuid = z.string().uuid();
-const chatInput = z.object({
+const queuedMessageInput = z.object({
   message: z.string().trim().min(1).max(8000),
+  session_id: uuid,
+  char_id: uuid,
+});
+const replyInput = z.object({
   session_id: uuid,
   char_id: uuid,
   diary_context_mode: z.enum(["none", "current", "recent", "all"]),
@@ -17,6 +21,7 @@ type ChatRow = {
   role: "user" | "assistant";
   content: string;
   turn_id: string | null;
+  message_order: number;
   created_at: string;
 };
 const newTurnId = () => crypto.randomUUID();
@@ -145,9 +150,35 @@ async function generatePrivateReply(args: {
   return parseBubbles(result.text, min, max);
 }
 
-export const sendPenpalMessage = createServerFn({ method: "POST" })
+export const queuePenpalMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => chatInput.parse(data))
+  .inputValidator((data: unknown) => queuedMessageInput.parse(data))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as Db;
+    await loadOwnedContext(db, context.userId, data.session_id, data.char_id);
+    const { data: inserted, error } = await db
+      .from("chat_messages")
+      .insert({
+        session_id: data.session_id,
+        user_id: context.userId,
+        role: "user",
+        content: data.message,
+        message_order: 0,
+      })
+      .select("*")
+      .single();
+    if (error || !inserted) throw new Error("保存聊天消息失败。");
+    await db
+      .from("chat_sessions")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", data.session_id)
+      .eq("user_id", context.userId);
+    return { message: inserted };
+  });
+
+export const requestPenpalReply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => replyInput.parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     const { character, profile } = await loadOwnedContext(
@@ -158,33 +189,32 @@ export const sendPenpalMessage = createServerFn({ method: "POST" })
     );
     const { data: history } = await db
       .from("chat_messages")
-      .select("id, role, content, turn_id, created_at")
+      .select("id, role, content, turn_id, message_order, created_at")
       .eq("session_id", data.session_id)
       .eq("user_id", context.userId)
-      .order("created_at", { ascending: true })
-      .limit(40);
+      .order("created_at", { ascending: false })
+      .order("message_order", { ascending: false })
+      .limit(80);
+    const rows = ((history ?? []) as ChatRow[]).reverse();
+    const lastAssistantIndex = rows.map((row) => row.role).lastIndexOf("assistant");
+    const pending = rows.slice(lastAssistantIndex + 1).filter((row) => row.role === "user");
+    if (!pending.length) throw new Error("请先发送一条消息，再让笔友回复。");
+    const pendingText = pending.map((row) => row.content).join("\n");
     const bubbles = await generatePrivateReply({
       db,
       userId: context.userId,
       character,
       profile,
-      history: (history ?? []) as ChatRow[],
-      message: data.message,
+      history: rows.slice(0, lastAssistantIndex + 1),
+      message: pendingText,
       mode: data.diary_context_mode,
       diaryId: data.context_diary_id,
     });
     const turnId = newTurnId();
     const { data: inserted, error } = await db
       .from("chat_messages")
-      .insert([
-        {
-          session_id: data.session_id,
-          user_id: context.userId,
-          role: "user",
-          content: data.message,
-          message_order: 0,
-        },
-        ...bubbles.map((content, index) => ({
+      .insert(
+        bubbles.map((content, index) => ({
           session_id: data.session_id,
           user_id: context.userId,
           role: "assistant",
@@ -192,7 +222,7 @@ export const sendPenpalMessage = createServerFn({ method: "POST" })
           turn_id: turnId,
           message_order: index + 1,
         })),
-      ])
+      )
       .select("*");
     if (error) throw new Error("保存聊天消息失败。");
     await db
@@ -226,25 +256,30 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
     );
     const { data: allMessages } = await db
       .from("chat_messages")
-      .select("id, role, content, turn_id, created_at")
+      .select("id, role, content, turn_id, message_order, created_at")
       .eq("session_id", data.session_id)
       .eq("user_id", context.userId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .order("message_order", { ascending: true });
     const rows = (allMessages ?? []) as ChatRow[];
     const firstCurrent = rows.findIndex(
       (row) => row.role === "assistant" && row.turn_id === data.turn_id,
     );
     if (firstCurrent < 0) throw new Error("找不到需要重新生成的回复。");
-    const userIndex = [...rows.slice(0, firstCurrent)].map((row) => row.role).lastIndexOf("user");
-    const userMessage = userIndex >= 0 ? rows[userIndex]!.content : undefined;
-    if (!userMessage) throw new Error("该轮对话缺少用户消息。");
+    const previousAssistantIndex = [...rows.slice(0, firstCurrent)]
+      .map((row) => row.role)
+      .lastIndexOf("assistant");
+    const userMessages = rows
+      .slice(previousAssistantIndex + 1, firstCurrent)
+      .filter((row) => row.role === "user");
+    if (!userMessages.length) throw new Error("该轮对话缺少用户消息。");
     const bubbles = await generatePrivateReply({
       db,
       userId: context.userId,
       character,
       profile,
-      history: rows.slice(0, userIndex),
-      message: userMessage,
+      history: rows.slice(0, previousAssistantIndex + 1),
+      message: userMessages.map((row) => row.content).join("\n"),
       mode: data.diary_context_mode,
       diaryId: data.context_diary_id,
     });

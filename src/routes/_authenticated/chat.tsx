@@ -5,7 +5,12 @@ import { z } from "zod";
 import { Copy, Plus, RefreshCw, Send, Settings, Trash2, UserRound, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { clearCurrentChat, rerollPenpalTurn, sendPenpalMessage } from "@/lib/penpal.functions";
+import {
+  clearCurrentChat,
+  queuePenpalMessage,
+  requestPenpalReply,
+  rerollPenpalTurn,
+} from "@/lib/penpal.functions";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
 import type { AiPersona, ChatMessage, ChatSession, DiaryContextMode } from "@/lib/types";
@@ -276,7 +281,8 @@ function ConversationPage({
 }) {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const send = useServerFn(sendPenpalMessage);
+  const queueMessage = useServerFn(queuePenpalMessage);
+  const requestReply = useServerFn(requestPenpalReply);
   const reroll = useServerFn(rerollPenpalTurn);
   const clear = useServerFn(clearCurrentChat);
   const [current, setCurrent] = useState<AiPersona | null>(null);
@@ -284,6 +290,7 @@ function ConversationPage({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [savingMessage, setSavingMessage] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<string | null>(null);
@@ -299,6 +306,10 @@ function ConversationPage({
   const latestTurnId = [...messages]
     .reverse()
     .find((message) => message.role === "assistant" && message.turn_id)?.turn_id;
+  const lastAssistantIndex = messages.map((message) => message.role).lastIndexOf("assistant");
+  const hasPendingMessages = messages
+    .slice(lastAssistantIndex + 1)
+    .some((message) => message.role === "user" && !message.id.startsWith("pending-"));
 
   function cancelLongPress() {
     if (longPressTimer.current !== null) {
@@ -439,7 +450,7 @@ function ConversationPage({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!input.trim() || !sessionId || !charId || sending) return;
+    if (!input.trim() || !sessionId || !charId || savingMessage || sending) return;
     const text = input.trim();
     const now = new Date().toISOString();
     const optimisticId = `pending-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
@@ -456,33 +467,50 @@ function ConversationPage({
       updated_at: now,
     };
     setInput("");
-    setSending(true);
+    setSavingMessage(true);
     setError("");
     setMenu(null);
     setToolsOpen(false);
     setMessages((previous) => [...previous, optimisticMessage]);
     try {
-      const result = await send({
+      const result = await queueMessage({
         data: {
           message: text,
+          session_id: sessionId,
+          char_id: charId,
+        },
+      });
+      const savedUser = result.message as ChatMessage;
+      setMessages((previous) =>
+        previous.map((message) => (message.id === optimisticId ? savedUser : message)),
+      );
+    } catch (reason) {
+      setMessages((previous) => previous.filter((message) => message.id !== optimisticId));
+      setInput((currentInput) => currentInput || text);
+      setError(reason instanceof Error ? reason.message : "发送失败。");
+    } finally {
+      setSavingMessage(false);
+    }
+  }
+
+  async function triggerReply() {
+    if (!sessionId || !charId || sending || savingMessage || !hasPendingMessages) return;
+    setSending(true);
+    setError("");
+    setMenu(null);
+    setToolsOpen(false);
+    try {
+      const result = await requestReply({
+        data: {
           session_id: sessionId,
           char_id: charId,
           diary_context_mode: mode,
           context_diary_id: initialDiaryId ?? null,
         },
       });
-      const returned = result.messages as ChatMessage[];
-      const savedUser = returned.find((message) => message.role === "user");
-      if (savedUser) {
-        setMessages((previous) =>
-          previous.map((message) => (message.id === optimisticId ? savedUser : message)),
-        );
-      }
-      await revealAssistantMessages(returned);
+      await revealAssistantMessages(result.messages as ChatMessage[]);
     } catch (reason) {
-      setMessages((previous) => previous.filter((message) => message.id !== optimisticId));
-      setInput((currentInput) => currentInput || text);
-      setError(reason instanceof Error ? reason.message : "发送失败。");
+      setError(reason instanceof Error ? reason.message : "回复失败，请稍后重试。");
     } finally {
       setSending(false);
     }
@@ -513,7 +541,7 @@ function ConversationPage({
   }
 
   async function rerollTurn(turnId: string) {
-    if (!sessionId || !charId || sending) return;
+    if (!sessionId || !charId || sending || savingMessage) return;
     const originalTurn = messages.filter((message) => message.turn_id === turnId);
     const insertionIndex = messages.findIndex((message) => message.turn_id === turnId);
     setMessages((previous) => previous.filter((message) => message.turn_id !== turnId));
@@ -548,6 +576,8 @@ function ConversationPage({
     if (
       !sessionId ||
       !charId ||
+      sending ||
+      savingMessage ||
       !confirm(`确定清空与${current?.name ?? "当前笔友"}的全部聊天记录吗？此操作无法撤销。`)
     )
       return;
@@ -634,7 +664,7 @@ function ConversationPage({
           messages.map((message) => (
             <div
               key={message.id}
-              className={`message-enter flex items-end gap-2 relative ${message.role === "user" ? "flex-row-reverse" : ""}`}
+              className={`message-enter flex items-start gap-2 relative ${message.role === "user" ? "flex-row-reverse" : ""}`}
             >
               <ChatAvatar
                 url={message.role === "user" ? userAvatar : assistantAvatar}
@@ -659,7 +689,7 @@ function ConversationPage({
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") setMenu(message.id);
                 }}
-                className={`message-bubble max-w-[78%] select-none cursor-pointer ${message.role === "user" ? "bg-[var(--color-primary)] text-white" : "bg-white border border-[var(--color-border)]"}`}
+                className={`message-bubble max-w-[76%] select-none cursor-pointer ${message.role === "user" ? "bg-[var(--color-primary)] text-white" : "bg-white border border-[var(--color-border)]"}`}
               >
                 <p className="whitespace-pre-wrap text-base">{message.content}</p>
               </div>
@@ -668,7 +698,7 @@ function ConversationPage({
         )}
         {sending && (
           <div
-            className="message-enter flex items-end gap-2"
+            className="message-enter flex items-start gap-2"
             role="status"
             aria-label="笔友正在回复"
           >
@@ -685,13 +715,13 @@ function ConversationPage({
 
       <form
         onSubmit={submit}
-        className="relative p-3 pb-[calc(12px+env(safe-area-inset-bottom))] border-t bg-[var(--color-bg)] flex gap-2"
+        className="relative p-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] border-t bg-[var(--color-bg)] flex gap-1.5"
       >
         {toolsOpen && (
           <div className="absolute z-20 left-3 bottom-[calc(100%+8px)] min-w-48 rounded-2xl border bg-white p-2 shadow-xl slide-up">
             <button
               type="button"
-              disabled={!latestTurnId || sending}
+              disabled={!latestTurnId || sending || savingMessage}
               onClick={() => latestTurnId && void rerollTurn(latestTurnId)}
               className="w-full px-3 py-3 rounded-xl flex items-center gap-2 text-left disabled:opacity-40 hover:bg-[var(--color-bg)]"
             >
@@ -705,23 +735,32 @@ function ConversationPage({
           aria-label="更多聊天功能"
           aria-expanded={toolsOpen}
           onClick={() => setToolsOpen((open) => !open)}
-          className="w-11 h-11 shrink-0 self-end rounded-full border bg-white flex items-center justify-center text-[var(--color-primary)]"
+          className="w-10 h-10 shrink-0 self-end rounded-full border bg-white flex items-center justify-center text-[var(--color-primary)]"
         >
-          <Plus size={21} className={`transition-transform ${toolsOpen ? "rotate-45" : ""}`} />
+          <Plus size={19} className={`transition-transform ${toolsOpen ? "rotate-45" : ""}`} />
         </button>
         <textarea
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onFocus={() => setToolsOpen(false)}
           placeholder="说点什么…"
-          className="input-field flex-1 resize-none min-h-11"
+          className="input-field flex-1 resize-none min-h-10 !px-3 !py-2"
           rows={1}
         />
         <button
-          disabled={sending || !input.trim()}
-          className="w-11 rounded-xl bg-[var(--color-primary)] text-white flex justify-center items-center"
+          disabled={savingMessage || sending || !input.trim()}
+          aria-label="发送消息"
+          className="w-10 h-10 shrink-0 self-end rounded-xl bg-[var(--color-primary)] text-white flex justify-center items-center disabled:opacity-40"
         >
-          <Send size={18} />
+          <Send size={16} />
+        </button>
+        <button
+          type="button"
+          disabled={!hasPendingMessages || savingMessage || sending}
+          onClick={() => void triggerReply()}
+          className="h-10 shrink-0 self-end rounded-xl border border-[var(--color-primary)] px-2.5 text-sm font-medium text-[var(--color-primary)] disabled:opacity-35"
+        >
+          {sending ? "回复中" : "回复"}
         </button>
       </form>
 
@@ -829,7 +868,7 @@ function ConversationPage({
             </button>
             <button
               type="button"
-              disabled={sending || messages.length === 0}
+              disabled={sending || savingMessage || messages.length === 0}
               onClick={() => void clearChat()}
               className="w-full py-3 rounded-xl border border-[var(--color-error)] text-[var(--color-error)] disabled:opacity-40"
             >
