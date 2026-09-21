@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { LoadingSpinner, EmptyState } from "@/components/ui-kit";
 import type { Diary } from "@/lib/types";
-import { PenLine, BookOpen, Settings, MessageCircle } from "lucide-react";
+import { PenLine, BookOpen } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -60,19 +60,13 @@ function DiaryHomePage() {
   return (
     <div className="page-container">
       <div className="fade-in">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6">
           <div>
             <p className="text-sm text-[var(--color-text-secondary)] mb-1">{dateStr}</p>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">
               {greeting()}, {profile?.display_name || "朋友"}
             </h1>
           </div>
-          <button
-            onClick={() => navigate({ to: "/settings" })}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white border border-[var(--color-border)]"
-          >
-            <Settings size={20} className="text-[var(--color-text-secondary)]" />
-          </button>
         </div>
 
         <button
@@ -84,24 +78,6 @@ function DiaryHomePage() {
             <span className="font-medium text-base">写一篇日记</span>
           </div>
           <span className="text-lg opacity-60">→</span>
-        </button>
-
-        <button
-          onClick={() => navigate({ to: "/chat" })}
-          className="w-full mb-6 p-4 rounded-2xl bg-white border border-[var(--color-border)] flex items-center justify-between transition-all active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)] bg-opacity-15 flex items-center justify-center">
-              <MessageCircle size={20} className="text-[var(--color-accent)]" />
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-[var(--color-text)] text-sm">和笔友聊聊</p>
-              <p className="text-xs text-[var(--color-text-secondary)]">
-                分享你的故事，听听笔友怎么说
-              </p>
-            </div>
-          </div>
-          <span className="text-lg text-[var(--color-text-secondary)]">→</span>
         </button>
 
         <div className="flex items-center gap-2 mb-4">

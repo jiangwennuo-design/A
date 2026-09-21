@@ -12,7 +12,8 @@ import {
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { resolveAvatarUrl } from "@/lib/avatar";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -32,6 +33,17 @@ function SettingsPage() {
   const navigate = useNavigate();
   const router = useRouter();
   const { profile, user, signOut } = useAuth();
+  const [avatar, setAvatar] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void resolveAvatarUrl(profile?.avatar_url).then((url) => {
+      if (active) setAvatar(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [profile?.avatar_url]);
 
   const provider = user?.app_metadata?.provider || "email";
 
@@ -42,8 +54,12 @@ function SettingsPage() {
 
         <div className="card mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white text-xl font-medium">
-              {(profile?.display_name || user?.email || "?").charAt(0).toUpperCase()}
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-[var(--color-primary)] flex items-center justify-center text-white text-xl font-medium">
+              {avatar ? (
+                <img src={avatar} alt="我的头像" className="w-full h-full object-cover" />
+              ) : (
+                (profile?.display_name || user?.email || "?").charAt(0).toUpperCase()
+              )}
             </div>
             <div>
               <p className="font-medium text-[var(--color-text)]">
@@ -56,7 +72,11 @@ function SettingsPage() {
 
         <SectionTitle>账户</SectionTitle>
         <div className="card divide-y divide-[var(--color-border)] mb-6">
-          <SettingRowLink icon={User} label="我的资料与人设" onClick={() => navigate({ to: "/profile" })} />
+          <SettingRowLink
+            icon={User}
+            label="我的资料与人设"
+            onClick={() => navigate({ to: "/profile" })}
+          />
           <SettingRow icon={Mail} label="邮箱" value={user?.email || ""} />
           <SettingRow
             icon={KeyRound}
@@ -67,7 +87,11 @@ function SettingsPage() {
 
         <SectionTitle>AI 笔友</SectionTitle>
         <div className="card divide-y divide-[var(--color-border)] mb-6">
-          <SettingRowLink icon={Bot} label="笔友名录与人设" onClick={() => navigate({ to: "/persona" })} />
+          <SettingRowLink
+            icon={Bot}
+            label="笔友名录与人设"
+            onClick={() => navigate({ to: "/persona" })}
+          />
           <SettingRowLink
             icon={Cpu}
             label="AI 配置"
