@@ -23,14 +23,14 @@ ALTER TABLE public.chat_sessions
 -- existing persona, only when a persona exists. Sessions without an old persona
 -- remain usable and require choosing a penpal before new AI messages are sent.
 UPDATE public.chat_sessions s
-SET char_id = p.id
-FROM LATERAL (
+SET char_id = (
   SELECT id FROM public.ai_personas p
   WHERE p.user_id = s.user_id
   ORDER BY p.created_at ASC
   LIMIT 1
-) p
-WHERE s.char_id IS NULL;
+)
+WHERE s.char_id IS NULL
+  AND EXISTS (SELECT 1 FROM public.ai_personas p WHERE p.user_id = s.user_id);
 
 ALTER TABLE public.chat_messages
   ADD COLUMN IF NOT EXISTS turn_id uuid,
