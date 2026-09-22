@@ -28,7 +28,7 @@ async function ownedPersona(db: Db, userId: string, charId: string) {
     db.from("ai_personas").select("*").eq("id", charId).eq("user_id", userId).maybeSingle(),
     db.from("profiles").select("display_name, persona_text").eq("id", userId).maybeSingle(),
   ]);
-  if (!character) throw new Error("没有找到这位笔友。");
+  if (!character) throw new Error("没有找到这位角色。");
   return { character, profile };
 }
 
@@ -116,7 +116,7 @@ export const generateMomentInteraction = createServerFn({ method: "POST" })
       maxTokens: 180,
     });
     const content = result.text.trim().replace(/^(["“]|评论[:：]\s*)|["”]$/g, "");
-    if (!content) throw new Error("笔友暂时没有想好怎么评论。");
+    if (!content) throw new Error("角色暂时没有想好怎么评论。");
     const { data: inserted, error } = await db
       .from("moment_comments")
       .insert({
@@ -129,7 +129,7 @@ export const generateMomentInteraction = createServerFn({ method: "POST" })
       })
       .select("*")
       .single();
-    if (error) throw new Error("保存笔友评论失败。");
+    if (error) throw new Error("保存角色评论失败。");
     return { comment: inserted };
   });
 
@@ -235,6 +235,6 @@ export const generateMusicCompanionMessage = createServerFn({ method: "POST" })
       })
       .select("*")
       .single();
-    if (error) throw new Error("保存笔友回复失败。");
+    if (error) throw new Error("保存角色回复失败。");
     return { message: inserted };
   });

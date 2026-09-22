@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/moments")({
 type FeedPost = MomentPost & { imageUrls: string[] };
 
 function MomentsPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const interact = useServerFn(generateMomentInteraction);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [likes, setLikes] = useState<MomentLike[]>([]);
@@ -26,6 +26,8 @@ function MomentsPage() {
   const [personas, setPersonas] = useState<AiPersona[]>([]);
   const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
   const [myAvatar, setMyAvatar] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
+  const [coverUploading, setCoverUploading] = useState(false);
   const [draft, setDraft] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
@@ -34,6 +36,7 @@ function MomentsPage() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [replyTarget, setReplyTarget] = useState<Record<string, MomentComment | undefined>>({});
   const fileInput = useRef<HTMLInputElement>(null);
+  const coverInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -83,6 +86,26 @@ function MomentsPage() {
     void resolveAvatarUrl(profile?.avatar_url).then(setMyAvatar);
   }, [profile?.avatar_url]);
 
+  useEffect(() => {
+    let active = true;
+    const path = profile?.moment_cover_url;
+    if (!path) {
+      setCoverUrl("");
+      return () => {
+        active = false;
+      };
+    }
+    void supabase.storage
+      .from("moments")
+      .createSignedUrl(path, 3600)
+      .then(({ data }) => {
+        if (active) setCoverUrl(data?.signedUrl || "");
+      });
+    return () => {
+      active = false;
+    };
+  }, [profile?.moment_cover_url]);
+
   const filePreviews = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
   useEffect(() => () => filePreviews.forEach(URL.revokeObjectURL), [filePreviews]);
 
@@ -118,6 +141,47 @@ function MomentsPage() {
       setError(caught instanceof Error ? caught.message : "发布失败，请重试。");
     } finally {
       setPosting(false);
+    }
+  }
+
+  async function uploadCover(file?: File) {
+    if (!file || !user) return;
+    setError("");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("朋友圈封面需为 JPG、PNG 或 WebP 图片。");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setError("朋友圈封面不能超过 8MB。");
+      return;
+    }
+    setCoverUploading(true);
+    const extension =
+      file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `${user.id}/cover-${crypto.randomUUID()}.${extension}`;
+    const previousPath = profile?.moment_cover_url;
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("moments")
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw new Error("朋友圈封面上传失败，请稍后重试。");
+      const { error: updateError } = await (supabase as any)
+        .from("profiles")
+        .update({ moment_cover_url: path })
+        .eq("id", user.id);
+      if (updateError) {
+        await supabase.storage.from("moments").remove([path]);
+        throw new Error("朋友圈封面保存失败，请稍后重试。");
+      }
+      if (previousPath && previousPath !== path) {
+        await supabase.storage.from("moments").remove([previousPath]);
+      }
+      await refreshProfile();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "朋友圈封面更换失败。");
+    } finally {
+      setCoverUploading(false);
+      if (coverInput.current) coverInput.current.value = "";
     }
   }
 
@@ -169,7 +233,7 @@ function MomentsPage() {
         });
         await load();
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "笔友回复失败。");
+        setError(caught instanceof Error ? caught.message : "角色回复失败。");
       } finally {
         setBusyPost("");
       }
@@ -184,7 +248,7 @@ function MomentsPage() {
       await interact({ data: { post_id: postId, char_id: charId, parent_comment_id: null } });
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "笔友互动失败。");
+      setError(caught instanceof Error ? caught.message : "角色互动失败。");
     } finally {
       setBusyPost("");
     }
@@ -199,8 +263,26 @@ function MomentsPage() {
 
   return (
     <main className="moments-page fade-in">
-      <section className="moments-cover">
+      <section
+        className={`moments-cover${coverUrl ? " has-custom-cover" : ""}`}
+        style={coverUrl ? { backgroundImage: `url(${coverUrl})` } : undefined}
+      >
         <div className="moments-cover__title">朋友圈</div>
+        <input
+          ref={coverInput}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          onChange={(event) => void uploadCover(event.target.files?.[0])}
+        />
+        <button
+          type="button"
+          className="moments-cover__change"
+          disabled={coverUploading}
+          onClick={() => coverInput.current?.click()}
+        >
+          <Camera size={15} /> {coverUploading ? "上传中" : "更换封面"}
+        </button>
         <div className="moments-cover__identity">
           <span>{profile?.display_name || "我"}</span>
           <Avatar src={myAvatar} label={profile?.display_name || "我"} large />
@@ -310,7 +392,7 @@ function MomentsPage() {
                   </button>
                   {personas.length > 0 && (
                     <select
-                      aria-label="邀请笔友互动"
+                      aria-label="邀请角色互动"
                       disabled={busyPost === post.id}
                       defaultValue=""
                       onChange={(event) => {
@@ -319,7 +401,7 @@ function MomentsPage() {
                       }}
                     >
                       <option value="" disabled>
-                        {busyPost === post.id ? "笔友正在想……" : "邀请笔友"}
+                        {busyPost === post.id ? "角色正在想……" : "邀请角色"}
                       </option>
                       {personas.map((char) => (
                         <option key={char.id} value={char.id}>
@@ -409,7 +491,7 @@ function MomentsPage() {
                 </div>
                 {busyPost === post.id && (
                   <p className="moment-thinking">
-                    <Sparkles size={13} /> 笔友正在组织语言……
+                    <Sparkles size={13} /> 角色正在组织语言……
                   </p>
                 )}
               </div>

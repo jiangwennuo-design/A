@@ -6,13 +6,11 @@ import {
   ArrowUp,
   ChevronLeft,
   ChevronRight,
-  Copy,
   House,
   Plus,
   RefreshCw,
   Search,
   Settings,
-  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -178,7 +176,6 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
           >
             <House size={18} />
           </button>
-          <span className="chat-inbox__eyebrow">此心一笺</span>
         </div>
         <button
           type="button"
@@ -197,8 +194,8 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
         <Search size={18} />
         <input
           type="search"
-          aria-label="搜索笔友或消息"
-          placeholder="搜索笔友或消息"
+          aria-label="搜索角色或消息"
+          placeholder="搜索角色或消息"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -245,7 +242,7 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
         </main>
       ) : (
         <div className="pt-14">
-          <EmptyState icon="💬" title="还没有聊天" subtitle="点击右上角加号，选择一位笔友。" />
+          <EmptyState icon="💬" title="还没有聊天" subtitle="点击右上角加号，选择一位角色。" />
         </div>
       )}
       {friends.length > 0 &&
@@ -264,15 +261,15 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
           <section
             role="dialog"
             aria-modal="true"
-            aria-label="选择笔友"
+            aria-label="选择角色"
             onClick={(event) => event.stopPropagation()}
             className="w-full max-w-[480px] max-h-[72dvh] overflow-hidden rounded-t-3xl bg-[var(--color-bg)] shadow-2xl"
           >
             <div className="p-5 pb-3 flex items-center justify-between border-b">
               <div>
-                <h2 className="text-lg font-semibold">选择笔友</h2>
+                <h2 className="text-lg font-semibold">选择角色</h2>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  每位笔友都有独立聊天记录
+                  每位角色都有独立聊天记录
                 </p>
               </div>
               <button
@@ -313,13 +310,13 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
                 })
               ) : (
                 <div className="p-3">
-                  <EmptyState icon="✉️" title="还没有笔友" subtitle="先创建一位笔友人设吧。" />
+                  <EmptyState icon="✉️" title="还没有角色" subtitle="先创建一位角色吧。" />
                   <button
                     type="button"
                     onClick={() => navigate({ to: "/persona" })}
                     className="btn-primary w-full mt-4"
                   >
-                    创建笔友
+                    创建角色
                   </button>
                 </div>
               )}
@@ -353,7 +350,6 @@ function ConversationPage({
   const [savingMessage, setSavingMessage] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [menu, setMenu] = useState<string | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
   const [assistantAvatar, setAssistantAvatar] = useState("");
@@ -362,7 +358,6 @@ function ConversationPage({
   const conversationRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useKeyboardViewport(conversationRef, !loading && Boolean(current));
-  const selectedMessage = messages.find((message) => message.id === menu);
   const { latestTurnId, hasPendingMessages } = useMemo(() => {
     const latestTurnId = [...messages]
       .reverse()
@@ -519,7 +514,6 @@ function ConversationPage({
     setInput("");
     setSavingMessage(true);
     setError("");
-    setMenu(null);
     setToolsOpen(false);
     setMessages((previous) => [...previous, optimisticMessage]);
     try {
@@ -547,7 +541,6 @@ function ConversationPage({
     if (!sessionId || !charId || sending || savingMessage || !hasPendingMessages) return;
     setSending(true);
     setError("");
-    setMenu(null);
     setToolsOpen(false);
     try {
       const result = await requestReply({
@@ -566,37 +559,12 @@ function ConversationPage({
     }
   }
 
-  async function updateMessage(message: ChatMessage) {
-    const content = prompt("编辑消息", message.content);
-    if (content === null || !content.trim()) return;
-    const { error: updateError } = await db
-      .from("chat_messages")
-      .update({ content: content.trim(), edited: true })
-      .eq("id", message.id);
-    if (updateError) return setError("编辑失败。");
-    setMessages((previous) =>
-      previous.map((item) =>
-        item.id === message.id ? { ...item, content: content.trim(), edited: true } : item,
-      ),
-    );
-    setMenu(null);
-  }
-
-  async function deleteMessage(message: ChatMessage) {
-    if (!confirm("确定删除这条消息吗？")) return;
-    const { error: deleteError } = await db.from("chat_messages").delete().eq("id", message.id);
-    if (deleteError) return setError("删除失败。");
-    setMessages((previous) => previous.filter((item) => item.id !== message.id));
-    setMenu(null);
-  }
-
   async function rerollTurn(turnId: string) {
     if (!sessionId || !charId || sending || savingMessage) return;
     const originalTurn = messages.filter((message) => message.turn_id === turnId);
     const insertionIndex = messages.findIndex((message) => message.turn_id === turnId);
     setMessages((previous) => previous.filter((message) => message.turn_id !== turnId));
     setSending(true);
-    setMenu(null);
     setToolsOpen(false);
     setError("");
     try {
@@ -628,7 +596,7 @@ function ConversationPage({
       !charId ||
       sending ||
       savingMessage ||
-      !confirm(`确定清空与${current?.name ?? "当前笔友"}的全部聊天记录吗？此操作无法撤销。`)
+      !confirm(`确定清空与${current?.name ?? "当前角色"}的全部聊天记录吗？此操作无法撤销。`)
     )
       return;
     setSending(true);
@@ -654,8 +622,8 @@ function ConversationPage({
       <div className="page-container">
         <EmptyState
           icon="✉️"
-          title="找不到这位笔友"
-          subtitle="这位笔友可能已被删除，请返回聊天列表重新选择。"
+          title="找不到这位角色"
+          subtitle="这位角色可能已被删除，请返回聊天列表重新选择。"
         />
         <button
           onClick={() => navigate({ to: "/chat", search: {} })}
@@ -673,24 +641,27 @@ function ConversationPage({
           type="button"
           aria-label="返回聊天列表"
           onClick={() => navigate({ to: "/chat", search: {} })}
-          className="chat-icon-button"
+          className="chat-header-back"
         >
-          <ChevronLeft size={27} strokeWidth={1.8} />
+          <ChevronLeft size={26} strokeWidth={1.8} />
+          <span>消息</span>
         </button>
-        <div className="chat-header-avatar">
-          {assistantAvatar ? (
-            <img
-              src={assistantAvatar}
-              alt={current?.name ?? "笔友"}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <UserRound size={18} className="text-[var(--color-text-secondary)]" />
-          )}
-        </div>
-        <div className="chat-conversation__identity">
-          <h1>{current.name}</h1>
-          <p>{sending ? "正在回复…" : "你的笔友"}</p>
+        <div className="chat-conversation__contact">
+          <div className="chat-header-avatar">
+            {assistantAvatar ? (
+              <img
+                src={assistantAvatar}
+                alt={current?.name ?? "角色"}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <UserRound size={18} className="text-[var(--color-text-secondary)]" />
+            )}
+          </div>
+          <div className="chat-conversation__identity">
+            <h1>{current.name}</h1>
+            <p>{sending ? "正在回复…" : "角色"}</p>
+          </div>
         </div>
         <button
           type="button"
@@ -710,7 +681,6 @@ function ConversationPage({
         userAvatar={userAvatar}
         assistantName={current.name}
         userName={profile?.display_name || "我"}
-        onSelect={setMenu}
       />
 
       <form onSubmit={submit} className="chat-composer">
@@ -763,62 +733,6 @@ function ConversationPage({
         </button>
       </form>
 
-      {selectedMessage && (
-        <div
-          className="fixed inset-0 z-[70] bg-black/25 flex items-end justify-center"
-          onClick={() => setMenu(null)}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="消息操作"
-            onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-[480px] rounded-t-3xl bg-[var(--color-bg)] p-4 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-2xl slide-up"
-          >
-            <p className="px-2 pb-3 text-xs text-[var(--color-text-secondary)] truncate">
-              {selectedMessage.content}
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  void navigator.clipboard
-                    .writeText(selectedMessage.content)
-                    .then(() => setMenu(null))
-                }
-                className="btn-secondary !px-2 flex flex-col items-center gap-1 text-sm"
-              >
-                <Copy size={18} />
-                复制
-              </button>
-              <button
-                type="button"
-                onClick={() => void updateMessage(selectedMessage)}
-                className="btn-secondary !px-2 flex flex-col items-center gap-1 text-sm"
-              >
-                <span className="text-base leading-none">✎</span>
-                编辑
-              </button>
-              <button
-                type="button"
-                onClick={() => void deleteMessage(selectedMessage)}
-                className="btn-secondary !px-2 flex flex-col items-center gap-1 text-sm !text-[var(--color-error)]"
-              >
-                <Trash2 size={18} />
-                删除
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setMenu(null)}
-              className="btn-secondary w-full mt-3"
-            >
-              取消
-            </button>
-          </section>
-        </div>
-      )}
-
       {chatSettingsOpen && (
         <div
           className="fixed inset-0 z-[60] bg-black/30 flex items-end justify-center"
@@ -863,7 +777,7 @@ function ConversationPage({
               onClick={() => navigate({ to: "/persona" })}
               className="btn-secondary w-full mb-3"
             >
-              编辑当前笔友与头像
+              编辑当前角色与头像
             </button>
             <button
               type="button"

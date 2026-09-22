@@ -10,6 +10,7 @@ export interface Profile {
   wallpaper_blur: number;
   wallpaper_opacity: number;
   wallpaper_preset: string;
+  moment_cover_url: string | null;
   time_awareness_enabled: boolean;
   timezone: string;
   created_at: string;

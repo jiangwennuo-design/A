@@ -101,7 +101,7 @@ function FocusPage() {
         .eq("user_id", user.id);
     }
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(`${modeLabels[mode]}结束`, { body: "辛苦了，回来看看笔友吧。" });
+      new Notification(`${modeLabels[mode]}结束`, { body: "辛苦了，回来看看陪伴角色吧。" });
     }
     try {
       const audio = new Audio(
@@ -123,7 +123,7 @@ function FocusPage() {
             .update({ end_message: result.message })
             .eq("id", sessionId);
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "笔友暂时没有回应。");
+        setError(caught instanceof Error ? caught.message : "角色暂时没有回应。");
       }
     }
     await load();
@@ -171,7 +171,7 @@ function FocusPage() {
           .update({ start_message: result.message })
           .eq("id", data.id);
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "计时已开始，但笔友暂时没有回应。");
+        setError(caught instanceof Error ? caught.message : "计时已开始，但角色暂时没有回应。");
       }
     }
   }
@@ -274,13 +274,13 @@ function FocusPage() {
         <div className="focus-companion__person">
           <span className="focus-companion__avatar">
             {avatar ? (
-              <img src={avatar} alt={selectedChar?.name || "陪伴笔友"} />
+              <img src={avatar} alt={selectedChar?.name || "陪伴角色"} />
             ) : (
               (selectedChar?.name || "伴").charAt(0)
             )}
           </span>
           <div>
-            <small>陪伴笔友</small>
+            <small>陪伴角色</small>
             <select
               value={charId}
               disabled={state !== "idle"}

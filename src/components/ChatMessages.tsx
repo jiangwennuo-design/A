@@ -9,7 +9,6 @@ interface Props {
   userAvatar: string;
   assistantName: string;
   userName: string;
-  onSelect: (id: string) => void;
 }
 
 export const ChatMessages = memo(function ChatMessages({
@@ -19,28 +18,14 @@ export const ChatMessages = memo(function ChatMessages({
   userAvatar,
   assistantName,
   userName,
-  onSelect,
 }: Props) {
   const viewport = useRef<HTMLElement>(null);
-  const timer = useRef<number | null>(null);
-  const origin = useRef<{ x: number; y: number } | null>(null);
   const [visibleCount, setVisibleCount] = useState(80);
   const preserveScroll = useRef<{ height: number; top: number } | null>(null);
   const lastId = messages.at(-1)?.id;
   const previousLastId = useRef<string | undefined>(undefined);
   const nearBottom = useRef(true);
 
-  const cancel = () => {
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = null;
-    origin.current = null;
-  };
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    },
-    [],
-  );
   useLayoutEffect(() => {
     const el = viewport.current;
     if (!el) return;
@@ -100,42 +85,8 @@ export const ChatMessages = memo(function ChatMessages({
               name={isUser ? userName : assistantName}
             />
             <div
-              role="button"
-              tabIndex={0}
-              aria-label="长按打开消息操作"
               className="message-bubble"
-              onPointerDown={(event) => {
-                if (event.button !== 0) return;
-                cancel();
-                origin.current = { x: event.clientX, y: event.clientY };
-                timer.current = window.setTimeout(() => {
-                  onSelect(message.id);
-                  cancel();
-                  navigator.vibrate?.(12);
-                }, 480);
-              }}
-              onPointerUp={cancel}
-              onPointerCancel={cancel}
-              onPointerLeave={cancel}
-              onPointerMove={(event) => {
-                if (
-                  origin.current &&
-                  Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y) >
-                    10
-                )
-                  cancel();
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                cancel();
-                onSelect(message.id);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelect(message.id);
-                }
-              }}
+              aria-label={`${isUser ? userName : assistantName}的消息`}
             >
               <p>{message.content}</p>
             </div>
@@ -146,7 +97,7 @@ export const ChatMessages = memo(function ChatMessages({
         <div
           className="chat-message-row is-char message-enter"
           role="status"
-          aria-label="笔友正在回复"
+          aria-label="角色正在回复"
         >
           <MessageAvatar url={assistantAvatar} name={assistantName} />
           <div className="message-bubble typing-bubble">

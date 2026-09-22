@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { Plus, Trash2, Upload } from "lucide-react";
@@ -10,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export const Route = createFileRoute("/_authenticated/persona")({ component: PersonaPage });
 const blank = {
-  name: "新笔友",
+  name: "新角色",
   description: "",
   personality: "",
   speaking_style: "",
@@ -42,7 +43,7 @@ function PersonaPage() {
       .from("ai_personas")
       .select("*")
       .order("updated_at", { ascending: false });
-    if (error) setError("加载笔友名录失败。");
+    if (error) setError("加载角色名录失败。");
     const list = (data ?? []) as AiPersona[];
     setItems(list);
     if (!active && list[0]) select(list[0]);
@@ -93,9 +94,9 @@ function PersonaPage() {
     select(saved);
   }
   async function remove() {
-    if (!active || !confirm(`确定删除笔友“${active.name}”吗？相关会话将不再可用。`)) return;
+    if (!active || !confirm(`确定删除角色“${active.name}”吗？相关会话将不再可用。`)) return;
     const { error } = await db.from("ai_personas").delete().eq("id", active.id);
-    if (error) return setError("删除失败。请先确认该笔友没有受保护的数据关联。");
+    if (error) return setError("删除失败。请先确认该角色没有受保护的数据关联。");
     const next = items.filter((item) => item.id !== active.id);
     setItems(next);
     setActive(null);
@@ -121,7 +122,7 @@ function PersonaPage() {
   return (
     <div className="page-container">
       <Header
-        title="笔友名录"
+        title="角色名录"
         onBack={() => router.history.back()}
         rightAction={
           <button
@@ -147,12 +148,12 @@ function PersonaPage() {
           </button>
         ))}
         {items.length === 0 && (
-          <p className="text-sm text-[var(--color-text-secondary)]">还没有笔友，先创建一个吧。</p>
+          <p className="text-sm text-[var(--color-text-secondary)]">还没有角色，先创建一个吧。</p>
         )}
       </div>
       <form onSubmit={save} className="space-y-4 pb-8">
         <p className="text-sm text-[var(--color-text-secondary)]">
-          每位笔友的人设、头像、回复设置、聊天和日记回信彼此独立。
+          每位角色的人设、头像、回复设置、聊天和日记回信彼此独立。
         </p>
         <Field
           label="名字"
@@ -161,7 +162,7 @@ function PersonaPage() {
         />
         {user && (
           <AvatarPicker
-            label="笔友头像"
+            label="角色头像"
             owner="penpal"
             userId={user.id}
             value={form.avatar_url}
@@ -240,7 +241,7 @@ function PersonaPage() {
           />
         </div>
         <button type="submit" disabled={saving} className="btn-primary w-full">
-          {saving ? "保存中…" : active ? "保存笔友" : "创建笔友"}
+          {saving ? "保存中…" : active ? "保存角色" : "创建角色"}
         </button>
         {active && (
           <button
@@ -249,7 +250,7 @@ function PersonaPage() {
             className="w-full py-3 text-sm text-[var(--color-error)] flex items-center justify-center gap-1"
           >
             <Trash2 size={15} />
-            删除当前笔友
+            删除当前角色
           </button>
         )}
         <button
@@ -257,7 +258,7 @@ function PersonaPage() {
           onClick={() => navigate({ to: "/chat" })}
           className="w-full py-3 text-sm text-[var(--color-primary)]"
         >
-          去和当前笔友聊天
+          去和当前角色聊天
         </button>
       </form>
     </div>

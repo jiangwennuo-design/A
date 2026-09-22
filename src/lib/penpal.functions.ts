@@ -67,15 +67,15 @@ async function loadOwnedContext(db: Db, userId: string, sessionId: string, charI
       .maybeSingle(),
   ]);
   if (sessionError || !session) throw new Error("聊天会话不存在或无权访问。");
-  if (charError || !character) throw new Error("笔友不存在或无权访问。");
-  if (session.char_id && session.char_id !== charId) throw new Error("该会话不属于当前笔友。");
+  if (charError || !character) throw new Error("角色不存在或无权访问。");
+  if (session.char_id && session.char_id !== charId) throw new Error("该会话不属于当前角色。");
   if (!session.char_id) {
     const { error } = await db
       .from("chat_sessions")
       .update({ char_id: charId })
       .eq("id", sessionId)
       .eq("user_id", userId);
-    if (error) throw new Error("无法绑定当前笔友。");
+    if (error) throw new Error("无法绑定当前角色。");
   }
   return { character, profile };
 }
@@ -241,7 +241,7 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
     const rows = ((history ?? []) as ChatRow[]).reverse();
     const lastAssistantIndex = rows.map((row) => row.role).lastIndexOf("assistant");
     const pending = rows.slice(lastAssistantIndex + 1).filter((row) => row.role === "user");
-    if (!pending.length) throw new Error("请先发送一条消息，再让笔友回复。");
+    if (!pending.length) throw new Error("请先发送一条消息，再让角色回复。");
     const pendingText = pending.map((row) => row.content).join("\n");
     const bubbles = await generatePrivateReply({
       db,

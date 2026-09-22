@@ -194,7 +194,7 @@ function ListenPage() {
       setDraft("");
       await loadMessages();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "笔友暂时没有回应。");
+      setError(caught instanceof Error ? caught.message : "角色暂时没有回应。");
     } finally {
       setThinking(false);
     }
@@ -234,7 +234,7 @@ function ListenPage() {
             <i />
             <i />
           </span>
-          <Person src={charAvatar} name={selectedChar?.name || "选择笔友"} />
+          <Person src={charAvatar} name={selectedChar?.name || "选择角色"} />
         </div>
         <div className={`listen-record ${playing ? "is-playing" : ""}`}>
           <Disc3 size={64} />
@@ -285,7 +285,7 @@ function ListenPage() {
         </button>
         <div className="listen-char-picker">
           <label>
-            陪听笔友
+            陪听角色
             <select value={charId} onChange={(event) => setCharId(event.target.value)}>
               <option value="">请选择</option>
               {personas.map((char) => (
@@ -313,7 +313,7 @@ function ListenPage() {
         </h2>
         <div className="listen-chat__messages">
           {messages.length === 0 ? (
-            <p className="listen-placeholder">选好歌曲和笔友，就可以一起聊聊。</p>
+            <p className="listen-placeholder">选好歌曲和角色，就可以一起聊聊。</p>
           ) : (
             messages.map((item) => (
               <p key={item.id} className={item.role === "user" ? "is-user" : "is-char"}>
@@ -335,7 +335,7 @@ function ListenPage() {
             onKeyDown={(event) => {
               if (event.key === "Enter") void talk(draft);
             }}
-            placeholder="和笔友聊这首歌……"
+            placeholder="和角色聊这首歌……"
             disabled={!current || !charId}
           />
           <button

@@ -103,7 +103,7 @@ function SettingsPage() {
               <div>
                 <p className="text-sm text-[var(--color-text)]">真实时间感知</p>
                 <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
-                  让笔友理解当前时间和距离上次聊天的间隔
+                  让角色理解当前时间和距离上次聊天的间隔
                 </p>
               </div>
             </div>

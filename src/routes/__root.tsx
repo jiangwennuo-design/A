@@ -81,12 +81,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "此心一笺" },
       {
         name: "description",
-        content: "写下每天的心情，和你专属的 AI 笔友说说话。日记只有你自己能看到。",
+        content: "把日记、聊天与陪伴装进一部属于你的小手机，和专属 AI 角色自然相处。",
       },
       { property: "og:title", content: "此心一笺" },
       {
         property: "og:description",
-        content: "写下每天的心情，和你专属的 AI 笔友说说话。日记只有你自己能看到。",
+        content: "把日记、聊天与陪伴装进一部属于你的小手机，和专属 AI 角色自然相处。",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

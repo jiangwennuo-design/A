@@ -11,12 +11,12 @@ export const Route = createFileRoute("/auth")({
       { title: "登录 · 此心一笺" },
       {
         name: "description",
-        content: "登录此心一笺，写下每天的心情，并和你专属的 AI 笔友聊聊。",
+        content: "登录你的私人小手机，记录生活，并和专属 AI 角色聊聊。",
       },
       { property: "og:title", content: "登录 · 此心一笺" },
       {
         property: "og:description",
-        content: "登录此心一笺，写下每天的心情，并和你专属的 AI 笔友聊聊。",
+        content: "登录你的私人小手机，记录生活，并和专属 AI 角色聊聊。",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -106,7 +106,9 @@ function LoginPage() {
             <span className="text-3xl">✒️</span>
           </div>
           <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">此心一笺</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">写下每天的心情，和笔友说说话</p>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            记录生活，和你的角色一起度过日常
+          </p>
         </div>
 
         {error && <ErrorBanner message={error} />}

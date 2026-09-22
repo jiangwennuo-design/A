@@ -58,14 +58,14 @@ function PhoneHomePage() {
           />
           <AppIcon
             label="聊天"
-            subtitle="笔友"
+            subtitle="角色"
             icon={MessageCircle}
             tone="chat"
             onClick={() => navigate({ to: "/chat", search: {} })}
           />
           <AppIcon
             label="名册"
-            subtitle="笔友人设"
+            subtitle="角色人设"
             icon={ContactRound}
             tone="roster"
             onClick={() => navigate({ to: "/persona" })}

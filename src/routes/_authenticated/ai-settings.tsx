@@ -28,7 +28,10 @@ export const Route = createFileRoute("/_authenticated/ai-settings")({
   head: () => ({
     meta: [
       { title: "AI 配置 · 此心一笺" },
-      { name: "description", content: "管理你自己的 AI 渠道：Base URL、API Key、模型、温度与连接测试。" },
+      {
+        name: "description",
+        content: "管理你自己的 AI 渠道：Base URL、API Key、模型、温度与连接测试。",
+      },
       { property: "og:title", content: "AI 配置 · 此心一笺" },
       {
         property: "og:description",
@@ -138,7 +141,7 @@ function AiSettingsPage() {
           <EmptyState
             icon="🤖"
             title="还没有 AI 配置"
-            subtitle="添加你自己的 API 渠道后，笔友会使用你的配置回信。未配置时会继续使用内置 AI。"
+            subtitle="添加你自己的 API 渠道后，角色会使用你的配置回复。未配置时会继续使用内置 AI。"
           />
         ) : (
           <div className="space-y-3">
@@ -305,7 +308,9 @@ function ConfigForm({
   const [modelName, setModelName] = useState(initial?.model_name ?? "");
   const [temperature, setTemperature] = useState(initial?.temperature ?? 0.8);
   const [maxTokens, setMaxTokens] = useState(
-    initial?.max_tokens === null || initial?.max_tokens === undefined ? "" : String(initial.max_tokens),
+    initial?.max_tokens === null || initial?.max_tokens === undefined
+      ? ""
+      : String(initial.max_tokens),
   );
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [isDefault, setIsDefault] = useState(initial?.is_default ?? false);
@@ -351,7 +356,9 @@ function ConfigForm({
     } catch (e) {
       setModels([]);
       setManualModel(true);
-      setModelsMessage(e instanceof Error ? e.message : "无法自动获取模型列表，请手动填写模型名称。");
+      setModelsMessage(
+        e instanceof Error ? e.message : "无法自动获取模型列表，请手动填写模型名称。",
+      );
     } finally {
       setModelsLoading(false);
     }
@@ -636,7 +643,11 @@ function ConfigForm({
           </Field>
 
           <label className="flex items-center gap-2 text-sm text-[var(--color-text)]">
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+            />
             启用此配置
           </label>
           <label className="flex items-center gap-2 text-sm text-[var(--color-text)]">
