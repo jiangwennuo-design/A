@@ -14,6 +14,9 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAiSettingsRouteImport } from './routes/_authenticated/ai-settings'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
+import { Route as AuthenticatedFocusRouteImport } from './routes/_authenticated/focus'
+import { Route as AuthenticatedListenRouteImport } from './routes/_authenticated/listen'
+import { Route as AuthenticatedMomentsRouteImport } from './routes/_authenticated/moments'
 import { Route as AuthenticatedPersonaRouteImport } from './routes/_authenticated/persona'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -45,6 +48,21 @@ const AuthenticatedAiSettingsRoute = AuthenticatedAiSettingsRouteImport.update({
 const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFocusRoute = AuthenticatedFocusRouteImport.update({
+  id: '/focus',
+  path: '/focus',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedListenRoute = AuthenticatedListenRouteImport.update({
+  id: '/listen',
+  path: '/listen',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMomentsRoute = AuthenticatedMomentsRouteImport.update({
+  id: '/moments',
+  path: '/moments',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPersonaRoute = AuthenticatedPersonaRouteImport.update({
@@ -95,6 +113,9 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/focus': typeof AuthenticatedFocusRoute
+  '/listen': typeof AuthenticatedListenRoute
+  '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -108,6 +129,9 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/focus': typeof AuthenticatedFocusRoute
+  '/listen': typeof AuthenticatedListenRoute
+  '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
   '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -124,6 +148,9 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
+  '/_authenticated/focus': typeof AuthenticatedFocusRoute
+  '/_authenticated/listen': typeof AuthenticatedListenRoute
+  '/_authenticated/moments': typeof AuthenticatedMomentsRoute
   '/_authenticated/persona': typeof AuthenticatedPersonaRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -141,6 +168,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/ai-settings'
     | '/chat'
+    | '/focus'
+    | '/listen'
+    | '/moments'
     | '/persona'
     | '/profile'
     | '/settings'
@@ -154,6 +184,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/ai-settings'
     | '/chat'
+    | '/focus'
+    | '/listen'
+    | '/moments'
     | '/persona'
     | '/profile'
     | '/settings'
@@ -169,6 +202,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/ai-settings'
     | '/_authenticated/chat'
+    | '/_authenticated/focus'
+    | '/_authenticated/listen'
+    | '/_authenticated/moments'
     | '/_authenticated/persona'
     | '/_authenticated/profile'
     | '/_authenticated/settings'
@@ -220,6 +256,27 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof AuthenticatedChatRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/focus': {
+      id: '/_authenticated/focus'
+      path: '/focus'
+      fullPath: '/focus'
+      preLoaderRoute: typeof AuthenticatedFocusRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/listen': {
+      id: '/_authenticated/listen'
+      path: '/listen'
+      fullPath: '/listen'
+      preLoaderRoute: typeof AuthenticatedListenRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/moments': {
+      id: '/_authenticated/moments'
+      path: '/moments'
+      fullPath: '/moments'
+      preLoaderRoute: typeof AuthenticatedMomentsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/persona': {
@@ -284,6 +341,9 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAiSettingsRoute: typeof AuthenticatedAiSettingsRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedFocusRoute: typeof AuthenticatedFocusRoute
+  AuthenticatedListenRoute: typeof AuthenticatedListenRoute
+  AuthenticatedMomentsRoute: typeof AuthenticatedMomentsRoute
   AuthenticatedPersonaRoute: typeof AuthenticatedPersonaRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -298,6 +358,9 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAiSettingsRoute: AuthenticatedAiSettingsRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedFocusRoute: AuthenticatedFocusRoute,
+  AuthenticatedListenRoute: AuthenticatedListenRoute,
+  AuthenticatedMomentsRoute: AuthenticatedMomentsRoute,
   AuthenticatedPersonaRoute: AuthenticatedPersonaRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,

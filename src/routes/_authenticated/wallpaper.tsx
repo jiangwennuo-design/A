@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ImagePlus, RotateCcw } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
@@ -8,6 +8,12 @@ import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
 // The production profile/storage fields are newer than the generated Supabase client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+const presets = [
+  { id: "linen", label: "亚麻", colors: ["#f4eee5", "#d8e1d7"] },
+  { id: "dawn", label: "晨曦", colors: ["#f8d9c7", "#c9d9e7"] },
+  { id: "forest", label: "林间", colors: ["#b8c9b9", "#5d7563"] },
+  { id: "night", label: "夜色", colors: ["#596275", "#252a37"] },
+] as const;
 
 export const Route = createFileRoute("/_authenticated/wallpaper")({
   head: () => ({ meta: [{ title: "壁纸 · 此心一笺" }] }),
@@ -22,6 +28,7 @@ function WallpaperPage() {
   const [preview, setPreview] = useState("");
   const [blur, setBlur] = useState(0);
   const [opacity, setOpacity] = useState(0.18);
+  const [preset, setPreset] = useState("linen");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -31,6 +38,7 @@ function WallpaperPage() {
     setWallpaperUrl(profile.wallpaper_url ?? "");
     setBlur(Number(profile.wallpaper_blur ?? 0));
     setOpacity(Number(profile.wallpaper_opacity ?? 0.18));
+    setPreset(profile.wallpaper_preset || "linen");
     if (!profile.wallpaper_url) {
       setPreview("");
       return;
@@ -74,12 +82,14 @@ function WallpaperPage() {
     if (!user) return;
     setSaving(true);
     setError("");
+    const previousPath = profile?.wallpaper_url;
     const { error: saveError } = await db
       .from("profiles")
       .update({
         wallpaper_url: wallpaperUrl || null,
         wallpaper_blur: Math.min(24, Math.max(0, blur)),
         wallpaper_opacity: Math.min(0.75, Math.max(0, opacity)),
+        wallpaper_preset: preset,
       })
       .eq("id", user.id);
     setSaving(false);
@@ -87,7 +97,31 @@ function WallpaperPage() {
       setError("壁纸保存失败，请稍后重试。");
       return;
     }
+    if (previousPath && previousPath !== wallpaperUrl) {
+      await db.storage.from("wallpapers").remove([previousPath]);
+    }
     await refreshProfile();
+  }
+
+  async function removeCustomWallpaper() {
+    if (!user || !wallpaperUrl) return;
+    setSaving(true);
+    setError("");
+    const path = wallpaperUrl;
+    const { error: updateError } = await db
+      .from("profiles")
+      .update({ wallpaper_url: null, wallpaper_preset: preset })
+      .eq("id", user.id);
+    if (updateError) {
+      setError("删除自定义壁纸失败，请稍后重试。");
+      setSaving(false);
+      return;
+    }
+    await db.storage.from("wallpapers").remove([path]);
+    setWallpaperUrl("");
+    setPreview("");
+    await refreshProfile();
+    setSaving(false);
   }
 
   if (!profile)
@@ -101,7 +135,7 @@ function WallpaperPage() {
     <div className="page-container app-page">
       <Header title="壁纸" onBack={() => navigate({ to: "/" })} />
       {error && <ErrorBanner message={error} />}
-      <section className="wallpaper-preview">
+      <section className={`wallpaper-preview wallpaper-preset--${preset}`}>
         {preview && (
           <span
             className="absolute inset-0 bg-cover bg-center"
@@ -124,6 +158,27 @@ function WallpaperPage() {
         </div>
       </section>
 
+      <p className="mt-6 mb-3 text-sm font-medium">默认背景</p>
+      <div className="wallpaper-presets" role="radiogroup" aria-label="选择默认背景">
+        {presets.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="radio"
+            aria-checked={preset === item.id}
+            onClick={() => setPreset(item.id)}
+            className={preset === item.id ? "wallpaper-swatch is-active" : "wallpaper-swatch"}
+          >
+            <span
+              style={{
+                background: `linear-gradient(145deg, ${item.colors[0]}, ${item.colors[1]})`,
+              }}
+            />
+            <small>{item.label}</small>
+          </button>
+        ))}
+      </div>
+
       <input
         ref={fileInput}
         type="file"
@@ -143,14 +198,12 @@ function WallpaperPage() {
         </button>
         <button
           type="button"
-          onClick={() => {
-            setWallpaperUrl("");
-            setPreview("");
-          }}
-          className="btn-secondary flex items-center justify-center gap-2"
+          disabled={!wallpaperUrl || saving}
+          onClick={() => void removeCustomWallpaper()}
+          className="btn-secondary flex items-center justify-center gap-2 disabled:opacity-40"
         >
-          <RotateCcw size={17} />
-          默认壁纸
+          <Trash2 size={17} />
+          删除自定义
         </button>
       </div>
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -61,7 +62,7 @@ async function loadOwnedContext(db: Db, userId: string, sessionId: string, charI
     db.from("ai_personas").select("*").eq("id", charId).eq("user_id", userId).maybeSingle(),
     db
       .from("profiles")
-      .select("display_name, gender, persona_text, signature")
+      .select("display_name, gender, persona_text, signature, time_awareness_enabled, timezone")
       .eq("id", userId)
       .maybeSingle(),
   ]);
@@ -101,6 +102,48 @@ function profilePrompt(profile: any, character: any) {
   return `USER PROFILE\n${user.join("\n") || "未填写"}\n\nCHAR PROFILE\n${char.join("\n")}`;
 }
 
+function timeContext(profile: any, history: ChatRow[]) {
+  if (profile?.time_awareness_enabled === false) return "";
+  let timezone = typeof profile?.timezone === "string" ? profile.timezone : "Asia/Shanghai";
+  try {
+    new Intl.DateTimeFormat("zh-CN", { timeZone: timezone }).format(new Date());
+  } catch {
+    timezone = "UTC";
+  }
+  const now = new Date();
+  const previousValue = history.at(-1)?.created_at;
+  const previous = previousValue ? new Date(previousValue) : null;
+  const validPrevious = previous && !Number.isNaN(previous.getTime()) ? previous : null;
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const dateFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const context = {
+    current_datetime: formatter.format(now),
+    timezone,
+    previous_interaction_datetime: validPrevious ? formatter.format(validPrevious) : null,
+    elapsed_since_previous_interaction_seconds: validPrevious
+      ? Math.max(0, Math.round((now.getTime() - validPrevious.getTime()) / 1000))
+      : null,
+    crossed_calendar_day: validPrevious
+      ? dateFormatter.format(now) !== dateFormatter.format(validPrevious)
+      : false,
+  };
+  return `\n\nREAL TIME CONTEXT\n${JSON.stringify(context)}\n只在当前语境确实需要时自然感知时间与间隔，不要每条消息机械报时，也不要虚构双方在线下共同经历过的活动。`;
+}
+
 async function diaryContext(
   db: Db,
   userId: string,
@@ -133,7 +176,7 @@ async function generatePrivateReply(args: {
 }) {
   const min = Math.max(1, Number(args.character.minimum_messages ?? 1));
   const max = Math.max(min, Number(args.character.maximum_messages ?? min));
-  const systemPrompt = `${profilePrompt(args.profile, args.character)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：{\"messages\":[\"...\"]}；数组中必须有 ${min} 到 ${max} 条独立的、完整但自然的聊天气泡。${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
+  const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：{"messages":["..."]}；数组中必须有 ${min} 到 ${max} 条独立的、完整但自然的聊天气泡。${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
   const { generate } = await import("./ai/service.server");
   const result = await generate({
     scene: "private_chat",

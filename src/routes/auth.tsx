@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { discordLoginEnabled } from "@/lib/app-config";
-import { LoadingSpinner, ErrorBanner } from "@/components/ui-kit";
+import { ErrorBanner } from "@/components/ui-kit";
 import { useAuth } from "@/context/AuthContext";
 
 export const Route = createFileRoute("/auth")({
@@ -37,9 +37,9 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
-  if (!authLoading && session) {
-    void navigate({ to: "/" });
-  }
+  useEffect(() => {
+    if (!authLoading && session) void navigate({ to: "/" });
+  }, [authLoading, navigate, session]);
 
   async function handleEmailAuth(e: FormEvent) {
     e.preventDefault();
@@ -99,16 +99,14 @@ function LoginPage() {
   const submitText = mode === "login" ? "登录" : mode === "register" ? "注册" : "发送重置链接";
 
   return (
-    <div className="page-container flex flex-col justify-center" style={{ minHeight: "100dvh" }}>
-      <div className="fade-in">
+    <div className="auth-screen">
+      <div className="auth-panel fade-in">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--color-primary)] mb-4">
             <span className="text-3xl">✒️</span>
           </div>
           <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">此心一笺</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            写下每天的心情，和笔友说说话
-          </p>
+          <p className="text-sm text-[var(--color-text-secondary)]">写下每天的心情，和笔友说说话</p>
         </div>
 
         {error && <ErrorBanner message={error} />}
@@ -142,8 +140,9 @@ function LoginPage() {
             />
           )}
 
-          <button type="submit" disabled={loading} className="btn-primary w-full">
-            {loading ? <LoadingSpinner /> : submitText}
+          <button type="submit" disabled={loading} className="btn-primary auth-submit">
+            {loading && <span className="auth-submit__spinner" aria-hidden />}
+            <span>{loading ? "处理中…" : submitText}</span>
           </button>
         </form>
 
@@ -172,6 +171,7 @@ function LoginPage() {
         <div className="flex items-center justify-center gap-4 mt-6 text-sm">
           {mode !== "login" && (
             <button
+              type="button"
               onClick={() => {
                 setMode("login");
                 setError("");
@@ -184,6 +184,7 @@ function LoginPage() {
           )}
           {mode !== "register" && (
             <button
+              type="button"
               onClick={() => {
                 setMode("register");
                 setError("");
@@ -196,6 +197,7 @@ function LoginPage() {
           )}
           {mode !== "reset" && (
             <button
+              type="button"
               onClick={() => {
                 setMode("reset");
                 setError("");

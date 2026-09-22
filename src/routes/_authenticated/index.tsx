@@ -4,8 +4,10 @@ import {
   BookHeart,
   ContactRound,
   Image,
+  Headphones,
   MessageCircle,
   Settings,
+  Timer,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -72,6 +74,20 @@ function PhoneHomePage() {
           icon={Image}
           tone="wallpaper"
           onClick={() => navigate({ to: "/wallpaper" })}
+        />
+        <AppIcon
+          label="番茄钟"
+          subtitle="专注陪伴"
+          icon={Timer}
+          tone="focus"
+          onClick={() => navigate({ to: "/focus" })}
+        />
+        <AppIcon
+          label="一起听"
+          subtitle="音乐陪伴"
+          icon={Headphones}
+          tone="listen"
+          onClick={() => navigate({ to: "/listen" })}
         />
         <AppIcon
           label="设置"

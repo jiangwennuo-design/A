@@ -30,9 +30,10 @@ function AuthenticatedLayout() {
   }, [profile?.wallpaper_url]);
   const opacity = Math.min(0.75, Math.max(0, Number(profile?.wallpaper_opacity ?? 0.18)));
   const blur = Math.min(24, Math.max(0, Number(profile?.wallpaper_blur ?? 0)));
+  const preset = profile?.wallpaper_preset || "linen";
   return (
     <div className="phone-stage">
-      <div className="phone-shell">
+      <div className={`phone-shell wallpaper-preset--${preset}`}>
         <div
           aria-hidden
           className="absolute inset-0 bg-cover bg-center"

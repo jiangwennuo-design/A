@@ -1,9 +1,19 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/context/AuthContext";
 import { Header } from "@/components/ui-kit";
-import { Mail, KeyRound, Cpu, Shield, LogOut, ChevronRight, type LucideIcon } from "lucide-react";
+import {
+  Mail,
+  KeyRound,
+  Cpu,
+  Shield,
+  LogOut,
+  ChevronRight,
+  Clock3,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { resolveAvatarUrl } from "@/lib/avatar";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -21,8 +31,9 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 function SettingsPage() {
   const navigate = useNavigate();
-  const { profile, user, signOut } = useAuth();
+  const { profile, user, signOut, refreshProfile } = useAuth();
   const [avatar, setAvatar] = useState("");
+  const [savingTime, setSavingTime] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -82,6 +93,48 @@ function SettingsPage() {
         <div className="card divide-y divide-[var(--color-border)] mb-6">
           <SettingRow icon={Shield} label="日记隐私" value="仅你自己可见" />
           <SettingRow icon={Shield} label="AI 读取" value="需你主动授权" />
+        </div>
+
+        <SectionTitle>聊天体验</SectionTitle>
+        <div className="card mb-6">
+          <div className="flex items-center justify-between gap-4 py-1">
+            <div className="flex items-start gap-3">
+              <Clock3 size={18} className="mt-0.5 shrink-0 text-[var(--color-text-secondary)]" />
+              <div>
+                <p className="text-sm text-[var(--color-text)]">真实时间感知</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
+                  让笔友理解当前时间和距离上次聊天的间隔
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={profile?.time_awareness_enabled !== false}
+              aria-label="真实时间感知"
+              disabled={savingTime}
+              className={`settings-switch ${profile?.time_awareness_enabled !== false ? "is-on" : ""}`}
+              onClick={async () => {
+                if (!user) return;
+                setSavingTime(true);
+                const timezone =
+                  Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+                // Added by the companion-app database migration.
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as any)
+                  .from("profiles")
+                  .update({
+                    time_awareness_enabled: profile?.time_awareness_enabled === false,
+                    timezone,
+                  })
+                  .eq("id", user.id);
+                if (!error) await refreshProfile();
+                setSavingTime(false);
+              }}
+            >
+              <span />
+            </button>
+          </div>
         </div>
 
         <button

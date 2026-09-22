@@ -13,6 +13,7 @@ import {
 } from "@/lib/penpal.functions";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
+import { ChatNav } from "@/components/ChatNav";
 import type { AiPersona, ChatMessage, ChatSession, DiaryContextMode } from "@/lib/types";
 
 // The live schema includes multi-penpal migration fields not present in the generated client types.
@@ -148,7 +149,7 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
     );
 
   return (
-    <div className="page-container !py-0 min-h-0">
+    <div className="page-container !py-0 min-h-0 pb-[calc(76px+env(safe-area-inset-bottom))]">
       <header className="h-16 flex items-center justify-between border-b border-[var(--color-border)]">
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => navigate({ to: "/" })} className="app-home-button">
@@ -168,23 +169,6 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
           <Plus size={21} />
         </button>
       </header>
-
-      <section className="py-4 border-b border-[var(--color-border)]">
-        <button
-          type="button"
-          onClick={() => navigate({ to: "/profile" })}
-          className="chat-profile-app"
-        >
-          <span className="chat-profile-app__icon">
-            <UserRound size={22} />
-          </span>
-          <span>
-            <strong>我的资料</strong>
-            <small>头像、昵称与个人信息</small>
-          </span>
-          <span className="ml-auto text-[var(--color-text-secondary)]">›</span>
-        </button>
-      </section>
 
       {error && <p className="mt-3 text-sm text-[var(--color-error)]">{error}</p>}
       {friends.length ? (
@@ -290,6 +274,7 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
           </section>
         </div>
       )}
+      <ChatNav />
     </div>
   );
 }

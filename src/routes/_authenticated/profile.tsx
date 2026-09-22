@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
 import { AvatarPicker } from "@/components/AvatarPicker";
 import { importPersonaFile } from "@/lib/persona-file";
+import { ChatNav } from "@/components/ChatNav";
 
 export const Route = createFileRoute("/_authenticated/profile")({ component: ProfilePage });
 
@@ -73,7 +74,7 @@ function ProfilePage() {
     }
   }
   return (
-    <div className="page-container">
+    <div className="page-container pb-[calc(88px+env(safe-area-inset-bottom))]">
       <form onSubmit={save}>
         <Header title="我的资料" onBack={() => navigate({ to: "/chat", search: {} })} />
         {error && <ErrorBanner message={error} />}
@@ -141,6 +142,7 @@ function ProfilePage() {
           {saving ? "保存中…" : "保存我的资料"}
         </button>
       </form>
+      <ChatNav />
     </div>
   );
 }

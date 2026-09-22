@@ -55,7 +55,10 @@ export function normalizeBaseUrl(raw: string): string {
   try {
     url = new URL(withScheme);
   } catch {
-    throw new AiServiceError("invalid_base_url", "API Base URL 格式不正确，例如：https://api.openai.com/v1");
+    throw new AiServiceError(
+      "invalid_base_url",
+      "API Base URL 格式不正确，例如：https://api.openai.com/v1",
+    );
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new AiServiceError("invalid_base_url", "API Base URL 必须以 http:// 或 https:// 开头。");
@@ -92,7 +95,10 @@ function sanitizeCustomHeaders(raw: unknown): Record<string, string> {
   return out;
 }
 
-function buildHeaders(config: { apiKey: string; customHeaders: Record<string, string> }): HeadersInit {
+function buildHeaders(config: {
+  apiKey: string;
+  customHeaders: Record<string, string>;
+}): HeadersInit {
   return {
     "Content-Type": "application/json",
     ...sanitizeCustomHeaders(config.customHeaders),
@@ -108,15 +114,22 @@ function safeLog(scope: string, detail: string) {
 function classifyHttpStatus(status: number, bodySnippet: string): AiServiceError {
   const lowered = bodySnippet.toLowerCase();
   if (status === 401) return new AiServiceError("auth", "API Key 无效或已过期（401）。");
-  if (status === 403) return new AiServiceError("forbidden", "权限不足，该 Key 无法访问此接口（403）。");
+  if (status === 403)
+    return new AiServiceError("forbidden", "权限不足，该 Key 无法访问此接口（403）。");
   if (status === 404) {
-    if (lowered.includes("model")) return new AiServiceError("model_not_found", "模型不存在或该 Key 无权使用（404）。");
+    if (lowered.includes("model"))
+      return new AiServiceError("model_not_found", "模型不存在或该 Key 无权使用（404）。");
     return new AiServiceError("client_error", "接口地址不存在（404），请检查 Base URL。");
   }
-  if (status === 429) return new AiServiceError("rate_limit", "请求过于频繁或额度已用尽（429），请稍后再试。");
-  if (status >= 500) return new AiServiceError("server_error", `服务商暂时不可用（${status}），请稍后再试。`);
+  if (status === 429)
+    return new AiServiceError("rate_limit", "请求过于频繁或额度已用尽（429），请稍后再试。");
+  if (status >= 500)
+    return new AiServiceError("server_error", `服务商暂时不可用（${status}），请稍后再试。`);
   if (status === 400 && (lowered.includes("temperature") || lowered.includes("max_tokens"))) {
-    return new AiServiceError("client_error", "服务商拒绝了 Temperature 或 Max Tokens 参数，请调整后重试（400）。");
+    return new AiServiceError(
+      "client_error",
+      "服务商拒绝了 Temperature 或 Max Tokens 参数，请调整后重试（400）。",
+    );
   }
   if (status >= 400) return new AiServiceError("client_error", `请求被服务商拒绝（${status}）。`);
   return new AiServiceError("unknown", `未知错误（${status}）。`);
@@ -201,7 +214,8 @@ export async function testConnection(creds: AiCredentials): Promise<TestConnecti
     if (!response.ok) throw classifyHttpStatus(response.status, await readSnippet(response));
     return { ok: true, kind: "ok", message: "连接成功" };
   } catch (error) {
-    if (error instanceof AiServiceError) return { ok: false, kind: error.kind, message: error.message };
+    if (error instanceof AiServiceError)
+      return { ok: false, kind: error.kind, message: error.message };
     safeLog("testConnection", error instanceof Error ? error.name : "unknown error");
     return { ok: false, kind: "unknown", message: "连接测试失败，请稍后再试。" };
   }
@@ -228,15 +242,13 @@ export async function listModels(creds: AiCredentials): Promise<ListModelsResult
     if (!response.ok) throw classifyHttpStatus(response.status, await readSnippet(response));
 
     const payload = (await response.json().catch(() => null)) as
-      | { data?: unknown; models?: unknown }
-      | unknown[]
-      | null;
+      { data?: unknown; models?: unknown } | unknown[] | null;
     const rawList = Array.isArray(payload)
       ? payload
       : Array.isArray((payload as { data?: unknown })?.data)
-        ? ((payload as { data: unknown[] }).data)
+        ? (payload as { data: unknown[] }).data
         : Array.isArray((payload as { models?: unknown })?.models)
-          ? ((payload as { models: unknown[] }).models)
+          ? (payload as { models: unknown[] }).models
           : null;
 
     if (!rawList) {
@@ -250,9 +262,9 @@ export async function listModels(creds: AiCredentials): Promise<ListModelsResult
             typeof item === "string"
               ? item
               : typeof (item as { id?: unknown })?.id === "string"
-                ? ((item as { id: string }).id)
+                ? (item as { id: string }).id
                 : typeof (item as { name?: unknown })?.name === "string"
-                  ? ((item as { name: string }).name)
+                  ? (item as { name: string }).name
                   : "",
           )
           .map((id) => id.trim())
@@ -287,7 +299,9 @@ export async function resolveConfigForUser(
 ): Promise<AiResolvedConfig> {
   const { data: rows } = await supabase
     .from("ai_configs")
-    .select("id, name, base_url, encrypted_api_key, model_name, temperature, max_tokens, custom_headers, is_default")
+    .select(
+      "id, name, base_url, encrypted_api_key, model_name, temperature, max_tokens, custom_headers, is_default",
+    )
     .eq("user_id", userId)
     .eq("enabled", true)
     .order("is_default", { ascending: false })
@@ -337,7 +351,13 @@ export async function resolveConfigForUser(
   };
 }
 
-export type AiScene = "private_chat" | "diary_reply" | "reroll";
+export type AiScene =
+  | "private_chat"
+  | "diary_reply"
+  | "reroll"
+  | "moment_comment"
+  | "focus_companion"
+  | "music_companion";
 
 export interface GenerateOptions {
   scene: AiScene;
@@ -371,7 +391,8 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
   const maxTokens = options.maxTokens ?? config.maxTokens;
 
   const body: Record<string, unknown> = { model: config.model, messages };
-  if (typeof temperature === "number" && !Number.isNaN(temperature)) body["temperature"] = temperature;
+  if (typeof temperature === "number" && !Number.isNaN(temperature))
+    body["temperature"] = temperature;
   if (typeof maxTokens === "number" && maxTokens > 0) body["max_tokens"] = maxTokens;
   if (options.outputFormat === "json") body["response_format"] = { type: "json_object" };
 
@@ -391,9 +412,9 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
     throw error;
   }
 
-  const data = (await response.json().catch(() => null)) as
-    | { choices?: Array<{ message?: { content?: string } }> }
-    | null;
+  const data = (await response.json().catch(() => null)) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  } | null;
   const text = data?.choices?.[0]?.message?.content ?? "";
   if (!text) throw new AiServiceError("bad_response", "AI 没有返回内容，请稍后再试。");
 
