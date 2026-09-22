@@ -140,7 +140,7 @@ export const ChatMessages = memo(function ChatMessages({
         const gapMilliseconds = previous
           ? new Date(message.created_at).getTime() - new Date(previous.created_at).getTime()
           : 0;
-        const showTimeSeparator = isUser && Boolean(previous) && gapMilliseconds > 10 * 60_000;
+        const showTimeSeparator = isUser && Boolean(previous) && gapMilliseconds >= 10 * 60_000;
         const grouped = previous?.role === message.role && gapMilliseconds < 5 * 60_000;
         return (
           <Fragment key={message.id}>
