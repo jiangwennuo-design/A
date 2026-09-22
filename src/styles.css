@@ -1997,13 +1997,13 @@ textarea {
   display: flex;
   align-items: flex-end;
   gap: 7px;
-  margin-top: 12px;
+  margin-top: 18px;
 }
 .chat-message-row.is-user {
   flex-direction: row-reverse;
 }
 .chat-message-row.is-grouped {
-  margin-top: 3px;
+  margin-top: 7px;
 }
 .chat-message-row.is-grouped .chat-avatar {
   visibility: hidden;
@@ -2029,11 +2029,11 @@ textarea {
   border-radius: 18px;
   word-break: break-word;
   line-height: 1.42;
-  touch-action: pan-y pinch-zoom;
-  -webkit-user-select: text;
-  user-select: text;
-  cursor: text;
-  -webkit-touch-callout: default;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+  -webkit-touch-callout: none;
   box-shadow: 0 1px 1px rgb(0 0 0 / 3%);
 }
 .message-bubble p {
@@ -2056,6 +2056,67 @@ textarea {
 }
 .is-grouped.is-user .message-bubble {
   border-top-right-radius: 8px;
+}
+.chat-time-separator {
+  display: block;
+  margin: 24px 0 4px;
+  color: #8b8b91;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+.chat-message-menu-backdrop {
+  position: fixed;
+  z-index: 65;
+  inset: 0;
+  background: transparent;
+}
+.chat-message-menu {
+  position: fixed;
+  z-index: 66;
+  display: grid;
+  width: 196px;
+  height: 46px;
+  grid-template-columns: repeat(3, 1fr);
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 13px;
+  color: #fff;
+  background: rgb(39 39 43 / 96%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+  backdrop-filter: blur(16px);
+  animation: chat-message-menu-in 120ms ease-out both;
+}
+.chat-message-menu button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-right: 1px solid rgb(255 255 255 / 13%);
+  font-size: 12px;
+  font-weight: 550;
+}
+.chat-message-menu button:last-child {
+  border-right: 0;
+}
+.chat-message-menu button:active {
+  background: rgb(255 255 255 / 14%);
+}
+.chat-message-menu button.is-danger {
+  color: #ff9b98;
+}
+@keyframes chat-message-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .typing-bubble {
   min-width: 54px;

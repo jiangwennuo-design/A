@@ -6,11 +6,14 @@ import {
   ArrowUp,
   ChevronLeft,
   ChevronRight,
+  Copy,
   House,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
   Settings,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -25,7 +28,7 @@ import {
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
 import { ChatNav } from "@/components/ChatNav";
-import { ChatMessages } from "@/components/ChatMessages";
+import { ChatMessages, type MessageAnchor } from "@/components/ChatMessages";
 import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { lastReadAt, markChatRead } from "@/lib/chat-read-state";
 import type { AiPersona, ChatMessage, ChatSession, DiaryContextMode } from "@/lib/types";
@@ -352,6 +355,11 @@ function ConversationPage({
   const [error, setError] = useState("");
   const [toolsOpen, setToolsOpen] = useState(false);
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
+  const [messageMenu, setMessageMenu] = useState<{
+    messageId: string;
+    left: number;
+    top: number;
+  } | null>(null);
   const [assistantAvatar, setAssistantAvatar] = useState("");
   const [userAvatar, setUserAvatar] = useState("");
   const [mode, setMode] = useState<DiaryContextMode>(initialDiaryId ? "current" : "none");
@@ -386,6 +394,12 @@ function ConversationPage({
     document.addEventListener("visibilitychange", mark);
     return () => document.removeEventListener("visibilitychange", mark);
   }, [messages, sessionId, user]);
+  useEffect(() => {
+    if (!messageMenu) return;
+    const closeMenu = () => setMessageMenu(null);
+    window.addEventListener("resize", closeMenu);
+    return () => window.removeEventListener("resize", closeMenu);
+  }, [messageMenu]);
 
   useEffect(() => {
     let active = true;
@@ -493,6 +507,67 @@ function ConversationPage({
       await db.from("chat_sessions").update({ diary_context_mode: nextMode }).eq("id", sessionId);
   }
 
+  function openMessageMenu(messageId: string, anchor: MessageAnchor) {
+    if (messageId.startsWith("pending-")) return;
+    const menuWidth = 196;
+    const menuHeight = 46;
+    const margin = 10;
+    const shell = conversationRef.current?.getBoundingClientRect();
+    const leftBoundary = (shell?.left ?? 0) + margin;
+    const rightBoundary = (shell?.right ?? window.innerWidth) - margin;
+    const centeredLeft = anchor.left + anchor.width / 2 - menuWidth / 2;
+    const left = Math.min(rightBoundary - menuWidth, Math.max(leftBoundary, centeredLeft));
+    const topBoundary = (shell?.top ?? 0) + 72;
+    const top =
+      anchor.top - menuHeight - 8 >= topBoundary ? anchor.top - menuHeight - 8 : anchor.bottom + 8;
+    setMessageMenu({ messageId, left, top });
+  }
+
+  async function copyMessage(message: ChatMessage) {
+    setMessageMenu(null);
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      setError("复制失败，请稍后重试。");
+    }
+  }
+
+  async function updateMessage(message: ChatMessage) {
+    setMessageMenu(null);
+    const content = window.prompt("编辑消息", message.content)?.trim();
+    if (!content || content === message.content) return;
+    const updatedAt = new Date().toISOString();
+    const { error: updateError } = await db
+      .from("chat_messages")
+      .update({ content, edited: true, updated_at: updatedAt })
+      .eq("id", message.id)
+      .eq("session_id", sessionId);
+    if (updateError) {
+      setError("编辑失败，请稍后重试。");
+      return;
+    }
+    setMessages((previous) =>
+      previous.map((item) =>
+        item.id === message.id ? { ...item, content, edited: true, updated_at: updatedAt } : item,
+      ),
+    );
+  }
+
+  async function deleteMessage(message: ChatMessage) {
+    setMessageMenu(null);
+    if (!window.confirm("确定删除这条消息吗？")) return;
+    const { error: deleteError } = await db
+      .from("chat_messages")
+      .delete()
+      .eq("id", message.id)
+      .eq("session_id", sessionId);
+    if (deleteError) {
+      setError("删除失败，请稍后重试。");
+      return;
+    }
+    setMessages((previous) => previous.filter((item) => item.id !== message.id));
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!input.trim() || !sessionId || !charId || savingMessage || sending) return;
@@ -515,6 +590,7 @@ function ConversationPage({
     setSavingMessage(true);
     setError("");
     setToolsOpen(false);
+    setMessageMenu(null);
     setMessages((previous) => [...previous, optimisticMessage]);
     try {
       const result = await queueMessage({
@@ -542,6 +618,7 @@ function ConversationPage({
     setSending(true);
     setError("");
     setToolsOpen(false);
+    setMessageMenu(null);
     try {
       const result = await requestReply({
         data: {
@@ -566,6 +643,7 @@ function ConversationPage({
     setMessages((previous) => previous.filter((message) => message.turn_id !== turnId));
     setSending(true);
     setToolsOpen(false);
+    setMessageMenu(null);
     setError("");
     try {
       const result = await reroll({
@@ -660,7 +738,7 @@ function ConversationPage({
           </div>
           <div className="chat-conversation__identity">
             <h1>{current.name}</h1>
-            <p>{sending ? "正在回复…" : "角色"}</p>
+            {sending && <p>正在回复…</p>}
           </div>
         </div>
         <button
@@ -681,7 +759,44 @@ function ConversationPage({
         userAvatar={userAvatar}
         assistantName={current.name}
         userName={profile?.display_name || "我"}
+        onOpenMessageMenu={openMessageMenu}
+        onDismissMessageMenu={() => setMessageMenu(null)}
       />
+
+      {messageMenu &&
+        (() => {
+          const selected = messages.find((message) => message.id === messageMenu.messageId);
+          if (!selected) return null;
+          return (
+            <div className="chat-message-menu-backdrop" onPointerDown={() => setMessageMenu(null)}>
+              <div
+                role="menu"
+                aria-label="消息操作"
+                className="chat-message-menu"
+                style={{ left: messageMenu.left, top: messageMenu.top }}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <button type="button" role="menuitem" onClick={() => void copyMessage(selected)}>
+                  <Copy size={15} />
+                  <span>复制</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => void updateMessage(selected)}>
+                  <Pencil size={15} />
+                  <span>编辑</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="is-danger"
+                  onClick={() => void deleteMessage(selected)}
+                >
+                  <Trash2 size={15} />
+                  <span>删除</span>
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
       <form onSubmit={submit} className="chat-composer">
         {toolsOpen && (
