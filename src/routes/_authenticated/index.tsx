@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { DesktopWallpaper } from "@/components/DesktopWallpaper";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -37,73 +38,75 @@ function PhoneHomePage() {
   const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <main className="phone-home fade-in">
-      <section className="phone-home__hero">
-        <p className="phone-home__time">{time}</p>
-        <p className="phone-home__date">{date}</p>
-        <p className="phone-home__hello">
-          {greeting()}，{profile?.display_name || "朋友"}
-        </p>
-      </section>
+    <DesktopWallpaper>
+      <main className="phone-home fade-in">
+        <section className="phone-home__hero">
+          <p className="phone-home__time">{time}</p>
+          <p className="phone-home__date">{date}</p>
+          <p className="phone-home__hello">
+            {greeting()}，{profile?.display_name || "朋友"}
+          </p>
+        </section>
 
-      <section className="phone-app-grid" aria-label="应用列表">
-        <AppIcon
-          label="此心一笺"
-          subtitle="日记"
-          icon={BookHeart}
-          tone="paper"
-          onClick={() => navigate({ to: "/diary" })}
-        />
-        <AppIcon
-          label="聊天"
-          subtitle="笔友"
-          icon={MessageCircle}
-          tone="chat"
-          onClick={() => navigate({ to: "/chat", search: {} })}
-        />
-        <AppIcon
-          label="名册"
-          subtitle="笔友人设"
-          icon={ContactRound}
-          tone="roster"
-          onClick={() => navigate({ to: "/persona" })}
-        />
-        <AppIcon
-          label="壁纸"
-          subtitle="桌面外观"
-          icon={Image}
-          tone="wallpaper"
-          onClick={() => navigate({ to: "/wallpaper" })}
-        />
-        <AppIcon
-          label="番茄钟"
-          subtitle="专注陪伴"
-          icon={Timer}
-          tone="focus"
-          onClick={() => navigate({ to: "/focus" })}
-        />
-        <AppIcon
-          label="一起听"
-          subtitle="音乐陪伴"
-          icon={Headphones}
-          tone="listen"
-          onClick={() => navigate({ to: "/listen" })}
-        />
-        <AppIcon
-          label="设置"
-          subtitle="账户与 AI"
-          icon={Settings}
-          tone="settings"
-          onClick={() => navigate({ to: "/settings" })}
-        />
-      </section>
+        <section className="phone-app-grid" aria-label="应用列表">
+          <AppIcon
+            label="此心一笺"
+            subtitle="日记"
+            icon={BookHeart}
+            tone="paper"
+            onClick={() => navigate({ to: "/diary" })}
+          />
+          <AppIcon
+            label="聊天"
+            subtitle="笔友"
+            icon={MessageCircle}
+            tone="chat"
+            onClick={() => navigate({ to: "/chat", search: {} })}
+          />
+          <AppIcon
+            label="名册"
+            subtitle="笔友人设"
+            icon={ContactRound}
+            tone="roster"
+            onClick={() => navigate({ to: "/persona" })}
+          />
+          <AppIcon
+            label="壁纸"
+            subtitle="桌面外观"
+            icon={Image}
+            tone="wallpaper"
+            onClick={() => navigate({ to: "/wallpaper" })}
+          />
+          <AppIcon
+            label="番茄钟"
+            subtitle="专注陪伴"
+            icon={Timer}
+            tone="focus"
+            onClick={() => navigate({ to: "/focus" })}
+          />
+          <AppIcon
+            label="一起听"
+            subtitle="音乐陪伴"
+            icon={Headphones}
+            tone="listen"
+            onClick={() => navigate({ to: "/listen" })}
+          />
+          <AppIcon
+            label="设置"
+            subtitle="账户与 AI"
+            icon={Settings}
+            tone="settings"
+            onClick={() => navigate({ to: "/settings" })}
+          />
+        </section>
 
-      <div className="phone-home__quote">
-        <span aria-hidden>“</span>
-        <p>把想说的话，慢慢写进今天。</p>
-      </div>
-      <span className="phone-home__indicator" aria-hidden />
-    </main>
+        <div className="phone-home__quote">
+          <span aria-hidden>“</span>
+          <p>把想说的话，慢慢写进今天。</p>
+        </div>
+        <span className="phone-home__indicator" aria-hidden />
+      </main>
+    </DesktopWallpaper>
   );
 }
 

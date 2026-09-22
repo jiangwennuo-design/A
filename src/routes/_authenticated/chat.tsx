@@ -1,8 +1,21 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { Copy, House, Plus, RefreshCw, Send, Settings, Trash2, UserRound, X } from "lucide-react";
+import {
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  House,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Trash2,
+  UserRound,
+  X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -14,6 +27,9 @@ import {
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
 import { ChatNav } from "@/components/ChatNav";
+import { ChatMessages } from "@/components/ChatMessages";
+import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
+import { lastReadAt, markChatRead } from "@/lib/chat-read-state";
 import type { AiPersona, ChatMessage, ChatSession, DiaryContextMode } from "@/lib/types";
 
 // The live schema includes multi-penpal migration fields not present in the generated client types.
@@ -28,7 +44,7 @@ export const Route = createFileRoute("/_authenticated/chat")({
 function ChatPage() {
   const { diary, char } = Route.useSearch();
   return char ? (
-    <ConversationPage charId={char} initialDiaryId={diary} />
+    <ConversationPage key={char} charId={char} initialDiaryId={diary} />
   ) : (
     <ChatFriendList initialDiaryId={diary} />
   );
@@ -42,6 +58,8 @@ interface FriendPreview {
 
 function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [query, setQuery] = useState("");
   const [personas, setPersonas] = useState<AiPersona[]>([]);
   const [friends, setFriends] = useState<FriendPreview[]>([]);
   const [avatars, setAvatars] = useState<Record<string, string>>({});
@@ -149,59 +167,94 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
     );
 
   return (
-    <div className="page-container !py-0 min-h-0 pb-[calc(76px+env(safe-area-inset-bottom))]">
-      <header className="h-16 flex items-center justify-between border-b border-[var(--color-border)]">
+    <div className="chat-app chat-inbox">
+      <header className="chat-inbox__toolbar">
         <div className="flex items-center gap-3">
-          <button type="button" onClick={() => navigate({ to: "/" })} className="app-home-button">
+          <button
+            type="button"
+            aria-label="返回桌面"
+            onClick={() => navigate({ to: "/" })}
+            className="chat-icon-button"
+          >
             <House size={18} />
           </button>
-          <div>
-            <h1 className="text-xl font-semibold">聊天</h1>
-            <p className="text-xs text-[var(--color-text-secondary)]">选择一位笔友开始聊天</p>
-          </div>
+          <span className="chat-inbox__eyebrow">此心一笺</span>
         </div>
         <button
           type="button"
           aria-label="新增聊天"
           onClick={() => setPickerOpen(true)}
-          className="w-10 h-10 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center shadow-sm"
+          className="chat-icon-button chat-icon-button--accent"
         >
           <Plus size={21} />
         </button>
       </header>
+      <div className="chat-inbox__heading">
+        <h1>消息</h1>
+        <p>与你在意的人，慢慢聊。</p>
+      </div>
+      <label className="chat-search">
+        <Search size={18} />
+        <input
+          type="search"
+          aria-label="搜索笔友或消息"
+          placeholder="搜索笔友或消息"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
 
       {error && <p className="mt-3 text-sm text-[var(--color-error)]">{error}</p>}
       {friends.length ? (
-        <main className="divide-y divide-[var(--color-border)]">
-          {friends.map(({ persona, session, lastMessage }) => (
-            <button
-              key={session.id}
-              type="button"
-              onClick={() => void openChat(persona)}
-              className="w-full py-4 flex items-center gap-3 text-left active:bg-white/70 transition-colors"
-            >
-              <FriendAvatar url={avatars[persona.id] ?? ""} label={persona.name} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-medium truncate">{persona.name}</h2>
-                  <time className="shrink-0 text-[11px] text-[var(--color-text-secondary)]">
-                    {formatChatTime(lastMessage?.created_at ?? session.updated_at)}
-                  </time>
+        <main className="chat-friends">
+          {friends
+            .filter(({ persona, lastMessage }) =>
+              `${persona.name} ${lastMessage?.content || ""}`
+                .toLocaleLowerCase()
+                .includes(query.trim().toLocaleLowerCase()),
+            )
+            .map(({ persona, session, lastMessage }) => (
+              <button
+                key={session.id}
+                type="button"
+                onClick={() => void openChat(persona)}
+                className="chat-friend"
+              >
+                <FriendAvatar url={avatars[persona.id] ?? ""} label={persona.name} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="font-semibold truncate">{persona.name}</h2>
+                    <time className="shrink-0 text-[11px] text-[var(--color-text-secondary)]">
+                      {formatChatTime(lastMessage?.created_at ?? session.updated_at)}
+                    </time>
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--color-text-secondary)] truncate">
+                    {lastMessage
+                      ? `${lastMessage.role === "user" ? "我：" : ""}${lastMessage.content}`
+                      : "点击开始聊天"}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm text-[var(--color-text-secondary)] truncate">
-                  {lastMessage
-                    ? `${lastMessage.role === "user" ? "我：" : ""}${lastMessage.content}`
-                    : "点击开始聊天"}
-                </p>
-              </div>
-            </button>
-          ))}
+                {lastMessage?.role === "assistant" &&
+                  user &&
+                  new Date(lastMessage.created_at).getTime() > lastReadAt(user.id, session.id) && (
+                    <span className="chat-unread" aria-label="本设备有未读消息" />
+                  )}
+                <ChevronRight size={15} className="chat-friend__chevron" />
+              </button>
+            ))}
         </main>
       ) : (
         <div className="pt-14">
           <EmptyState icon="💬" title="还没有聊天" subtitle="点击右上角加号，选择一位笔友。" />
         </div>
       )}
+      {friends.length > 0 &&
+        query.trim() &&
+        !friends.some(({ persona, lastMessage }) =>
+          `${persona.name} ${lastMessage?.content || ""}`
+            .toLocaleLowerCase()
+            .includes(query.trim().toLocaleLowerCase()),
+        ) && <p className="chat-search-empty">没有找到相关聊天</p>}
 
       {pickerOpen && (
         <div
@@ -286,7 +339,7 @@ function ConversationPage({
   charId: string;
   initialDiaryId: string | undefined;
 }) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const navigate = useNavigate();
   const queueMessage = useServerFn(queuePenpalMessage);
   const requestReply = useServerFn(requestPenpalReply);
@@ -306,41 +359,38 @@ function ConversationPage({
   const [assistantAvatar, setAssistantAvatar] = useState("");
   const [userAvatar, setUserAvatar] = useState("");
   const [mode, setMode] = useState<DiaryContextMode>(initialDiaryId ? "current" : "none");
-  const bottom = useRef<HTMLDivElement>(null);
-  const longPressTimer = useRef<number | null>(null);
-  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useKeyboardViewport(conversationRef, !loading && Boolean(current));
   const selectedMessage = messages.find((message) => message.id === menu);
-  const latestTurnId = [...messages]
-    .reverse()
-    .find((message) => message.role === "assistant" && message.turn_id)?.turn_id;
-  const lastAssistantIndex = messages.map((message) => message.role).lastIndexOf("assistant");
-  const hasPendingMessages = messages
-    .slice(lastAssistantIndex + 1)
-    .some((message) => message.role === "user" && !message.id.startsWith("pending-"));
+  const { latestTurnId, hasPendingMessages } = useMemo(() => {
+    const latestTurnId = [...messages]
+      .reverse()
+      .find((message) => message.role === "assistant" && message.turn_id)?.turn_id;
+    const lastAssistantIndex = messages.map((message) => message.role).lastIndexOf("assistant");
+    const hasPendingMessages = messages
+      .slice(lastAssistantIndex + 1)
+      .some((message) => message.role === "user" && !message.id.startsWith("pending-"));
 
-  function cancelLongPress() {
-    if (longPressTimer.current !== null) {
-      window.clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-    longPressOrigin.current = null;
-  }
-
-  function startLongPress(messageId: string, x: number, y: number) {
-    cancelLongPress();
-    longPressOrigin.current = { x, y };
-    longPressTimer.current = window.setTimeout(() => {
-      setMenu(messageId);
-      longPressTimer.current = null;
-      longPressOrigin.current = null;
-      navigator.vibrate?.(12);
-    }, 480);
-  }
-
-  function trackLongPress(x: number, y: number) {
-    const origin = longPressOrigin.current;
-    if (origin && Math.hypot(x - origin.x, y - origin.y) > 10) cancelLongPress();
-  }
+    return { latestTurnId, hasPendingMessages };
+  }, [messages]);
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input, loading]);
+  useEffect(() => {
+    const latest = messages.at(-1);
+    if (!user || !sessionId || !latest) return;
+    const mark = () => {
+      if (document.visibilityState === "visible")
+        markChatRead(user.id, sessionId, latest.created_at);
+    };
+    mark();
+    document.addEventListener("visibilitychange", mark);
+    return () => document.removeEventListener("visibilitychange", mark);
+  }, [messages, sessionId, user]);
 
   useEffect(() => {
     let active = true;
@@ -407,13 +457,6 @@ function ConversationPage({
     };
   }, [charId, initialDiaryId]);
 
-  useEffect(() => bottom.current?.scrollIntoView({ behavior: "smooth" }), [messages, sending]);
-  useEffect(
-    () => () => {
-      if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
-    },
-    [],
-  );
   useEffect(() => {
     let active = true;
     void resolveAvatarUrl(current?.avatar_url).then((url) => {
@@ -624,24 +667,17 @@ function ConversationPage({
     );
 
   return (
-    <div
-      className="flex flex-col"
-      style={{
-        height: "100dvh",
-        maxWidth: 480,
-        margin: "0 auto",
-      }}
-    >
-      <header className="px-4 py-3 border-b bg-[var(--color-bg)] flex items-center gap-2">
+    <div ref={conversationRef} className="chat-app chat-conversation">
+      <header className="chat-conversation__header">
         <button
           type="button"
           aria-label="返回聊天列表"
           onClick={() => navigate({ to: "/chat", search: {} })}
-          className="w-9 h-9 flex items-center justify-center"
+          className="chat-icon-button"
         >
-          ←
+          <ChevronLeft size={27} strokeWidth={1.8} />
         </button>
-        <div className="w-9 h-9 rounded-full overflow-hidden border border-[var(--color-border)] bg-white flex items-center justify-center">
+        <div className="chat-header-avatar">
           {assistantAvatar ? (
             <img
               src={assistantAvatar}
@@ -652,78 +688,32 @@ function ConversationPage({
             <UserRound size={18} className="text-[var(--color-text-secondary)]" />
           )}
         </div>
-        <h1 className="flex-1 font-semibold text-center truncate">{current.name}</h1>
+        <div className="chat-conversation__identity">
+          <h1>{current.name}</h1>
+          <p>{sending ? "正在回复…" : "你的笔友"}</p>
+        </div>
         <button
           type="button"
           aria-label="聊天设置"
           onClick={() => setChatSettingsOpen(true)}
-          className="w-9 h-9 flex items-center justify-center"
+          className="chat-icon-button"
         >
           <Settings size={19} />
         </button>
       </header>
 
       {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
-      <main className="chat-message-list flex-1 overflow-y-auto px-4 py-6 space-y-[18px]">
-        {messages.length === 0 && !sending ? (
-          <EmptyState icon="✉️" title={`和${current?.name}聊聊`} subtitle="说点什么吧。" />
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`message-enter flex items-start gap-2 relative ${message.role === "user" ? "flex-row-reverse" : ""}`}
-            >
-              <ChatAvatar
-                url={message.role === "user" ? userAvatar : assistantAvatar}
-                label={
-                  message.role === "user" ? profile?.display_name || "我" : current?.name || "笔友"
-                }
-              />
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label="长按打开消息操作"
-                onPointerDown={(event) => startLongPress(message.id, event.clientX, event.clientY)}
-                onPointerUp={cancelLongPress}
-                onPointerCancel={cancelLongPress}
-                onPointerLeave={cancelLongPress}
-                onPointerMove={(event) => trackLongPress(event.clientX, event.clientY)}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  cancelLongPress();
-                  setMenu(message.id);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") setMenu(message.id);
-                }}
-                className={`message-bubble max-w-[76%] select-none cursor-pointer ${message.role === "user" ? "bg-[var(--color-primary)] text-white" : "bg-white border border-[var(--color-border)]"}`}
-              >
-                <p className="whitespace-pre-wrap text-base">{message.content}</p>
-              </div>
-            </div>
-          ))
-        )}
-        {sending && (
-          <div
-            className="message-enter flex items-start gap-2"
-            role="status"
-            aria-label="笔友正在回复"
-          >
-            <ChatAvatar url={assistantAvatar} label={current?.name || "笔友"} />
-            <div className="message-bubble typing-bubble bg-white border border-[var(--color-border)]">
-              <span className="typing-dot" />
-              <span className="typing-dot" />
-              <span className="typing-dot" />
-            </div>
-          </div>
-        )}
-        <div ref={bottom} />
-      </main>
+      <ChatMessages
+        messages={messages}
+        sending={sending}
+        assistantAvatar={assistantAvatar}
+        userAvatar={userAvatar}
+        assistantName={current.name}
+        userName={profile?.display_name || "我"}
+        onSelect={setMenu}
+      />
 
-      <form
-        onSubmit={submit}
-        className="relative p-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] border-t bg-[var(--color-bg)] flex gap-1.5"
-      >
+      <form onSubmit={submit} className="chat-composer">
         {toolsOpen && (
           <div className="absolute z-20 left-3 bottom-[calc(100%+8px)] min-w-48 rounded-2xl border bg-white p-2 shadow-xl slide-up">
             <button
@@ -742,30 +732,32 @@ function ConversationPage({
           aria-label="更多聊天功能"
           aria-expanded={toolsOpen}
           onClick={() => setToolsOpen((open) => !open)}
-          className="w-10 h-10 shrink-0 self-end rounded-full border bg-white flex items-center justify-center text-[var(--color-primary)]"
+          className="chat-composer__more"
         >
           <Plus size={19} className={`transition-transform ${toolsOpen ? "rotate-45" : ""}`} />
         </button>
         <textarea
+          ref={inputRef}
+          aria-label="消息内容"
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onFocus={() => setToolsOpen(false)}
           placeholder="说点什么…"
-          className="input-field flex-1 resize-none min-h-10 !px-3 !py-2"
+          className="chat-composer__input"
           rows={1}
         />
         <button
           disabled={savingMessage || sending || !input.trim()}
           aria-label="发送消息"
-          className="w-10 h-10 shrink-0 self-end rounded-xl bg-[var(--color-primary)] text-white flex justify-center items-center disabled:opacity-40"
+          className="chat-composer__send"
         >
-          <Send size={16} />
+          <ArrowUp size={20} strokeWidth={2.4} />
         </button>
         <button
           type="button"
           disabled={!hasPendingMessages || savingMessage || sending}
           onClick={() => void triggerReply()}
-          className="h-10 shrink-0 self-end rounded-xl border border-[var(--color-primary)] px-2.5 text-sm font-medium text-[var(--color-primary)] disabled:opacity-35"
+          className="chat-composer__reply"
         >
           {sending ? "回复中" : "回复"}
         </button>
@@ -888,23 +880,19 @@ function ConversationPage({
   );
 }
 
-function ChatAvatar({ url, label }: { url: string; label: string }) {
-  return (
-    <div className="chat-avatar" title={label} aria-label={label}>
-      {url ? (
-        <img src={url} alt={label} className="w-full h-full object-cover" />
-      ) : (
-        <span aria-hidden="true">{label.trim().slice(0, 1) || "友"}</span>
-      )}
-    </div>
-  );
-}
-
 function FriendAvatar({ url, label }: { url: string; label: string }) {
   return (
-    <div className="w-13 h-13 shrink-0 rounded-2xl overflow-hidden border border-[var(--color-border)] bg-white flex items-center justify-center text-lg font-semibold text-[var(--color-primary)]">
+    <div className="chat-friend-avatar">
       {url ? (
-        <img src={url} alt={label} className="w-full h-full object-cover" />
+        <img
+          src={url}
+          alt={label}
+          width={54}
+          height={54}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover"
+        />
       ) : (
         <span aria-hidden="true">{label.trim().slice(0, 1) || "友"}</span>
       )}

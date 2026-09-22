@@ -57,10 +57,16 @@ function DiaryDetailPage() {
   }, [id]);
 
   useEffect(() => {
+    // The live schema includes diary_replies added after generated Supabase types.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
     void Promise.all([
       db.from("ai_personas").select("*").order("updated_at", { ascending: false }),
-      db.from("diary_replies").select("*").eq("diary_id", id).order("created_at", { ascending: false }),
+      db
+        .from("diary_replies")
+        .select("*")
+        .eq("diary_id", id)
+        .order("created_at", { ascending: false }),
     ]).then(([personas, savedReplies]) => {
       const list = (personas.data ?? []) as AiPersona[];
       setChars(list);
@@ -112,9 +118,10 @@ function DiaryDetailPage() {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container diary-app diary-detail">
       <div className="fade-in">
         <Header
+          className="diary-page-header"
           title="日记详情"
           onBack={() => router.history.back()}
           rightAction={
@@ -135,21 +142,15 @@ function DiaryDetailPage() {
           }
         />
 
-        <div className="mb-6">
-          <p className="text-sm text-[var(--color-text-secondary)] mb-2">
-            {formatDateFull(diary.diary_date)}
-          </p>
-          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-4">
-            {diary.title || "无题"}
-          </h1>
-          <div className="text-[var(--color-text)] leading-relaxed whitespace-pre-wrap text-[15px]">
-            {diary.content || "（空白）"}
-          </div>
-        </div>
+        <article className="diary-entry">
+          <p className="diary-entry__date">{formatDateFull(diary.diary_date)}</p>
+          <h1>{diary.title || "无题"}</h1>
+          <div className="diary-entry__content">{diary.content || "（空白）"}</div>
+        </article>
 
         <button
           onClick={() => navigate({ to: "/chat", search: { diary: diary.id } })}
-          className="w-full p-4 rounded-2xl bg-[var(--color-accent)] bg-opacity-10 border border-[var(--color-accent)] border-opacity-20 flex items-center justify-between transition-all active:scale-[0.98]"
+          className="diary-letter-cta"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)] bg-opacity-15 flex items-center justify-center">
@@ -163,11 +164,52 @@ function DiaryDetailPage() {
           <span className="text-lg text-[var(--color-text-secondary)]">→</span>
         </button>
 
-        <section className="mt-5 border-t border-[var(--color-border)] pt-5">
+        <section className="diary-replies">
           <h2 className="font-semibold text-[var(--color-text)]">你的回信</h2>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-1">选择一位笔友，为这篇日记写一封完整的回信。</p>
-          {chars.length ? <div className="flex gap-2 mt-3"><select value={charId} onChange={(e) => setCharId(e.target.value)} className="input-field flex-1"><option value="">选择笔友</option>{chars.map((character) => <option key={character.id} value={character.id}>{character.name}</option>)}</select><button onClick={() => void handleDiaryReply()} disabled={!charId || replying} className="btn-primary px-4">{replying ? "生成中…" : "写回信"}</button></div> : <button onClick={() => navigate({ to: "/persona" })} className="mt-3 text-sm text-[var(--color-primary)]">先创建一位笔友</button>}
-          <div className="space-y-3 mt-4">{replies.map((reply) => { const character = chars.find((item) => item.id === reply.char_id); return <article key={reply.id} className="bg-white border border-[var(--color-border)] rounded-2xl p-4"><p className="text-xs text-[var(--color-text-secondary)] mb-2">{character?.name ?? "笔友"}的回信</p><p className="whitespace-pre-wrap leading-relaxed text-sm">{reply.content}</p></article>; })}</div>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+            选择一位笔友，为这篇日记写一封完整的回信。
+          </p>
+          {chars.length ? (
+            <div className="flex gap-2 mt-3">
+              <select
+                value={charId}
+                onChange={(e) => setCharId(e.target.value)}
+                className="input-field flex-1"
+              >
+                <option value="">选择笔友</option>
+                {chars.map((character) => (
+                  <option key={character.id} value={character.id}>
+                    {character.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => void handleDiaryReply()}
+                disabled={!charId || replying}
+                className="btn-primary px-4"
+              >
+                {replying ? "生成中…" : "写回信"}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate({ to: "/persona" })}
+              className="mt-3 text-sm text-[var(--color-primary)]"
+            >
+              先创建一位笔友
+            </button>
+          )}
+          <div className="diary-reply-list">
+            {replies.map((reply) => {
+              const character = chars.find((item) => item.id === reply.char_id);
+              return (
+                <article key={reply.id} className="diary-reply">
+                  <p>{character?.name ?? "笔友"}的回信</p>
+                  <div>{reply.content}</div>
+                </article>
+              );
+            })}
+          </div>
         </section>
       </div>
 

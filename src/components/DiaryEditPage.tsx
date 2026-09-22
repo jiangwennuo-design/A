@@ -70,52 +70,52 @@ export function DiaryEditPage({ id }: { id?: string }) {
   }
 
   return (
-    <div className="page-container">
-      <form onSubmit={handleSave} className="fade-in flex flex-col min-h-[100dvh]">
+    <div className="page-container diary-app diary-editor">
+      <form onSubmit={handleSave} className="fade-in diary-editor__form">
         <Header
+          className="diary-page-header"
           title={isEditing ? "编辑日记" : "写日记"}
           onBack={() => router.history.back()}
         />
 
         {error && <ErrorBanner message={error} />}
 
-        <div className="space-y-4 flex-1">
-          <div>
-            <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">日期</label>
+        <div className="diary-editor__paper">
+          <div className="diary-editor__date">
+            <label>日期</label>
             <input
               type="date"
               value={diaryDate}
               onChange={(e) => setDiaryDate(e.target.value)}
-              className="input-field"
+              className="diary-editor__date-input"
               required
             />
           </div>
 
           <div>
-            <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">标题</label>
+            <label className="sr-only">标题</label>
             <input
               type="text"
               placeholder="给这篇日记起个标题..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="input-field"
+              className="diary-editor__title"
             />
           </div>
 
-          <div className="flex-1">
-            <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">正文</label>
+          <div className="diary-editor__body">
+            <label className="sr-only">正文</label>
             <textarea
               placeholder="今天发生了什么？想记录些什么..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="input-field resize-none"
+              className="diary-editor__content"
               rows={16}
-              style={{ minHeight: "300px", lineHeight: "1.8" }}
             />
           </div>
         </div>
 
-        <div className="pt-4 pb-2">
+        <div className="diary-editor__actions">
           <button type="submit" disabled={saving} className="btn-primary w-full">
             {saving ? <LoadingSpinner /> : "保存"}
           </button>

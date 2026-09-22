@@ -4,11 +4,12 @@ interface HeaderProps {
   title: string;
   onBack?: () => void;
   rightAction?: ReactNode;
+  className?: string;
 }
 
-export function Header({ title, onBack, rightAction }: HeaderProps) {
+export function Header({ title, onBack, rightAction, className = "" }: HeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-6 px-1">
+    <div className={`flex items-center justify-between mb-6 px-1 ${className}`}>
       <div className="flex items-center gap-3">
         {onBack && (
           <button

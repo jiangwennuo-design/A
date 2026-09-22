@@ -46,39 +46,43 @@ function DiaryHomePage() {
   });
 
   return (
-    <div className="page-container app-page">
+    <div className="page-container diary-app diary-home">
       <div className="fade-in">
-        <header className="app-header mb-6">
-          <button type="button" onClick={() => navigate({ to: "/" })} className="app-home-button">
+        <header className="diary-topbar">
+          <button
+            type="button"
+            aria-label="返回桌面"
+            onClick={() => navigate({ to: "/" })}
+            className="diary-icon-button"
+          >
             <House size={18} />
           </button>
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold">此心一笺</h1>
-            <p className="text-xs text-[var(--color-text-secondary)]">{dateStr}</p>
-          </div>
+          <p>{dateStr}</p>
         </header>
 
-        <h2 className="text-2xl font-bold text-[var(--color-text)] mb-6">
-          {greeting()}，{profile?.display_name || "朋友"}
-        </h2>
+        <section className="diary-hero">
+          <span>此心一笺</span>
+          <h1>
+            {greeting()}，{profile?.display_name || "朋友"}
+          </h1>
+          <p>今天，也留一点时间给自己。</p>
+        </section>
 
-        <button
-          onClick={() => navigate({ to: "/diary/new" })}
-          className="w-full mb-6 p-5 rounded-2xl bg-[var(--color-primary)] text-white flex items-center justify-between transition-all active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-3">
-            <PenLine size={22} />
-            <span className="font-medium text-base">写一篇日记</span>
+        <button onClick={() => navigate({ to: "/diary/new" })} className="diary-compose-card">
+          <div className="diary-compose-card__icon">
+            <PenLine size={21} />
           </div>
-          <span className="text-lg opacity-60">→</span>
+          <div>
+            <strong>写下此刻</strong>
+            <span>文字会替你收好今天</span>
+          </div>
+          <span aria-hidden="true">＋</span>
         </button>
 
-        <div className="flex items-center gap-2 mb-4">
+        <div className="diary-section-heading">
           <BookOpen size={18} className="text-[var(--color-text-secondary)]" />
-          <h2 className="text-base font-semibold text-[var(--color-text)]">我的日记</h2>
-          {diaries.length > 0 && (
-            <span className="text-xs text-[var(--color-text-secondary)]">({diaries.length})</span>
-          )}
+          <h2>我的日记</h2>
+          {diaries.length > 0 && <span>{diaries.length} 篇</span>}
         </div>
 
         {loading ? (
@@ -86,22 +90,22 @@ function DiaryHomePage() {
         ) : diaries.length === 0 ? (
           <EmptyState icon="📔" title="还没有日记" subtitle="点击上方按钮，写下你的第一篇日记吧" />
         ) : (
-          <div className="space-y-3 pb-5">
+          <div className="diary-list">
             {diaries.map((diary) => (
               <button
                 key={diary.id}
                 onClick={() => navigate({ to: "/diary/$id", params: { id: diary.id } })}
-                className="card w-full text-left active:scale-[0.99] transition-transform"
+                className="diary-card"
               >
-                <p className="text-sm text-[var(--color-text-secondary)] mb-2">
-                  {formatDate(diary.diary_date)}
-                </p>
-                <h3 className="font-medium text-[var(--color-text)] mb-1 line-clamp-1">
-                  {diary.title || "无题"}
-                </h3>
-                <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 leading-relaxed">
-                  {diary.content || "（空白）"}
-                </p>
+                <time dateTime={diary.diary_date}>
+                  <b>{formatDateDay(diary.diary_date)}</b>
+                  <span>{formatDateMonth(diary.diary_date)}</span>
+                </time>
+                <div>
+                  <h3>{diary.title || "无题"}</h3>
+                  <p>{diary.content || "（空白）"}</p>
+                  <small>{formatDate(diary.diary_date)}</small>
+                </div>
               </button>
             ))}
           </div>
@@ -123,4 +127,11 @@ function greeting(): string {
 function formatDate(dateStr: string): string {
   const date = new Date(`${dateStr}T00:00:00`);
   return date.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
+}
+
+function formatDateDay(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00`).getDate().toString().padStart(2, "0");
+}
+function formatDateMonth(dateStr: string) {
+  return `${new Date(`${dateStr}T00:00:00`).getMonth() + 1}月`;
 }
