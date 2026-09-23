@@ -62,7 +62,9 @@ async function loadOwnedContext(db: Db, userId: string, sessionId: string, charI
     db.from("ai_personas").select("*").eq("id", charId).eq("user_id", userId).maybeSingle(),
     db
       .from("profiles")
-      .select("display_name, gender, persona_text, signature, time_awareness_enabled, timezone")
+      .select(
+        "display_name, gender, persona_text, signature, time_awareness_enabled, inner_life_enabled, timezone",
+      )
       .eq("id", userId)
       .maybeSingle(),
   ]);
@@ -176,7 +178,13 @@ async function generatePrivateReply(args: {
 }) {
   const min = Math.max(1, Number(args.character.minimum_messages ?? 1));
   const max = Math.max(min, Number(args.character.maximum_messages ?? min));
-  const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：{"messages":["..."]}；数组中必须有 ${min} 到 ${max} 条独立的、完整但自然的聊天气泡。${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
+  const { privateChatInnerLifePrompt, stripPrivateThinking } =
+    await import("./ai/inner-life.server");
+  const innerLifePrompt = privateChatInnerLifePrompt(args.profile?.inner_life_enabled !== false);
+  const responseShape = innerLifePrompt
+    ? '{"thinking":"<thinking>...</thinking>","messages":["..."]}'
+    : '{"messages":["..."]}';
+  const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条独立的、完整但自然的聊天气泡。${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
   const { generate } = await import("./ai/service.server");
   const result = await generate({
     scene: "private_chat",
@@ -190,7 +198,7 @@ async function generatePrivateReply(args: {
     ],
     outputFormat: "json",
   });
-  return parseBubbles(result.text, min, max);
+  return parseBubbles(stripPrivateThinking(result.text), min, max);
 }
 
 export const queuePenpalMessage = createServerFn({ method: "POST" })
@@ -363,7 +371,7 @@ export const createDiaryReply = createServerFn({ method: "POST" })
         .maybeSingle(),
       db
         .from("profiles")
-        .select("display_name, gender, persona_text, signature")
+        .select("display_name, gender, persona_text, signature, inner_life_enabled")
         .eq("id", context.userId)
         .maybeSingle(),
       db
@@ -374,13 +382,15 @@ export const createDiaryReply = createServerFn({ method: "POST" })
         .maybeSingle(),
     ]);
     if (!character || !diary) throw new Error("日记或笔友不存在或无权访问。");
+    const { letterMindsetPrompt, stripPrivateThinking } = await import("./ai/inner-life.server");
+    const mindsetPrompt = letterMindsetPrompt(profile?.inner_life_enabled !== false);
     const { generate } = await import("./ai/service.server");
     const result = await generate({
       scene: "diary_reply",
       userId: context.userId,
       supabase: db,
       charId: data.char_id,
-      systemPrompt: `${profilePrompt(profile, character)}\n\n请以笔友身份写一封完整、连贯、有回应感的中文回信。不要输出 JSON，不要使用即时私聊的多气泡格式。`,
+      systemPrompt: `${profilePrompt(profile, character)}\n\n请以笔友身份写一封完整、连贯、有回应感的中文回信。不要输出 JSON，不要使用即时私聊的多气泡格式。${mindsetPrompt ? `\n\n${mindsetPrompt}` : ""}`,
       messages: [
         {
           role: "user",
@@ -395,7 +405,7 @@ export const createDiaryReply = createServerFn({ method: "POST" })
         user_id: context.userId,
         diary_id: data.diary_id,
         char_id: data.char_id,
-        content: result.text,
+        content: stripPrivateThinking(result.text),
       })
       .select("*")
       .single();

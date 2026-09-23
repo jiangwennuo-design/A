@@ -226,6 +226,7 @@ export type Database = {
           display_name: string
           email: string
           id: string
+          inner_life_enabled: boolean
         }
         Insert: {
           avatar_url?: string | null
@@ -233,6 +234,7 @@ export type Database = {
           display_name?: string
           email?: string
           id: string
+          inner_life_enabled?: boolean
         }
         Update: {
           avatar_url?: string | null
@@ -240,6 +242,7 @@ export type Database = {
           display_name?: string
           email?: string
           id?: string
+          inner_life_enabled?: boolean
         }
         Relationships: []
       }

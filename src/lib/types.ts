@@ -12,6 +12,7 @@ export interface Profile {
   wallpaper_preset: string;
   moment_cover_url: string | null;
   time_awareness_enabled: boolean;
+  inner_life_enabled: boolean;
   timezone: string;
   created_at: string;
   updated_at: string;

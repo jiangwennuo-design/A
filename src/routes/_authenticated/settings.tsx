@@ -9,6 +9,7 @@ import {
   LogOut,
   ChevronRight,
   Clock3,
+  BrainCircuit,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -35,6 +36,7 @@ function SettingsPage() {
   const { profile, user, signOut, refreshProfile } = useAuth();
   const [avatar, setAvatar] = useState("");
   const [savingTime, setSavingTime] = useState(false);
+  const [savingInnerLife, setSavingInnerLife] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -100,7 +102,7 @@ function SettingsPage() {
         </div>
 
         <SectionTitle>聊天体验</SectionTitle>
-        <div className="card mb-6">
+        <div className="card divide-y divide-[var(--color-border)] mb-6">
           <div className="flex items-center justify-between gap-4 py-1">
             <div className="flex items-start gap-3">
               <Clock3 size={18} className="mt-0.5 shrink-0 text-[var(--color-text-secondary)]" />
@@ -134,6 +136,42 @@ function SettingsPage() {
                   .eq("id", user.id);
                 if (!error) await refreshProfile();
                 setSavingTime(false);
+              }}
+            >
+              <span />
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-4 py-4 pb-1">
+            <div className="flex items-start gap-3">
+              <BrainCircuit
+                size={18}
+                className="mt-0.5 shrink-0 text-[var(--color-text-secondary)]"
+              />
+              <div>
+                <p className="text-sm text-[var(--color-text)]">思维链</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
+                  让角色在聊天与回信前进行隐藏的自然思考
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={profile?.inner_life_enabled !== false}
+              aria-label="思维链"
+              disabled={savingInnerLife}
+              className={`settings-switch ${profile?.inner_life_enabled !== false ? "is-on" : ""}`}
+              onClick={async () => {
+                if (!user) return;
+                setSavingInnerLife(true);
+                // Added by the inner-life database migration.
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { error } = await (supabase as any)
+                  .from("profiles")
+                  .update({ inner_life_enabled: profile?.inner_life_enabled === false })
+                  .eq("id", user.id);
+                if (!error) await refreshProfile();
+                setSavingInnerLife(false);
               }}
             >
               <span />
