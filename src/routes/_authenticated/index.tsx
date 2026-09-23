@@ -20,7 +20,7 @@ const DEFAULT_QUOTE = "把想说的话，慢慢写进今天。";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
-    meta: [{ title: "此心一笺" }, { name: "description", content: "你的日记、聊天和个人空间。" }],
+    meta: [{ title: "K得机" }, { name: "description", content: "你的日记、聊天和个人空间。" }],
   }),
   component: PhoneHomePage,
 });
@@ -66,11 +66,6 @@ function PhoneHomePage() {
   return (
     <DesktopWallpaper>
       <main className="phone-home fade-in">
-        <div className="phone-home__status" aria-hidden="true">
-          <span>{time}</span>
-          <span>此心系统</span>
-        </div>
-
         <section className="phone-home__hero" aria-label="日期与问候">
           <p className="phone-home__time">{time}</p>
           <p className="phone-home__date">{date.replace("星期", " · 星期")}</p>

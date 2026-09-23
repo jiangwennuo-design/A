@@ -28,12 +28,12 @@ import {
 export const Route = createFileRoute("/_authenticated/ai-settings")({
   head: () => ({
     meta: [
-      { title: "AI 配置 · 此心一笺" },
+      { title: "AI 配置 · K得机" },
       {
         name: "description",
         content: "管理你自己的 AI 渠道：Base URL、API Key、模型、温度与连接测试。",
       },
-      { property: "og:title", content: "AI 配置 · 此心一笺" },
+      { property: "og:title", content: "AI 配置 · K得机" },
       {
         property: "og:description",
         content: "管理你自己的 AI 渠道：Base URL、API Key、模型、温度与连接测试。",

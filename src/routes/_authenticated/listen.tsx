@@ -5,7 +5,6 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
   Disc3,
-  Headphones,
   MessageCircle,
   Music2,
   Pause,
@@ -18,13 +17,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { closeSystemApp } from "@/lib/app-transition";
+import { SystemSheet } from "@/components/system-ui";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { generateMusicCompanionMessage } from "@/lib/companion.functions";
 import type { AiPersona, MusicMessage, MusicTrack } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/listen")({
-  head: () => ({ meta: [{ title: "一起听 · 此心一笺" }] }),
+  head: () => ({ meta: [{ title: "一起听 · K得机" }] }),
   component: ListenPage,
 });
 
@@ -51,6 +51,8 @@ function ListenPage() {
   const [artist, setArtist] = useState("");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [addingMusic, setAddingMusic] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState("");
   const current = tracks.find((track) => track.id === currentId);
@@ -152,6 +154,7 @@ function ListenPage() {
       setAudioFile(null);
       if (fileRef.current) fileRef.current.value = "";
       await loadLibrary();
+      setAddingMusic(false);
     }
     setUploading(false);
   }
@@ -222,12 +225,15 @@ function ListenPage() {
           <h1>一起听</h1>
           <span>私人音乐空间</span>
         </div>
-        <Headphones size={22} />
+        <button
+          type="button"
+          className="listen-settings-button"
+          aria-label="音乐设置"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Music2 size={20} />
+        </button>
       </header>
-      <div className="listen-compliance">
-        QQ 音乐的官方授权仅开放给特定 IoT/H5
-        场景；网易云正式接入需开发者凭据。当前使用你有权播放的本地音频，不会抓取账号或 Cookie。
-      </div>
 
       <section className="listen-room">
         <div className="listen-people">
@@ -353,63 +359,102 @@ function ListenPage() {
         </div>
       </section>
 
-      <section className="listen-library">
-        <h2>私人音乐库</h2>
-        <div className="listen-upload">
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="歌曲名称（可选）"
-          />
-          <input
-            value={artist}
-            onChange={(event) => setArtist(event.target.value)}
-            placeholder="歌手（可选）"
-          />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="audio/mpeg,audio/mp4,audio/ogg,audio/wav"
-            onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
-          />
-          <button
-            type="button"
-            onClick={() => void uploadTrack()}
-            disabled={!audioFile || uploading}
-          >
-            <Upload size={16} />
-            {uploading ? "上传中" : "上传音乐"}
-          </button>
-        </div>
-        <div className="listen-track-list">
-          {tracks.length === 0 ? (
-            <p>
-              <Plus size={16} />
-              添加你有权使用的音频文件
-            </p>
-          ) : (
-            tracks.map((track) => (
-              <div key={track.id} className={track.id === currentId ? "is-current" : ""}>
-                <button type="button" onClick={() => switchTrack(track.id)}>
-                  <Music2 size={16} />
-                  <span>
-                    <strong>{track.title}</strong>
-                    <small>{track.artist || "未知歌手"}</small>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={`删除 ${track.title}`}
-                  onClick={() => void removeTrack(track)}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
       {error && <p className="listen-error">{error}</p>}
+
+      <SystemSheet
+        open={settingsOpen}
+        title="音乐设置"
+        description="管理你的私人音乐"
+        onClose={() => setSettingsOpen(false)}
+        scrollable
+      >
+        <div className="listen-settings-note">
+          QQ 音乐的官方授权仅开放给特定 IoT/H5
+          场景；网易云正式接入需开发者凭据。当前仅使用你有权播放的本地音频。
+        </div>
+        {error && <p className="listen-error">{error}</p>}
+
+        <section className="listen-library listen-library--settings">
+          <div className="listen-library__heading">
+            <div>
+              <h3>私人音乐库</h3>
+              <span>{tracks.length ? `${tracks.length} 首音乐` : "暂无私人音乐"}</span>
+            </div>
+            <button
+              type="button"
+              className="listen-add-button"
+              onClick={() => setAddingMusic((value) => !value)}
+            >
+              <Plus size={16} />
+              {addingMusic ? "收起" : "添加音乐"}
+            </button>
+          </div>
+
+          {addingMusic && (
+            <div className="listen-upload listen-upload--expanded">
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="歌曲名称（可选）"
+              />
+              <input
+                value={artist}
+                onChange={(event) => setArtist(event.target.value)}
+                placeholder="歌手（可选）"
+              />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="audio/mpeg,audio/mp4,audio/ogg,audio/wav"
+                onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                onClick={() => void uploadTrack()}
+                disabled={!audioFile || uploading}
+              >
+                <Upload size={16} />
+                {uploading ? "上传中" : "上传音乐"}
+              </button>
+            </div>
+          )}
+
+          <div className="listen-track-list">
+            {tracks.length === 0 ? (
+              <div className="listen-library-empty">
+                <Music2 size={22} />
+                <p>暂无私人音乐</p>
+                <span>添加你有权使用的音频文件</span>
+              </div>
+            ) : (
+              tracks.map((track) => (
+                <div key={track.id} className={track.id === currentId ? "is-current" : ""}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      switchTrack(track.id);
+                      setSettingsOpen(false);
+                    }}
+                  >
+                    <Music2 size={16} />
+                    <span>
+                      <strong>{track.title}</strong>
+                      <small>{track.artist || "未知歌手"}</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`删除 ${track.title}`}
+                    onClick={() => void removeTrack(track)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      </SystemSheet>
     </main>
   );
 }

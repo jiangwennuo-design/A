@@ -11,9 +11,9 @@ import { MessageCircle, Pencil, Trash2 } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/diary/$id/")({
   head: () => ({
     meta: [
-      { title: "日记详情 · 此心一笺" },
+      { title: "日记详情 · K得机" },
       { name: "description", content: "回看这篇日记，或者让你的 AI 笔友读一读并聊聊它。" },
-      { property: "og:title", content: "日记详情 · 此心一笺" },
+      { property: "og:title", content: "日记详情 · K得机" },
       {
         property: "og:description",
         content: "回看这篇日记，或者让你的 AI 笔友读一读并聊聊它。",

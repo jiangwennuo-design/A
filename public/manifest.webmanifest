@@ -1,0 +1,16 @@
+{
+  "name": "K得机",
+  "short_name": "K得机",
+  "description": "把日记、聊天与陪伴装进一部属于你的小手机。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f2eee7",
+  "theme_color": "#f2eee7",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}

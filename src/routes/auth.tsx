@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { LockKeyhole, Mail, Smartphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { discordLoginEnabled } from "@/lib/app-config";
 import { ErrorBanner } from "@/components/ui-kit";
@@ -8,12 +9,12 @@ import { useAuth } from "@/context/AuthContext";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "登录 · 此心一笺" },
+      { title: "登录 · K得机" },
       {
         name: "description",
         content: "登录你的私人小手机，记录生活，并和专属 AI 角色聊聊。",
       },
-      { property: "og:title", content: "登录 · 此心一笺" },
+      { property: "og:title", content: "登录 · K得机" },
       {
         property: "og:description",
         content: "登录你的私人小手机，记录生活，并和专属 AI 角色聊聊。",
@@ -36,10 +37,26 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [leaving, setLeaving] = useState(false);
+  const enterTimerRef = useRef<number | null>(null);
+
+  const enterDesktop = useCallback(() => {
+    if (enterTimerRef.current !== null) return;
+    setLeaving(true);
+    enterTimerRef.current = window.setTimeout(() => {
+      void navigate({ to: "/" });
+    }, 180);
+  }, [navigate]);
 
   useEffect(() => {
-    if (!authLoading && session) void navigate({ to: "/" });
-  }, [authLoading, navigate, session]);
+    if (!authLoading && session) enterDesktop();
+    return () => {
+      if (enterTimerRef.current !== null) {
+        window.clearTimeout(enterTimerRef.current);
+        enterTimerRef.current = null;
+      }
+    };
+  }, [authLoading, enterDesktop, session]);
 
   async function handleEmailAuth(e: FormEvent) {
     e.preventDefault();
@@ -52,8 +69,8 @@ function LoginPage() {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         if (!data.session) throw new Error("登录成功，但没有收到有效会话，请重试");
-        setInfo("登录成功，正在进入日记本…");
-        void navigate({ to: "/" });
+        setInfo("登录成功，正在进入 K得机…");
+        enterDesktop();
       } else if (mode === "register") {
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -62,8 +79,8 @@ function LoginPage() {
         });
         if (error) throw error;
         if (data.session) {
-          setInfo("注册成功，正在进入日记本…");
-          void navigate({ to: "/" });
+          setInfo("注册成功，正在进入 K得机…");
+          enterDesktop();
         } else {
           setInfo("注册成功！请先前往邮箱完成验证，再回来登录。");
           setMode("login");
@@ -97,122 +114,178 @@ function LoginPage() {
   }
 
   const submitText = mode === "login" ? "登录" : mode === "register" ? "注册" : "发送重置链接";
+  const modeTitle =
+    mode === "login" ? "欢迎回来" : mode === "register" ? "创建你的空间" : "找回密码";
+  const modeSubtitle =
+    mode === "login"
+      ? "继续回到属于你的小世界。"
+      : mode === "register"
+        ? "只需要邮箱和密码，就可以开始。"
+        : "我们会把重置链接发送到你的邮箱。";
 
   return (
-    <div className="auth-screen">
-      <div className="auth-panel fade-in">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--color-primary)] mb-4">
-            <span className="text-3xl">✒️</span>
+    <main className={`auth-screen ${leaving ? "is-leaving" : ""}`}>
+      <div className="auth-orb auth-orb--blue" aria-hidden />
+      <div className="auth-orb auth-orb--rose" aria-hidden />
+      <section className="auth-panel">
+        <header className="auth-brand">
+          <div className="auth-brand__mark" aria-hidden>
+            <Smartphone size={21} strokeWidth={1.7} />
           </div>
-          <h1 className="text-2xl font-bold text-[var(--color-text)] mb-2">此心一笺</h1>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            记录生活，和你的角色一起度过日常
-          </p>
-        </div>
+          <h1>K得机</h1>
+          <p>把今天装进口袋。</p>
+        </header>
 
-        {error && <ErrorBanner message={error} />}
-        {info && (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-4">
-            <p className="text-sm text-[var(--color-success)]">{info}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleEmailAuth} className="space-y-3">
-          <input
-            type="email"
-            placeholder="邮箱地址"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="input-field"
-            autoComplete="email"
-          />
-
-          {mode !== "reset" && (
-            <input
-              type="password"
-              placeholder="密码"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="input-field"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-            />
-          )}
-
-          <button type="submit" disabled={loading} className="btn-primary auth-submit">
-            {loading && <span className="auth-submit__spinner" aria-hidden />}
-            <span>{loading ? "处理中…" : submitText}</span>
-          </button>
-        </form>
-
-        {discordLoginEnabled && (
-          <>
-            <div className="flex items-center gap-3 my-6">
-              <div className="flex-1 h-px bg-[var(--color-border)]" />
-              <span className="text-xs text-[var(--color-text-secondary)]">或</span>
-              <div className="flex-1 h-px bg-[var(--color-border)]" />
-            </div>
-
+        <div className="auth-card">
+          <div className="auth-mode-switch" role="tablist" aria-label="登录或注册">
             <button
               type="button"
-              onClick={handleDiscordLogin}
-              disabled={loading}
-              className="btn-secondary w-full flex items-center justify-center gap-2"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#5865F2">
-                <path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .373-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-              </svg>
-              <span>使用 Discord 登录</span>
-            </button>
-          </>
-        )}
-
-        <div className="flex items-center justify-center gap-4 mt-6 text-sm">
-          {mode !== "login" && (
-            <button
-              type="button"
+              role="tab"
+              aria-selected={mode === "login"}
+              className={mode === "login" ? "is-active" : ""}
               onClick={() => {
                 setMode("login");
                 setError("");
                 setInfo("");
               }}
-              className="text-[var(--color-primary)]"
             >
               登录
             </button>
-          )}
-          {mode !== "register" && (
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === "register"}
+              className={mode === "register" ? "is-active" : ""}
               onClick={() => {
                 setMode("register");
                 setError("");
                 setInfo("");
               }}
-              className="text-[var(--color-primary)]"
             >
               注册
             </button>
-          )}
-          {mode !== "reset" && (
-            <button
-              type="button"
-              onClick={() => {
-                setMode("reset");
-                setError("");
-                setInfo("");
-              }}
-              className="text-[var(--color-text-secondary)]"
-            >
-              找回密码
+          </div>
+
+          <div className="auth-copy">
+            <h2>{modeTitle}</h2>
+            <p>{modeSubtitle}</p>
+          </div>
+
+          {error && <ErrorBanner message={error} />}
+          {info && <div className="auth-info">{info}</div>}
+
+          <form onSubmit={handleEmailAuth} className="auth-form">
+            <label>
+              <span>邮箱</span>
+              <div className="auth-field">
+                <Mail size={17} aria-hidden />
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  autoComplete="email"
+                  inputMode="email"
+                />
+              </div>
+            </label>
+
+            {mode !== "reset" && (
+              <label>
+                <span>密码</span>
+                <div className="auth-field">
+                  <LockKeyhole size={17} aria-hidden />
+                  <input
+                    type="password"
+                    placeholder={mode === "register" ? "至少 6 个字符" : "输入密码"}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    minLength={6}
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  />
+                </div>
+              </label>
+            )}
+
+            {mode !== "reset" && (
+              <div className="auth-forgot-row">
+                {mode === "login" && (
+                  <button
+                    type="button"
+                    className="auth-forgot"
+                    onClick={() => {
+                      setMode("reset");
+                      setError("");
+                      setInfo("");
+                    }}
+                  >
+                    忘记密码？
+                  </button>
+                )}
+              </div>
+            )}
+
+            <button type="submit" disabled={loading} className="auth-primary">
+              {loading && <span className="auth-submit__spinner" aria-hidden />}
+              <span>{loading ? "处理中…" : submitText}</span>
             </button>
+          </form>
+
+          {discordLoginEnabled && mode !== "reset" && (
+            <>
+              <div className="auth-divider">
+                <span>或</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDiscordLogin}
+                disabled={loading}
+                className="auth-discord"
+              >
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="#5865F2" aria-hidden>
+                  <path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .373-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                </svg>
+                <span>使用 Discord 登录</span>
+              </button>
+            </>
           )}
+
+          <div className="auth-secondary-action">
+            {mode === "reset" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setError("");
+                  setInfo("");
+                }}
+              >
+                返回登录
+              </button>
+            ) : (
+              <p>
+                {mode === "login" ? "还没有账号？" : "已经有账号？"}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode(mode === "login" ? "register" : "login");
+                    setError("");
+                    setInfo("");
+                  }}
+                >
+                  {mode === "login" ? "注册" : "登录"}
+                </button>
+              </p>
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+
+        <p className="auth-footnote">一个安静、私人的日常空间</p>
+      </section>
+    </main>
   );
 }
 

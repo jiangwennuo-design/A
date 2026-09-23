@@ -19,9 +19,9 @@ import { closeSystemApp, pushSystemPage } from "@/lib/app-transition";
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
     meta: [
-      { title: "设置 · 此心一笺" },
+      { title: "设置 · K得机" },
       { name: "description", content: "查看账户信息、管理 AI 服务和日记隐私设置。" },
-      { property: "og:title", content: "设置 · 此心一笺" },
+      { property: "og:title", content: "设置 · K得机" },
       { property: "og:description", content: "查看账户信息、管理 AI 服务和日记隐私设置。" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -152,7 +152,7 @@ function SettingsPage() {
           <span>退出登录</span>
         </button>
 
-        <p className="text-center text-xs text-[var(--color-text-secondary)] mt-8">此心一笺 v1.0</p>
+        <p className="text-center text-xs text-[var(--color-text-secondary)] mt-8">K得机 v1.0</p>
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import { generateMomentInteraction } from "@/lib/companion.functions";
 import type { AiPersona, MomentComment, MomentLike, MomentPost } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/moments")({
-  head: () => ({ meta: [{ title: "朋友圈 · 此心一笺" }] }),
+  head: () => ({ meta: [{ title: "朋友圈 · K得机" }] }),
   component: MomentsPage,
 });
 

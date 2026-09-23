@@ -11,7 +11,7 @@ import { generateFocusCompanionMessage } from "@/lib/companion.functions";
 import type { AiPersona, FocusSession } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/focus")({
-  head: () => ({ meta: [{ title: "番茄钟 · 此心一笺" }] }),
+  head: () => ({ meta: [{ title: "番茄钟 · K得机" }] }),
   component: FocusPage,
 });
 

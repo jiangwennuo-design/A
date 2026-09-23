@@ -10,7 +10,7 @@ import { closeSystemApp, pushSystemPage } from "@/lib/app-transition";
 export const Route = createFileRoute("/_authenticated/diary/")({
   head: () => ({
     meta: [
-      { title: "此心一笺 · 日记" },
+      { title: "此心一笺 · K得机" },
       { name: "description", content: "记录每天的心情，随时和你的 AI 笔友聊聊今天发生的事。" },
     ],
   }),

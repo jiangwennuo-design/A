@@ -17,7 +17,7 @@ const presets = [
 ] as const;
 
 export const Route = createFileRoute("/_authenticated/wallpaper")({
-  head: () => ({ meta: [{ title: "壁纸 · 此心一笺" }] }),
+  head: () => ({ meta: [{ title: "壁纸 · K得机" }] }),
   component: WallpaperPage,
 });
 
@@ -157,7 +157,7 @@ function WallpaperPage() {
           />
         )}
         <div className="relative z-10 text-center">
-          <p className="text-3xl font-semibold">此心一笺</p>
+          <p className="text-3xl font-semibold">K得机</p>
           <p className="text-sm mt-2 opacity-70">桌面预览</p>
         </div>
       </section>
