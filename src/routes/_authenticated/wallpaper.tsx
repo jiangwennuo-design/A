@@ -4,6 +4,7 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
+import { closeSystemApp } from "@/lib/app-transition";
 
 // The production profile/storage fields are newer than the generated Supabase client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,7 +134,10 @@ function WallpaperPage() {
 
   return (
     <div className="page-container app-page">
-      <Header title="壁纸" onBack={() => navigate({ to: "/" })} />
+      <Header
+        title="壁纸"
+        onBack={() => void closeSystemApp("wallpaper", () => navigate({ to: "/" }))}
+      />
       {error && <ErrorBanner message={error} />}
       <section className={`wallpaper-preview wallpaper-preset--${preset}`}>
         {preview && (

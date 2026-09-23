@@ -17,6 +17,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { closeSystemApp } from "@/lib/app-transition";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { generateMusicCompanionMessage } from "@/lib/companion.functions";
@@ -211,7 +212,10 @@ function ListenPage() {
   return (
     <main className="listen-page fade-in">
       <header className="listen-header">
-        <button type="button" onClick={() => navigate({ to: "/" })}>
+        <button
+          type="button"
+          onClick={() => void closeSystemApp("listen", () => navigate({ to: "/" }))}
+        >
           <ArrowLeft size={21} />
         </button>
         <div>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ChevronLeft } from "lucide-react";
 
 interface HeaderProps {
   title: string;
@@ -9,21 +10,22 @@ interface HeaderProps {
 
 export function Header({ title, onBack, rightAction, className = "" }: HeaderProps) {
   return (
-    <div className={`flex items-center justify-between mb-6 px-1 ${className}`}>
-      <div className="flex items-center gap-3">
+    <header className={`system-page-header ${className}`}>
+      <div className="system-page-header__leading">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="text-[var(--color-text-secondary)] text-sm"
+            className="system-page-header__back"
+            aria-label="返回"
           >
-            ←
+            <ChevronLeft size={23} strokeWidth={1.9} />
           </button>
         )}
-        <h1 className="text-xl font-semibold text-[var(--color-text)]">{title}</h1>
+        <h1>{title}</h1>
       </div>
       {rightAction}
-    </div>
+    </header>
   );
 }
 

@@ -14,6 +14,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { supabase } from "@/integrations/supabase/client";
+import { closeSystemApp, pushSystemPage } from "@/lib/app-transition";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -50,7 +51,10 @@ function SettingsPage() {
   return (
     <div className="page-container">
       <div className="fade-in">
-        <Header title="设置" onBack={() => navigate({ to: "/" })} />
+        <Header
+          title="设置"
+          onBack={() => void closeSystemApp("settings", () => navigate({ to: "/" }))}
+        />
 
         <div className="card mb-6">
           <div className="flex items-center gap-4">
@@ -85,7 +89,7 @@ function SettingsPage() {
           <SettingRowLink
             icon={Cpu}
             label="AI 配置"
-            onClick={() => navigate({ to: "/ai-settings" })}
+            onClick={() => void pushSystemPage(() => navigate({ to: "/ai-settings" }))}
           />
         </div>
 

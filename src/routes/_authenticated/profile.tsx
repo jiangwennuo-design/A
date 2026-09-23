@@ -7,6 +7,7 @@ import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
 import { AvatarPicker } from "@/components/AvatarPicker";
 import { importPersonaFile } from "@/lib/persona-file";
 import { ChatNav } from "@/components/ChatNav";
+import { popSystemPage } from "@/lib/app-transition";
 
 export const Route = createFileRoute("/_authenticated/profile")({ component: ProfilePage });
 
@@ -76,7 +77,10 @@ function ProfilePage() {
   return (
     <div className="page-container pb-[calc(88px+env(safe-area-inset-bottom))]">
       <form onSubmit={save}>
-        <Header title="我的资料" onBack={() => navigate({ to: "/chat", search: {} })} />
+        <Header
+          title="我的资料"
+          onBack={() => void popSystemPage(() => navigate({ to: "/chat", search: {} }))}
+        />
         {error && <ErrorBanner message={error} />}
         <p className="text-sm text-[var(--color-text-secondary)] mb-5">
           这里是你的个人资料，只会作为 AI 对话中的用户信息使用。

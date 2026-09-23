@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { Header, EmptyState, ErrorBanner, LoadingSpinner } from "@/components/ui-kit";
+import { popSystemPage } from "@/lib/app-transition";
 import {
   listAiConfigs,
   saveAiConfig,
@@ -123,7 +124,7 @@ function AiSettingsPage() {
   return (
     <div className="page-container">
       <div className="fade-in">
-        <Header title="AI 配置" onBack={() => router.history.back()} />
+        <Header title="AI 配置" onBack={() => void popSystemPage(() => router.history.back())} />
 
         {error && <ErrorBanner message={error} />}
 

@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Header, LoadingSpinner, ErrorBanner } from "@/components/ui-kit";
+import { popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import { createDiaryReply } from "@/lib/penpal.functions";
 import type { AiPersona, Diary, DiaryReply } from "@/lib/types";
 import { MessageCircle, Pencil, Trash2 } from "lucide-react";
@@ -111,7 +112,7 @@ function DiaryDetailPage() {
   if (error || !diary) {
     return (
       <div className="page-container">
-        <Header title="日记" onBack={() => router.history.back()} />
+        <Header title="日记" onBack={() => void popSystemPage(() => router.history.back())} />
         <ErrorBanner message={error || "日记不存在"} />
       </div>
     );
@@ -123,11 +124,15 @@ function DiaryDetailPage() {
         <Header
           className="diary-page-header"
           title="日记详情"
-          onBack={() => router.history.back()}
+          onBack={() => void popSystemPage(() => router.history.back())}
           rightAction={
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate({ to: "/diary/$id/edit", params: { id: diary.id } })}
+                onClick={() =>
+                  void pushSystemPage(() =>
+                    navigate({ to: "/diary/$id/edit", params: { id: diary.id } }),
+                  )
+                }
                 className="w-9 h-9 rounded-full flex items-center justify-center bg-white border border-[var(--color-border)]"
               >
                 <Pencil size={16} className="text-[var(--color-text-secondary)]" />

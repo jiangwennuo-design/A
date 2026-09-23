@@ -15,7 +15,6 @@ import {
   Settings,
   Trash2,
   UserRound,
-  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -29,9 +28,11 @@ import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
 import { ChatNav } from "@/components/ChatNav";
 import { ChatMessages, type MessageAnchor } from "@/components/ChatMessages";
+import { SystemSheet } from "@/components/system-ui";
 import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { lastReadAt, markChatRead } from "@/lib/chat-read-state";
 import type { AiPersona, ChatMessage, ChatSession, DiaryContextMode } from "@/lib/types";
+import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
 
 // The live schema includes multi-penpal migration fields not present in the generated client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,10 +151,14 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
         if (insertError) throw new Error("新增聊天失败，请稍后重试。");
       }
       localStorage.setItem("current-char-id", persona.id);
-      await navigate({
-        to: "/chat",
-        search: initialDiaryId ? { char: persona.id, diary: initialDiaryId } : { char: persona.id },
-      });
+      await pushSystemPage(() =>
+        navigate({
+          to: "/chat",
+          search: initialDiaryId
+            ? { char: persona.id, diary: initialDiaryId }
+            : { char: persona.id },
+        }),
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "新增聊天失败。");
       setAdding("");
@@ -174,7 +179,7 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
           <button
             type="button"
             aria-label="返回桌面"
-            onClick={() => navigate({ to: "/" })}
+            onClick={() => void closeSystemApp("chat", () => navigate({ to: "/" }))}
             className="chat-icon-button"
           >
             <House size={18} />
@@ -256,77 +261,52 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
             .includes(query.trim().toLocaleLowerCase()),
         ) && <p className="chat-search-empty">没有找到相关聊天</p>}
 
-      {pickerOpen && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/30 flex items-end justify-center"
-          onClick={() => setPickerOpen(false)}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="选择角色"
-            onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-[480px] max-h-[72dvh] overflow-hidden rounded-t-3xl bg-[var(--color-bg)] shadow-2xl"
-          >
-            <div className="p-5 pb-3 flex items-center justify-between border-b">
-              <div>
-                <h2 className="text-lg font-semibold">选择角色</h2>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  每位角色都有独立聊天记录
-                </p>
-              </div>
+      <SystemSheet
+        open={pickerOpen}
+        title="选择角色"
+        description="每位角色都有独立聊天记录"
+        onClose={() => setPickerOpen(false)}
+        scrollable
+      >
+        {personas.length ? (
+          personas.map((persona) => {
+            const exists = friends.some((friend) => friend.persona.id === persona.id);
+            return (
               <button
+                key={persona.id}
                 type="button"
-                aria-label="关闭"
-                onClick={() => setPickerOpen(false)}
-                className="w-9 h-9 rounded-full bg-white border flex items-center justify-center"
+                disabled={Boolean(adding)}
+                onClick={() => void openChat(persona)}
+                className="w-full p-3 rounded-2xl flex items-center gap-3 text-left hover:bg-white disabled:opacity-50"
               >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="overflow-y-auto p-3 pb-[calc(16px+env(safe-area-inset-bottom))]">
-              {personas.length ? (
-                personas.map((persona) => {
-                  const exists = friends.some((friend) => friend.persona.id === persona.id);
-                  return (
-                    <button
-                      key={persona.id}
-                      type="button"
-                      disabled={Boolean(adding)}
-                      onClick={() => void openChat(persona)}
-                      className="w-full p-3 rounded-2xl flex items-center gap-3 text-left hover:bg-white disabled:opacity-50"
-                    >
-                      <FriendAvatar url={avatars[persona.id] ?? ""} label={persona.name} />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">{persona.name}</p>
-                        <p className="text-xs text-[var(--color-text-secondary)] truncate">
-                          {adding === persona.id
-                            ? "正在打开…"
-                            : exists
-                              ? "已有聊天，点击进入"
-                              : persona.relationship || persona.description || "新建聊天"}
-                        </p>
-                      </div>
-                      <span className="text-[var(--color-primary)]">›</span>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="p-3">
-                  <EmptyState icon="✉️" title="还没有角色" subtitle="先创建一位角色吧。" />
-                  <button
-                    type="button"
-                    onClick={() => navigate({ to: "/persona" })}
-                    className="btn-primary w-full mt-4"
-                  >
-                    创建角色
-                  </button>
+                <FriendAvatar url={avatars[persona.id] ?? ""} label={persona.name} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{persona.name}</p>
+                  <p className="text-xs text-[var(--color-text-secondary)] truncate">
+                    {adding === persona.id
+                      ? "正在打开…"
+                      : exists
+                        ? "已有聊天，点击进入"
+                        : persona.relationship || persona.description || "新建聊天"}
+                  </p>
                 </div>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+                <span className="text-[var(--color-primary)]">›</span>
+              </button>
+            );
+          })
+        ) : (
+          <div className="p-3">
+            <EmptyState icon="✉️" title="还没有角色" subtitle="先创建一位角色吧。" />
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/persona" })}
+              className="btn-primary w-full mt-4"
+            >
+              创建角色
+            </button>
+          </div>
+        )}
+      </SystemSheet>
       <ChatNav />
     </div>
   );
@@ -704,7 +684,7 @@ function ConversationPage({
           subtitle="这位角色可能已被删除，请返回聊天列表重新选择。"
         />
         <button
-          onClick={() => navigate({ to: "/chat", search: {} })}
+          onClick={() => void popSystemPage(() => navigate({ to: "/chat", search: {} }))}
           className="btn-primary w-full mt-5"
         >
           返回聊天列表
@@ -718,7 +698,7 @@ function ConversationPage({
         <button
           type="button"
           aria-label="返回聊天列表"
-          onClick={() => navigate({ to: "/chat", search: {} })}
+          onClick={() => void popSystemPage(() => navigate({ to: "/chat", search: {} }))}
           className="chat-header-back"
         >
           <ChevronLeft size={26} strokeWidth={1.8} />
@@ -848,63 +828,41 @@ function ConversationPage({
         </button>
       </form>
 
-      {chatSettingsOpen && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/30 flex items-end justify-center"
-          onClick={() => setChatSettingsOpen(false)}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="聊天设置"
-            onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-[480px] rounded-t-3xl bg-[var(--color-bg)] p-5 pb-[calc(20px+env(safe-area-inset-bottom))] shadow-2xl"
+      <SystemSheet
+        open={chatSettingsOpen}
+        title="聊天设置"
+        description={current?.name}
+        onClose={() => setChatSettingsOpen(false)}
+      >
+        <label className="block text-sm font-medium mb-4">
+          日记读取权限
+          <select
+            value={mode}
+            onChange={(event) => void changeMode(event.target.value as DiaryContextMode)}
+            className="input-field mt-2"
           >
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="text-lg font-semibold">聊天设置</h2>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{current?.name}</p>
-              </div>
-              <button
-                type="button"
-                aria-label="关闭"
-                onClick={() => setChatSettingsOpen(false)}
-                className="w-9 h-9 rounded-full bg-white border flex items-center justify-center"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <label className="block text-sm font-medium mb-4">
-              日记读取权限
-              <select
-                value={mode}
-                onChange={(event) => void changeMode(event.target.value as DiaryContextMode)}
-                className="input-field mt-2"
-              >
-                <option value="none">不读取日记</option>
-                <option value="current">读取当前日记</option>
-                <option value="recent">读取最近日记</option>
-                <option value="all">读取全部日记</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={() => navigate({ to: "/persona" })}
-              className="btn-secondary w-full mb-3"
-            >
-              编辑当前角色与头像
-            </button>
-            <button
-              type="button"
-              disabled={sending || savingMessage || messages.length === 0}
-              onClick={() => void clearChat()}
-              className="w-full py-3 rounded-xl border border-[var(--color-error)] text-[var(--color-error)] disabled:opacity-40"
-            >
-              清空当前对话
-            </button>
-          </section>
-        </div>
-      )}
+            <option value="none">不读取日记</option>
+            <option value="current">读取当前日记</option>
+            <option value="recent">读取最近日记</option>
+            <option value="all">读取全部日记</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/persona" })}
+          className="btn-secondary w-full mb-3"
+        >
+          编辑当前角色与头像
+        </button>
+        <button
+          type="button"
+          disabled={sending || savingMessage || messages.length === 0}
+          onClick={() => void clearChat()}
+          className="w-full py-3 rounded-xl border border-[var(--color-error)] text-[var(--color-error)] disabled:opacity-40"
+        >
+          清空当前对话
+        </button>
+      </SystemSheet>
     </div>
   );
 }

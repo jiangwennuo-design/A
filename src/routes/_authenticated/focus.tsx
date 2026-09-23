@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, History, Pause, Play, RotateCcw, Sparkles, TimerReset } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { closeSystemApp } from "@/lib/app-transition";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { generateFocusCompanionMessage } from "@/lib/companion.functions";
@@ -220,7 +221,10 @@ function FocusPage() {
   return (
     <main className="focus-page fade-in">
       <header className="focus-header">
-        <button type="button" onClick={() => navigate({ to: "/" })}>
+        <button
+          type="button"
+          onClick={() => void closeSystemApp("focus", () => navigate({ to: "/" }))}
+        >
           <ArrowLeft size={21} />
         </button>
         <h1>番茄钟</h1>

@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { Plus, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
+import { closeSystemApp } from "@/lib/app-transition";
 import { AvatarPicker } from "@/components/AvatarPicker";
 import { importPersonaFile } from "@/lib/persona-file";
 import type { AiPersona } from "@/lib/types";
@@ -123,7 +124,7 @@ function PersonaPage() {
     <div className="page-container">
       <Header
         title="角色名录"
-        onBack={() => router.history.back()}
+        onBack={() => void closeSystemApp("persona", () => router.history.back())}
         rightAction={
           <button
             onClick={() => {

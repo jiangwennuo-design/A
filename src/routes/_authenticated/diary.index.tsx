@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
 import type { Diary } from "@/lib/types";
+import { closeSystemApp, pushSystemPage } from "@/lib/app-transition";
 
 export const Route = createFileRoute("/_authenticated/diary/")({
   head: () => ({
@@ -52,7 +53,7 @@ function DiaryHomePage() {
           <button
             type="button"
             aria-label="返回桌面"
-            onClick={() => navigate({ to: "/" })}
+            onClick={() => void closeSystemApp("diary", () => navigate({ to: "/" }))}
             className="diary-icon-button"
           >
             <House size={18} />
@@ -68,7 +69,10 @@ function DiaryHomePage() {
           <p>今天，也留一点时间给自己。</p>
         </section>
 
-        <button onClick={() => navigate({ to: "/diary/new" })} className="diary-compose-card">
+        <button
+          onClick={() => void pushSystemPage(() => navigate({ to: "/diary/new" }))}
+          className="diary-compose-card"
+        >
           <div className="diary-compose-card__icon">
             <PenLine size={21} />
           </div>
@@ -94,7 +98,11 @@ function DiaryHomePage() {
             {diaries.map((diary) => (
               <button
                 key={diary.id}
-                onClick={() => navigate({ to: "/diary/$id", params: { id: diary.id } })}
+                onClick={() =>
+                  void pushSystemPage(() =>
+                    navigate({ to: "/diary/$id", params: { id: diary.id } }),
+                  )
+                }
                 className="diary-card"
               >
                 <time dateTime={diary.diary_date}>

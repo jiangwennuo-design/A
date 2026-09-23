@@ -1,5 +1,6 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { MessageCircle, UserRound, UsersRound } from "lucide-react";
+import { switchSystemTab } from "@/lib/app-transition";
 
 const items = [
   { label: "消息", path: "/chat", icon: MessageCircle },
@@ -21,7 +22,9 @@ export function ChatNav() {
             type="button"
             aria-current={selected ? "page" : undefined}
             onClick={() =>
-              path === "/chat" ? navigate({ to: "/chat", search: {} }) : navigate({ to: path })
+              void switchSystemTab(() =>
+                path === "/chat" ? navigate({ to: "/chat", search: {} }) : navigate({ to: path }),
+              )
             }
             className={selected ? "chat-nav__item is-active" : "chat-nav__item"}
           >

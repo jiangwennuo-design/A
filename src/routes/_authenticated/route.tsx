@@ -1,4 +1,5 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -14,6 +15,14 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  useEffect(() => {
+    const theme =
+      pathname === "/" ? "#f2eee7" : pathname.startsWith("/chat") ? "#f7f7f8" : "#faf8f5";
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme);
+  }, [pathname]);
+
   return (
     <div className="phone-stage">
       <div className="phone-shell">
