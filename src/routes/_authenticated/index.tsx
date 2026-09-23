@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Settings,
   Timer,
+  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -102,6 +103,13 @@ function PhoneHomePage() {
             icon={MessageCircle}
             tone="chat"
             onClick={(event) => openApp("chat", event, () => navigate({ to: "/chat", search: {} }))}
+          />
+          <AppIcon
+            label="吃什么"
+            subtitle="今天吃啥"
+            icon={UtensilsCrossed}
+            tone="food"
+            onClick={(event) => openApp("food", event, () => navigate({ to: "/food" }))}
           />
         </section>
 

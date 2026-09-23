@@ -5,6 +5,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
 import { closeSystemApp } from "@/lib/app-transition";
+import {
+  applyWallpaperOptimistically,
+  cacheWallpaperUrl,
+  commitWallpaper,
+  getWallpaperSnapshot,
+  optimizeWallpaperUpload,
+  preloadWallpaperUrl,
+  resolveWallpaperUrl,
+  rollbackWallpaper,
+  type WallpaperSnapshot,
+} from "@/lib/wallpaper";
 
 // The production profile/storage fields are newer than the generated Supabase client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,6 +36,7 @@ function WallpaperPage() {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
   const fileInput = useRef<HTMLInputElement>(null);
+  const objectPreview = useRef("");
   const [wallpaperUrl, setWallpaperUrl] = useState("");
   const [preview, setPreview] = useState("");
   const [blur, setBlur] = useState(0);
@@ -44,13 +56,15 @@ function WallpaperPage() {
       setPreview("");
       return;
     }
-    void db.storage
-      .from("wallpapers")
-      .createSignedUrl(profile.wallpaper_url, 3600)
-      .then(({ data }: { data: { signedUrl?: string } | null }) =>
-        setPreview(data?.signedUrl ?? ""),
-      );
+    void resolveWallpaperUrl(profile.wallpaper_url).then(setPreview);
   }, [profile]);
+
+  useEffect(
+    () => () => {
+      if (objectPreview.current) URL.revokeObjectURL(objectPreview.current);
+    },
+    [],
+  );
 
   async function upload(file?: File) {
     if (!file || !user) return;
@@ -63,24 +77,44 @@ function WallpaperPage() {
       return;
     }
     setUploading(true);
-    const ext = file.name.split(".").pop() || "jpg";
+    const optimizedFile = await optimizeWallpaperUpload(file);
+    if (objectPreview.current) URL.revokeObjectURL(objectPreview.current);
+    objectPreview.current = URL.createObjectURL(optimizedFile);
+    setPreview(objectPreview.current);
+    void preloadWallpaperUrl(objectPreview.current);
+    const ext = optimizedFile.type === "image/webp" ? "webp" : file.name.split(".").pop() || "jpg";
     const path = `${user.id}/wallpaper-${Date.now()}.${ext}`;
     const { error: uploadError } = await db.storage
       .from("wallpapers")
-      .upload(path, file, { upsert: false, contentType: file.type });
+      .upload(path, optimizedFile, { upsert: false, contentType: optimizedFile.type });
     if (uploadError) {
       setError("壁纸上传失败，请稍后重试。");
+      URL.revokeObjectURL(objectPreview.current);
+      objectPreview.current = "";
+      setPreview("");
       setUploading(false);
       return;
     }
-    const { data } = await db.storage.from("wallpapers").createSignedUrl(path, 3600);
+    const signedUrl = await resolveWallpaperUrl(path);
     setWallpaperUrl(path);
-    setPreview(data?.signedUrl ?? "");
+    setPreview(signedUrl);
+    cacheWallpaperUrl(path, signedUrl);
+    URL.revokeObjectURL(objectPreview.current);
+    objectPreview.current = "";
     setUploading(false);
   }
 
   async function save() {
     if (!user) return;
+    const previous = getWallpaperSnapshot();
+    const next: WallpaperSnapshot = {
+      path: wallpaperUrl,
+      url: preview,
+      preset,
+      blur,
+      opacity,
+    };
+    applyWallpaperOptimistically(next);
     setSaving(true);
     setError("");
     const previousPath = profile?.wallpaper_url;
@@ -95,17 +129,24 @@ function WallpaperPage() {
       .eq("id", user.id);
     setSaving(false);
     if (saveError) {
+      rollbackWallpaper(previous);
       setError("壁纸保存失败，请稍后重试。");
       return;
     }
+    commitWallpaper(next);
     if (previousPath && previousPath !== wallpaperUrl) {
-      await db.storage.from("wallpapers").remove([previousPath]);
+      void db.storage.from("wallpapers").remove([previousPath]);
     }
-    await refreshProfile();
+    void refreshProfile();
   }
 
   async function removeCustomWallpaper() {
     if (!user || !wallpaperUrl) return;
+    const previous = getWallpaperSnapshot();
+    const next: WallpaperSnapshot = { path: "", url: "", preset, blur, opacity };
+    applyWallpaperOptimistically(next);
+    setWallpaperUrl("");
+    setPreview("");
     setSaving(true);
     setError("");
     const path = wallpaperUrl;
@@ -114,14 +155,16 @@ function WallpaperPage() {
       .update({ wallpaper_url: null, wallpaper_preset: preset })
       .eq("id", user.id);
     if (updateError) {
+      rollbackWallpaper(previous);
+      setWallpaperUrl(path);
+      setPreview(previous.url);
       setError("删除自定义壁纸失败，请稍后重试。");
       setSaving(false);
       return;
     }
-    await db.storage.from("wallpapers").remove([path]);
-    setWallpaperUrl("");
-    setPreview("");
-    await refreshProfile();
+    commitWallpaper(next);
+    void db.storage.from("wallpapers").remove([path]);
+    void refreshProfile();
     setSaving(false);
   }
 

@@ -165,6 +165,40 @@ export const generateFocusCompanionMessage = createServerFn({ method: "POST" })
     return { message: result.text.trim().slice(0, 500) };
   });
 
+const foodInput = z.object({
+  char_id: uuid,
+  food: z.string().trim().min(1).max(80),
+});
+
+export const generateFoodCompanionMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => foodInput.parse(data))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as Db;
+    const { character, profile } = await ownedPersona(db, context.userId, data.char_id);
+    const { generate } = await import("./ai/service.server");
+    const result = await generate({
+      scene: "food_companion",
+      userId: context.userId,
+      supabase: db,
+      charId: character.id,
+      systemPrompt: `${personaPrompt(profile, character)}\n\n当前功能是“吃什么”：用户已经通过完整食物转盘随机得到结果。请针对这个既定结果，用符合人设的方式回应 1～3 句。不要重新随机，不要擅自换成另一种食物，不要输出大段营养分析，不要添加姓名、标题或引号。`,
+      messages: [
+        {
+          role: "user",
+          content: `转盘最终结果：${data.food}。请自然地说一句你的意见。`,
+        },
+      ],
+      maxTokens: 160,
+    });
+    const message = result.text
+      .trim()
+      .replace(/^[“"']|[”"']$/g, "")
+      .slice(0, 500);
+    if (!message) throw new Error("角色暂时没有想好怎么评价。");
+    return { message };
+  });
+
 const musicInput = z.object({
   track_id: uuid,
   char_id: uuid,

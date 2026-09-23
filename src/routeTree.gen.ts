@@ -15,6 +15,7 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAiSettingsRouteImport } from './routes/_authenticated/ai-settings'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedFocusRouteImport } from './routes/_authenticated/focus'
+import { Route as AuthenticatedFoodRouteImport } from './routes/_authenticated/food'
 import { Route as AuthenticatedListenRouteImport } from './routes/_authenticated/listen'
 import { Route as AuthenticatedMomentsRouteImport } from './routes/_authenticated/moments'
 import { Route as AuthenticatedPersonaRouteImport } from './routes/_authenticated/persona'
@@ -53,6 +54,11 @@ const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
 const AuthenticatedFocusRoute = AuthenticatedFocusRouteImport.update({
   id: '/focus',
   path: '/focus',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFoodRoute = AuthenticatedFoodRouteImport.update({
+  id: '/food',
+  path: '/food',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedListenRoute = AuthenticatedListenRouteImport.update({
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/chat': typeof AuthenticatedChatRoute
   '/focus': typeof AuthenticatedFocusRoute
+  '/food': typeof AuthenticatedFoodRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/chat': typeof AuthenticatedChatRoute
   '/focus': typeof AuthenticatedFocusRoute
+  '/food': typeof AuthenticatedFoodRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
@@ -149,6 +157,7 @@ export interface FileRoutesById {
   '/_authenticated/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/focus': typeof AuthenticatedFocusRoute
+  '/_authenticated/food': typeof AuthenticatedFoodRoute
   '/_authenticated/listen': typeof AuthenticatedListenRoute
   '/_authenticated/moments': typeof AuthenticatedMomentsRoute
   '/_authenticated/persona': typeof AuthenticatedPersonaRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/ai-settings'
     | '/chat'
     | '/focus'
+    | '/food'
     | '/listen'
     | '/moments'
     | '/persona'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/ai-settings'
     | '/chat'
     | '/focus'
+    | '/food'
     | '/listen'
     | '/moments'
     | '/persona'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ai-settings'
     | '/_authenticated/chat'
     | '/_authenticated/focus'
+    | '/_authenticated/food'
     | '/_authenticated/listen'
     | '/_authenticated/moments'
     | '/_authenticated/persona'
@@ -263,6 +275,13 @@ declare module '@tanstack/react-router' {
       path: '/focus'
       fullPath: '/focus'
       preLoaderRoute: typeof AuthenticatedFocusRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/food': {
+      id: '/_authenticated/food'
+      path: '/food'
+      fullPath: '/food'
+      preLoaderRoute: typeof AuthenticatedFoodRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/listen': {
@@ -342,6 +361,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAiSettingsRoute: typeof AuthenticatedAiSettingsRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedFocusRoute: typeof AuthenticatedFocusRoute
+  AuthenticatedFoodRoute: typeof AuthenticatedFoodRoute
   AuthenticatedListenRoute: typeof AuthenticatedListenRoute
   AuthenticatedMomentsRoute: typeof AuthenticatedMomentsRoute
   AuthenticatedPersonaRoute: typeof AuthenticatedPersonaRoute
@@ -359,6 +379,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAiSettingsRoute: AuthenticatedAiSettingsRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedFocusRoute: AuthenticatedFocusRoute,
+  AuthenticatedFoodRoute: AuthenticatedFoodRoute,
   AuthenticatedListenRoute: AuthenticatedListenRoute,
   AuthenticatedMomentsRoute: AuthenticatedMomentsRoute,
   AuthenticatedPersonaRoute: AuthenticatedPersonaRoute,
