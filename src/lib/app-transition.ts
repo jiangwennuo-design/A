@@ -27,8 +27,12 @@ async function runTransition(kind: TransitionKind, update: () => void | Promise<
   root.dataset.systemTransition = kind;
 
   if (!transitionDocument.startViewTransition) {
+    root.classList.add("system-transition-fallback");
     await update();
-    window.setTimeout(() => delete root.dataset.systemTransition, 220);
+    window.setTimeout(() => {
+      delete root.dataset.systemTransition;
+      root.classList.remove("system-transition-fallback");
+    }, 430);
     return;
   }
 

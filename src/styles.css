@@ -3097,6 +3097,65 @@ html[data-system-transition="tab"]::view-transition-new(root) {
   }
 }
 
+html.system-transition-fallback[data-system-transition="app-open"] .phone-shell > *,
+html.system-transition-fallback[data-system-transition="app-close"] .phone-shell > * {
+  transform-origin: var(--transition-origin-x, 50%) var(--transition-origin-y, 72%);
+}
+
+html.system-transition-fallback[data-system-transition="app-open"] .phone-shell > * {
+  animation: fallbackAppOpen var(--motion-slow) var(--ease-standard) both;
+}
+
+html.system-transition-fallback[data-system-transition="app-close"] .phone-shell > * {
+  animation: fallbackDesktopReturn var(--motion-normal) var(--ease-standard) both;
+}
+
+html.system-transition-fallback[data-system-transition="push"] .phone-shell > * {
+  animation: fallbackPush var(--motion-normal) var(--ease-standard) both;
+}
+
+html.system-transition-fallback[data-system-transition="pop"] .phone-shell > * {
+  animation: fallbackPop var(--motion-normal) var(--ease-standard) both;
+}
+
+html.system-transition-fallback[data-system-transition="tab"] .phone-shell > * {
+  animation: fallbackTab var(--motion-normal) var(--ease-standard) both;
+}
+
+@keyframes fallbackAppOpen {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes fallbackDesktopReturn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes fallbackPush {
+  from {
+    opacity: 0.72;
+    transform: translateX(10%);
+  }
+}
+
+@keyframes fallbackPop {
+  from {
+    opacity: 0.72;
+    transform: translateX(-5%);
+  }
+}
+
+@keyframes fallbackTab {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (pointer: coarse) {
   :where(.app-home-button, .chat-nav__item, .diary-entry-card, .settings-row) {
     transition: transform var(--motion-fast) var(--ease-spring);
@@ -3196,5 +3255,9 @@ html[data-system-transition="tab"]::view-transition-new(root) {
 
   ::view-transition-new(root) {
     animation-name: systemTabIn !important;
+  }
+
+  html.system-transition-fallback .phone-shell > * {
+    animation: fallbackTab 120ms ease both !important;
   }
 }
