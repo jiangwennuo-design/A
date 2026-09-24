@@ -225,24 +225,33 @@ export type Database = {
           created_at: string
           display_name: string
           email: string
+          gender: string | null
           id: string
           inner_life_enabled: boolean
+          persona_text: string
+          signature: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
           display_name?: string
           email?: string
+          gender?: string | null
           id: string
           inner_life_enabled?: boolean
+          persona_text?: string
+          signature?: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
           display_name?: string
           email?: string
+          gender?: string | null
           id?: string
           inner_life_enabled?: boolean
+          persona_text?: string
+          signature?: string
         }
         Relationships: []
       }

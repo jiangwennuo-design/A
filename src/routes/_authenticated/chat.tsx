@@ -3,14 +3,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
-  ArrowUp,
   ChevronLeft,
   ChevronRight,
   Copy,
   House,
   Pencil,
   Plus,
-  RefreshCw,
+  Phone,
   Search,
   Settings,
   Trash2,
@@ -28,11 +27,27 @@ import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
 import { ChatNav } from "@/components/ChatNav";
 import { ChatMessages, type MessageAnchor } from "@/components/ChatMessages";
+import { ChatComposer } from "@/components/chat/ChatComposer";
+import { AttachmentSheet } from "@/components/chat/AttachmentSheet";
+import { TransferSheet } from "@/components/chat/TransferSheet";
+import { StickerPicker } from "@/components/chat/StickerPicker";
+import { ImageViewer } from "@/components/chat/ImageViewer";
+import { VoiceCallScreen, type CallState } from "@/components/chat/VoiceCallScreen";
 import { SystemSheet } from "@/components/system-ui";
 import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { lastReadAt, markChatRead } from "@/lib/chat-read-state";
-import type { AiPersona, ChatMessage, ChatSession, DiaryContextMode } from "@/lib/types";
+import type {
+  AiPersona,
+  ChatMessage,
+  ChatMessagePayload,
+  ChatSession,
+  ChatSticker,
+  DiaryContextMode,
+  MessageType,
+} from "@/lib/types";
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
+import { messagePreview, normalizeChatMessage } from "@/lib/chat-message";
+import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
 
 // The live schema includes multi-penpal migration fields not present in the generated client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,7 +117,7 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
           )
           .order("created_at", { ascending: false })
           .limit(500);
-        messageRows = (data ?? []) as ChatMessage[];
+        messageRows = (data ?? []).map(normalizeChatMessage) as ChatMessage[];
       }
       if (!active) return;
       const lastBySession = new Map<string, ChatMessage>();
@@ -235,7 +250,7 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
                   </div>
                   <p className="mt-1 text-sm text-[var(--color-text-secondary)] truncate">
                     {lastMessage
-                      ? `${lastMessage.role === "user" ? "我：" : ""}${lastMessage.content}`
+                      ? `${lastMessage.role === "user" ? "我：" : ""}${messagePreview(lastMessage)}`
                       : "点击开始聊天"}
                   </p>
                 </div>
@@ -333,7 +348,14 @@ function ConversationPage({
   const [savingMessage, setSavingMessage] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [toolsOpen, setToolsOpen] = useState(false);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
+  const [stickersOpen, setStickersOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [imageViewer, setImageViewer] = useState<{ url: string; alt: string } | null>(null);
+  const [callState, setCallState] = useState<CallState>("idle");
+  const [callStartedAt, setCallStartedAt] = useState(0);
+  const [callMuted, setCallMuted] = useState(false);
+  const [callSpeaker, setCallSpeaker] = useState(false);
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
   const [messageMenu, setMessageMenu] = useState<{
     messageId: string;
@@ -344,7 +366,9 @@ function ConversationPage({
   const [userAvatar, setUserAvatar] = useState("");
   const [mode, setMode] = useState<DiaryContextMode>(initialDiaryId ? "current" : "none");
   const conversationRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const pendingImageUploads = useRef(
+    new Map<string, Awaited<ReturnType<typeof prepareChatImage>>>(),
+  );
   useKeyboardViewport(conversationRef, !loading && Boolean(current));
   const { latestTurnId, hasPendingMessages } = useMemo(() => {
     const latestTurnId = [...messages]
@@ -353,16 +377,15 @@ function ConversationPage({
     const lastAssistantIndex = messages.map((message) => message.role).lastIndexOf("assistant");
     const hasPendingMessages = messages
       .slice(lastAssistantIndex + 1)
-      .some((message) => message.role === "user" && !message.id.startsWith("pending-"));
+      .some(
+        (message) =>
+          message.role === "user" &&
+          message.delivery_status === "sent" &&
+          !message.id.startsWith("pending-"),
+      );
 
     return { latestTurnId, hasPendingMessages };
   }, [messages]);
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  }, [input, loading]);
   useEffect(() => {
     const latest = messages.at(-1);
     if (!user || !sessionId || !latest) return;
@@ -380,6 +403,10 @@ function ConversationPage({
     window.addEventListener("resize", closeMenu);
     return () => window.removeEventListener("resize", closeMenu);
   }, [messageMenu]);
+  useEffect(() => () => {
+    pendingImageUploads.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+    pendingImageUploads.current.clear();
+  });
 
   useEffect(() => {
     let active = true;
@@ -434,7 +461,7 @@ function ConversationPage({
         .order("created_at", { ascending: true })
         .order("message_order", { ascending: true });
       if (!active) return;
-      setMessages((rows ?? []) as ChatMessage[]);
+      setMessages((rows ?? []).map(normalizeChatMessage) as ChatMessage[]);
       setLoading(false);
     })().catch((reason) => {
       if (!active) return;
@@ -548,56 +575,175 @@ function ConversationPage({
     setMessages((previous) => previous.filter((item) => item.id !== message.id));
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!input.trim() || !sessionId || !charId || savingMessage || sending) return;
-    const text = input.trim();
+  async function sendMessage(
+    type: MessageType,
+    text: string,
+    payload: ChatMessagePayload,
+    retryId?: string,
+  ) {
+    if (!sessionId || !charId || savingMessage || sending) return;
     const now = new Date().toISOString();
-    const optimisticId = `pending-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
+    const optimisticId = retryId ?? `pending-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
     const optimisticMessage: ChatMessage = {
       id: optimisticId,
       session_id: sessionId,
       user_id: profile?.id ?? "",
       role: "user",
       content: text,
+      message_type: type,
+      payload,
+      delivery_status: "sending",
       turn_id: null,
       message_order: 0,
       edited: false,
       created_at: now,
       updated_at: now,
     };
-    setInput("");
     setSavingMessage(true);
     setError("");
-    setToolsOpen(false);
+    setAttachmentsOpen(false);
+    setStickersOpen(false);
+    setTransferOpen(false);
     setMessageMenu(null);
-    setMessages((previous) => [...previous, optimisticMessage]);
+    setMessages((previous) =>
+      retryId
+        ? previous.map((message) => (message.id === retryId ? optimisticMessage : message))
+        : [...previous, optimisticMessage],
+    );
     try {
       const result = await queueMessage({
         data: {
           message: text,
           session_id: sessionId,
           char_id: charId,
+          message_type: type,
+          payload: payload as Record<string, unknown>,
         },
       });
-      const savedUser = result.message as ChatMessage;
+      const savedUser = normalizeChatMessage(result.message as ChatMessage);
       setMessages((previous) =>
         previous.map((message) => (message.id === optimisticId ? savedUser : message)),
       );
     } catch (reason) {
-      setMessages((previous) => previous.filter((message) => message.id !== optimisticId));
-      setInput((currentInput) => currentInput || text);
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.id === optimisticId ? { ...message, delivery_status: "failed" } : message,
+        ),
+      );
       setError(reason instanceof Error ? reason.message : "发送失败。");
     } finally {
       setSavingMessage(false);
     }
   }
 
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const text = input.trim();
+    if (!text) return;
+    setInput("");
+    await sendMessage("text", text, {});
+  }
+
+  async function sendImage(file: File) {
+    if (!user) return;
+    let prepared: Awaited<ReturnType<typeof prepareChatImage>> | null = null;
+    let optimisticId = "";
+    try {
+      setSavingMessage(true);
+      const image = await prepareChatImage(file);
+      prepared = image;
+      optimisticId = `pending-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
+      const now = new Date().toISOString();
+      pendingImageUploads.current.set(optimisticId, image);
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: optimisticId,
+          session_id: sessionId,
+          user_id: user.id,
+          role: "user",
+          content: "用户发送了一张图片。",
+          message_type: "image",
+          payload: {
+            image_path: "",
+            local_preview_url: image.previewUrl,
+            width: image.width,
+            height: image.height,
+          },
+          delivery_status: "sending",
+          turn_id: null,
+          message_order: 0,
+          edited: false,
+          created_at: now,
+          updated_at: now,
+        },
+      ]);
+      const path = await uploadChatMedia(user.id, prepared, "messages");
+      setSavingMessage(false);
+      pendingImageUploads.current.delete(optimisticId);
+      URL.revokeObjectURL(prepared.previewUrl);
+      await sendMessage(
+        "image",
+        "用户发送了一张图片。",
+        { image_path: path, width: prepared.width, height: prepared.height },
+        optimisticId,
+      );
+    } catch (reason) {
+      setSavingMessage(false);
+      if (optimisticId) {
+        setMessages((previous) =>
+          previous.map((message) =>
+            message.id === optimisticId ? { ...message, delivery_status: "failed" } : message,
+          ),
+        );
+      }
+      setError(reason instanceof Error ? reason.message : "图片发送失败。");
+    }
+  }
+
+  async function sendSticker(sticker: ChatSticker) {
+    await sendMessage("sticker", "", {
+      sticker_path: sticker.file_path,
+      sticker_id: sticker.id,
+      ...(sticker.width ? { width: sticker.width } : {}),
+      ...(sticker.height ? { height: sticker.height } : {}),
+    });
+  }
+
+  async function retryMessage(message: ChatMessage) {
+    const pendingImage = pendingImageUploads.current.get(message.id);
+    if (message.message_type === "image" && pendingImage && user) {
+      setSavingMessage(true);
+      try {
+        const path = await uploadChatMedia(user.id, pendingImage, "messages");
+        setSavingMessage(false);
+        await sendMessage(
+          "image",
+          message.content,
+          { image_path: path, width: pendingImage.width, height: pendingImage.height },
+          message.id,
+        );
+        pendingImageUploads.current.delete(message.id);
+        URL.revokeObjectURL(pendingImage.previewUrl);
+      } catch (reason) {
+        setSavingMessage(false);
+        setMessages((previous) =>
+          previous.map((item) =>
+            item.id === message.id ? { ...item, delivery_status: "failed" } : item,
+          ),
+        );
+        setError(reason instanceof Error ? reason.message : "图片重试失败。");
+      }
+      return;
+    }
+    await sendMessage(message.message_type, message.content, message.payload, message.id);
+  }
+
   async function triggerReply() {
     if (!sessionId || !charId || sending || savingMessage || !hasPendingMessages) return;
     setSending(true);
     setError("");
-    setToolsOpen(false);
+    setAttachmentsOpen(false);
     setMessageMenu(null);
     try {
       const result = await requestReply({
@@ -608,7 +754,7 @@ function ConversationPage({
           context_diary_id: initialDiaryId ?? null,
         },
       });
-      await revealAssistantMessages(result.messages as ChatMessage[]);
+      await revealAssistantMessages((result.messages as ChatMessage[]).map(normalizeChatMessage));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "回复失败，请稍后重试。");
     } finally {
@@ -622,7 +768,7 @@ function ConversationPage({
     const insertionIndex = messages.findIndex((message) => message.turn_id === turnId);
     setMessages((previous) => previous.filter((message) => message.turn_id !== turnId));
     setSending(true);
-    setToolsOpen(false);
+    setAttachmentsOpen(false);
     setMessageMenu(null);
     setError("");
     try {
@@ -635,7 +781,10 @@ function ConversationPage({
           context_diary_id: initialDiaryId ?? null,
         },
       });
-      await revealAssistantMessages(result.messages as ChatMessage[], Math.max(insertionIndex, 0));
+      await revealAssistantMessages(
+        (result.messages as ChatMessage[]).map(normalizeChatMessage),
+        Math.max(insertionIndex, 0),
+      );
     } catch (reason) {
       setMessages((previous) => {
         const restored = [...previous];
@@ -646,6 +795,36 @@ function ConversationPage({
     } finally {
       setSending(false);
     }
+  }
+
+  function startCall() {
+    setCallState("calling");
+    setCallStartedAt(0);
+    setCallMuted(false);
+    setCallSpeaker(false);
+  }
+
+  function connectCall() {
+    setCallStartedAt(Date.now());
+    setCallState("connected");
+  }
+
+  async function hangupCall() {
+    const wasConnected = callState === "connected";
+    const duration = wasConnected
+      ? Math.max(1, Math.floor((Date.now() - callStartedAt) / 1_000))
+      : 0;
+    setCallState("ended");
+    await sendMessage("call", "", {
+      call_type: "voice",
+      duration,
+      status: wasConnected ? "completed" : "cancelled",
+    });
+    window.setTimeout(() => setCallState("idle"), 320);
+  }
+
+  async function sendTransfer(amount: number, note: string) {
+    await sendMessage("transfer", "", { amount, note, status: "pending" });
   }
 
   async function clearChat() {
@@ -721,14 +900,24 @@ function ConversationPage({
             {sending && <p>正在回复…</p>}
           </div>
         </div>
-        <button
-          type="button"
-          aria-label="聊天设置"
-          onClick={() => setChatSettingsOpen(true)}
-          className="chat-icon-button"
-        >
-          <Settings size={19} />
-        </button>
+        <div className="chat-header-actions">
+          <button
+            type="button"
+            aria-label="语音通话"
+            onClick={startCall}
+            className="chat-icon-button"
+          >
+            <Phone size={19} />
+          </button>
+          <button
+            type="button"
+            aria-label="聊天设置"
+            onClick={() => setChatSettingsOpen(true)}
+            className="chat-icon-button"
+          >
+            <Settings size={19} />
+          </button>
+        </div>
       </header>
 
       {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
@@ -741,6 +930,8 @@ function ConversationPage({
         userName={profile?.display_name || "我"}
         onOpenMessageMenu={openMessageMenu}
         onDismissMessageMenu={() => setMessageMenu(null)}
+        onOpenImage={(url, alt) => setImageViewer({ url, alt })}
+        onRetry={(message) => void retryMessage(message)}
       />
 
       {messageMenu &&
@@ -756,14 +947,26 @@ function ConversationPage({
                 style={{ left: messageMenu.left, top: messageMenu.top }}
                 onPointerDown={(event) => event.stopPropagation()}
               >
-                <button type="button" role="menuitem" onClick={() => void copyMessage(selected)}>
-                  <Copy size={15} />
-                  <span>复制</span>
-                </button>
-                <button type="button" role="menuitem" onClick={() => void updateMessage(selected)}>
-                  <Pencil size={15} />
-                  <span>编辑</span>
-                </button>
+                {selected.message_type === "text" && (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => void copyMessage(selected)}
+                    >
+                      <Copy size={15} />
+                      <span>复制</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => void updateMessage(selected)}
+                    >
+                      <Pencil size={15} />
+                      <span>编辑</span>
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   role="menuitem"
@@ -778,55 +981,66 @@ function ConversationPage({
           );
         })()}
 
-      <form onSubmit={submit} className="chat-composer">
-        {toolsOpen && (
-          <div className="absolute z-20 left-3 bottom-[calc(100%+8px)] min-w-48 rounded-2xl border bg-white p-2 shadow-xl slide-up">
-            <button
-              type="button"
-              disabled={!latestTurnId || sending || savingMessage}
-              onClick={() => latestTurnId && void rerollTurn(latestTurnId)}
-              className="w-full px-3 py-3 rounded-xl flex items-center gap-2 text-left disabled:opacity-40 hover:bg-[var(--color-bg)]"
-            >
-              <RefreshCw size={17} />
-              <span>重新生成本轮</span>
-            </button>
-          </div>
-        )}
-        <button
-          type="button"
-          aria-label="更多聊天功能"
-          aria-expanded={toolsOpen}
-          onClick={() => setToolsOpen((open) => !open)}
-          className="chat-composer__more"
-        >
-          <Plus size={19} className={`transition-transform ${toolsOpen ? "rotate-45" : ""}`} />
-        </button>
-        <textarea
-          ref={inputRef}
-          aria-label="消息内容"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onFocus={() => setToolsOpen(false)}
-          placeholder="说点什么…"
-          className="chat-composer__input"
-          rows={1}
+      <ChatComposer
+        value={input}
+        disabled={savingMessage || sending}
+        canReply={hasPendingMessages}
+        replying={sending}
+        onChange={setInput}
+        onSubmit={submit}
+        onAttachments={() => setAttachmentsOpen(true)}
+        onStickers={() => setStickersOpen(true)}
+        onReply={() => void triggerReply()}
+      />
+
+      <AttachmentSheet
+        open={attachmentsOpen}
+        canReroll={Boolean(latestTurnId) && !sending && !savingMessage}
+        onClose={() => setAttachmentsOpen(false)}
+        onImage={(file) => void sendImage(file)}
+        onTransfer={() => {
+          setAttachmentsOpen(false);
+          setTransferOpen(true);
+        }}
+        onReroll={() => {
+          if (latestTurnId) void rerollTurn(latestTurnId);
+        }}
+      />
+      <TransferSheet
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        onSend={(amount, note) => void sendTransfer(amount, note)}
+      />
+      {user && (
+        <StickerPicker
+          open={stickersOpen}
+          userId={user.id}
+          onClose={() => setStickersOpen(false)}
+          onSend={(sticker) => void sendSticker(sticker)}
+          onError={setError}
         />
-        <button
-          disabled={savingMessage || sending || !input.trim()}
-          aria-label="发送消息"
-          className="chat-composer__send"
-        >
-          <ArrowUp size={20} strokeWidth={2.4} />
-        </button>
-        <button
-          type="button"
-          disabled={!hasPendingMessages || savingMessage || sending}
-          onClick={() => void triggerReply()}
-          className="chat-composer__reply"
-        >
-          {sending ? "回复中" : "回复"}
-        </button>
-      </form>
+      )}
+      {imageViewer && (
+        <ImageViewer
+          url={imageViewer.url}
+          alt={imageViewer.alt}
+          onClose={() => setImageViewer(null)}
+        />
+      )}
+      {callState !== "idle" && (
+        <VoiceCallScreen
+          name={current.name}
+          avatar={assistantAvatar}
+          state={callState}
+          startedAt={callStartedAt}
+          muted={callMuted}
+          speaker={callSpeaker}
+          onConnect={connectCall}
+          onToggleMute={() => setCallMuted((value) => !value)}
+          onToggleSpeaker={() => setCallSpeaker((value) => !value)}
+          onHangup={() => void hangupCall()}
+        />
+      )}
 
       <SystemSheet
         open={chatSettingsOpen}

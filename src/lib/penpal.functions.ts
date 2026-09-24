@@ -5,9 +5,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const uuid = z.string().uuid();
 const queuedMessageInput = z.object({
-  message: z.string().trim().min(1).max(8000),
+  message: z.string().max(8000).default(""),
   session_id: uuid,
   char_id: uuid,
+  message_type: z.enum(["text", "image", "sticker", "transfer", "call"]).default("text"),
+  payload: z.record(z.unknown()).default({}),
 });
 const replyInput = z.object({
   session_id: uuid,
@@ -24,6 +26,8 @@ type ChatRow = {
   turn_id: string | null;
   message_order: number;
   created_at: string;
+  message_type?: "text" | "image" | "sticker" | "transfer" | "call";
+  payload?: Record<string, unknown>;
 };
 const newTurnId = () => crypto.randomUUID();
 const cleanText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -172,7 +176,7 @@ async function generatePrivateReply(args: {
   character: any;
   profile: any;
   history: ChatRow[];
-  message: string;
+  pending: ChatRow[];
   mode: "none" | "current" | "recent" | "all";
   diaryId?: string | null | undefined;
 }) {
@@ -185,20 +189,109 @@ async function generatePrivateReply(args: {
     ? '{"thinking":"<thinking>...</thinking>","messages":["..."]}'
     : '{"messages":["..."]}';
   const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条独立的、完整但自然的聊天气泡。${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
-  const { generate } = await import("./ai/service.server");
-  const result = await generate({
-    scene: "private_chat",
-    userId: args.userId,
-    supabase: args.db,
-    charId: args.character.id,
-    systemPrompt,
-    messages: [
-      ...args.history.map((row) => ({ role: row.role, content: row.content })),
-      { role: "user", content: args.message },
-    ],
-    outputFormat: "json",
-  });
+  const { generate, AiServiceError } = await import("./ai/service.server");
+  const historyMessages = args.history.map((row) => ({
+    role: row.role,
+    content: messageTextForAi(row),
+  }));
+  const pendingContent = await pendingContentForAi(args.db, args.pending);
+  const request = (content: typeof pendingContent | string) =>
+    generate({
+      scene: "private_chat",
+      userId: args.userId,
+      supabase: args.db,
+      charId: args.character.id,
+      systemPrompt,
+      messages: [...historyMessages, { role: "user", content }],
+      outputFormat: "json",
+    });
+  let result;
+  try {
+    result = await request(pendingContent);
+  } catch (error) {
+    const hasImage = args.pending.some((row) => row.message_type === "image");
+    if (
+      !hasImage ||
+      !(error instanceof AiServiceError) ||
+      !["client_error", "bad_response"].includes(error.kind)
+    )
+      throw error;
+    result = await request(args.pending.map(messageTextForAi).join("\n"));
+  }
   return parseBubbles(stripPrivateThinking(result.text), min, max);
+}
+
+function messageTextForAi(row: ChatRow) {
+  if (!row.message_type || row.message_type === "text") return row.content;
+  if (row.message_type === "image")
+    return row.content || "用户发送了一张图片；若当前模型无法读取图片，不要猜测具体内容。";
+  if (row.message_type === "sticker") return "用户发送了一个表情包。";
+  if (row.message_type === "transfer")
+    return `用户发送了一笔虚拟转账：¥${Number(row.payload?.["amount"] ?? 0).toFixed(2)}${row.payload?.["note"] ? `，备注：${String(row.payload["note"])}` : ""}。`;
+  const duration = Number(row.payload?.["duration"] ?? 0);
+  return `语音通话记录：${String(row.payload?.["status"] ?? "cancelled")}${duration ? `，${duration} 秒` : ""}。`;
+}
+
+async function pendingContentForAi(db: Db, rows: ChatRow[]) {
+  const parts: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string; detail: "auto" } }
+  > = [];
+  for (const row of rows) {
+    if (row.message_type === "image" && typeof row.payload?.["image_path"] === "string") {
+      const { data } = await db.storage
+        .from("chat-media")
+        .createSignedUrl(row.payload["image_path"], 600);
+      if (data?.signedUrl)
+        parts.push({ type: "image_url", image_url: { url: data.signedUrl, detail: "auto" } });
+      else parts.push({ type: "text", text: messageTextForAi(row) });
+    } else {
+      parts.push({ type: "text", text: messageTextForAi(row) });
+    }
+  }
+  return parts;
+}
+
+function validateMessagePayload(type: string, raw: Record<string, unknown>, userId: string) {
+  if (type === "text") return {};
+  if (type === "image") {
+    const imagePath = cleanText(raw["image_path"]);
+    if (!imagePath.startsWith(`${userId}/messages/`)) throw new Error("图片路径无效。");
+    return {
+      image_path: imagePath,
+      width: Math.max(1, Number(raw["width"]) || 1),
+      height: Math.max(1, Number(raw["height"]) || 1),
+      caption: cleanText(raw["caption"]).slice(0, 500),
+    };
+  }
+  if (type === "sticker") {
+    const stickerPath = cleanText(raw["sticker_path"]);
+    if (!stickerPath.startsWith(`${userId}/stickers/`)) throw new Error("表情包路径无效。");
+    return {
+      sticker_path: stickerPath,
+      sticker_id: cleanText(raw["sticker_id"]) || undefined,
+      width: Math.max(1, Number(raw["width"]) || 1),
+      height: Math.max(1, Number(raw["height"]) || 1),
+    };
+  }
+  if (type === "transfer") {
+    const amount = Number(raw["amount"]);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 999999.99)
+      throw new Error("请输入有效的模拟转账金额。");
+    return {
+      amount: Math.round(amount * 100) / 100,
+      note: cleanText(raw["note"]).slice(0, 100),
+      status: "pending",
+    };
+  }
+  const status = ["missed", "cancelled", "completed"].includes(String(raw["status"]))
+    ? String(raw["status"])
+    : "cancelled";
+  return {
+    call_type: "voice",
+    duration: Math.max(0, Math.floor(Number(raw["duration"]) || 0)),
+    status,
+  };
 }
 
 export const queuePenpalMessage = createServerFn({ method: "POST" })
@@ -207,13 +300,19 @@ export const queuePenpalMessage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     await loadOwnedContext(db, context.userId, data.session_id, data.char_id);
+    const content = data.message.trim();
+    const payload = validateMessagePayload(data.message_type, data.payload, context.userId);
+    if (data.message_type === "text" && !content) throw new Error("消息内容不能为空。");
     const { data: inserted, error } = await db
       .from("chat_messages")
       .insert({
         session_id: data.session_id,
         user_id: context.userId,
         role: "user",
-        content: data.message,
+        content,
+        message_type: data.message_type,
+        payload,
+        delivery_status: "sent",
         message_order: 0,
       })
       .select("*")
@@ -240,7 +339,7 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
     );
     const { data: history } = await db
       .from("chat_messages")
-      .select("id, role, content, turn_id, message_order, created_at")
+      .select("id, role, content, turn_id, message_order, created_at, message_type, payload")
       .eq("session_id", data.session_id)
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
@@ -250,14 +349,13 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
     const lastAssistantIndex = rows.map((row) => row.role).lastIndexOf("assistant");
     const pending = rows.slice(lastAssistantIndex + 1).filter((row) => row.role === "user");
     if (!pending.length) throw new Error("请先发送一条消息，再让角色回复。");
-    const pendingText = pending.map((row) => row.content).join("\n");
     const bubbles = await generatePrivateReply({
       db,
       userId: context.userId,
       character,
       profile,
       history: rows.slice(0, lastAssistantIndex + 1),
-      message: pendingText,
+      pending,
       mode: data.diary_context_mode,
       diaryId: data.context_diary_id,
     });
@@ -307,7 +405,7 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
     );
     const { data: allMessages } = await db
       .from("chat_messages")
-      .select("id, role, content, turn_id, message_order, created_at")
+      .select("id, role, content, turn_id, message_order, created_at, message_type, payload")
       .eq("session_id", data.session_id)
       .eq("user_id", context.userId)
       .order("created_at", { ascending: true })
@@ -330,7 +428,7 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
       character,
       profile,
       history: rows.slice(0, previousAssistantIndex + 1),
-      message: userMessages.map((row) => row.content).join("\n"),
+      pending: userMessages,
       mode: data.diary_context_mode,
       diaryId: data.context_diary_id,
     });

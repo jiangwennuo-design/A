@@ -366,7 +366,15 @@ export interface GenerateOptions {
   supabase: SupabaseClient<Database>;
   charId?: string | null;
   systemPrompt?: string;
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  messages: Array<{
+    role: "system" | "user" | "assistant";
+    content:
+      | string
+      | Array<
+          | { type: "text"; text: string }
+          | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
+        >;
+  }>;
   outputFormat?: "text" | "json";
   temperature?: number | null;
   maxTokens?: number | null;

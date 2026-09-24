@@ -64,11 +64,51 @@ export interface ChatMessage {
   user_id: string;
   role: "user" | "assistant";
   content: string;
+  message_type: MessageType;
+  payload: ChatMessagePayload;
+  delivery_status: "sending" | "sent" | "failed";
   turn_id: string | null;
   message_order: number;
   edited: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type MessageType = "text" | "image" | "sticker" | "transfer" | "call";
+
+export type ChatMessagePayload =
+  | Record<string, never>
+  | {
+      image_path: string;
+      local_preview_url?: string;
+      width?: number;
+      height?: number;
+      caption?: string;
+    }
+  | {
+      sticker_path: string;
+      sticker_id?: string;
+      width?: number;
+      height?: number;
+    }
+  | {
+      amount: number;
+      note?: string;
+      status: "pending" | "accepted" | "returned";
+    }
+  | {
+      call_type: "voice";
+      duration?: number;
+      status: "missed" | "cancelled" | "completed";
+    };
+
+export interface ChatSticker {
+  id: string;
+  user_id: string;
+  file_path: string;
+  width: number | null;
+  height: number | null;
+  created_at: string;
 }
 
 export interface DiaryReply {
@@ -120,6 +160,9 @@ export interface FocusSession {
   planned_seconds: number;
   elapsed_seconds: number;
   status: "running" | "completed" | "reset";
+  title: string;
+  quote: string;
+  target_end_at: string | null;
   start_message: string;
   end_message: string;
   started_at: string;

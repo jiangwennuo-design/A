@@ -10,6 +10,7 @@ import {
 } from "react";
 import { EmptyState } from "@/components/ui-kit";
 import type { ChatMessage } from "@/lib/types";
+import { MessageContent } from "@/components/chat/MessageContent";
 
 interface Props {
   messages: ChatMessage[];
@@ -20,6 +21,8 @@ interface Props {
   userName: string;
   onOpenMessageMenu: (messageId: string, anchor: MessageAnchor) => void;
   onDismissMessageMenu: () => void;
+  onOpenImage: (url: string, alt: string) => void;
+  onRetry: (message: ChatMessage) => void;
 }
 
 export interface MessageAnchor {
@@ -39,6 +42,8 @@ export const ChatMessages = memo(function ChatMessages({
   userName,
   onOpenMessageMenu,
   onDismissMessageMenu,
+  onOpenImage,
+  onRetry,
 }: Props) {
   const viewport = useRef<HTMLElement>(null);
   const [visibleCount, setVisibleCount] = useState(80);
@@ -140,7 +145,7 @@ export const ChatMessages = memo(function ChatMessages({
         const gapMilliseconds = previous
           ? new Date(message.created_at).getTime() - new Date(previous.created_at).getTime()
           : 0;
-        const showTimeSeparator = isUser && Boolean(previous) && gapMilliseconds >= 10 * 60_000;
+        const showTimeSeparator = Boolean(previous) && gapMilliseconds >= 10 * 60_000;
         const grouped = previous?.role === message.role && gapMilliseconds < 5 * 60_000;
         return (
           <Fragment key={message.id}>
@@ -157,7 +162,7 @@ export const ChatMessages = memo(function ChatMessages({
                 name={isUser ? userName : assistantName}
               />
               <div
-                className="message-bubble"
+                className={`message-bubble is-${message.message_type ?? "text"}`}
                 aria-label={`${isUser ? userName : assistantName}的消息，长按可操作`}
                 onPointerDown={(event) => startLongPress(message.id, event)}
                 onPointerMove={moveLongPress}
@@ -166,8 +171,20 @@ export const ChatMessages = memo(function ChatMessages({
                 onPointerLeave={cancelLongPress}
                 onContextMenu={(event) => openContextMenu(message.id, event)}
               >
-                <p>{message.content}</p>
+                <MessageContent message={message} onOpenImage={onOpenImage} />
               </div>
+              {message.delivery_status === "failed" && (
+                <button
+                  type="button"
+                  className="chat-message-retry"
+                  onClick={() => onRetry(message)}
+                >
+                  发送失败 · 点击重试
+                </button>
+              )}
+              {message.delivery_status === "sending" && (
+                <span className="chat-message-sending">发送中…</span>
+              )}
             </div>
           </Fragment>
         );
