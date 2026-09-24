@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/lib/types";
@@ -28,8 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let profileGeneration = 0;
+    let loadedUserId = "";
 
-    async function loadProfile(userId: string, email: string) {
+    async function loadProfile(userId: string, email: string, generation: number) {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -47,34 +57,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .insert({ id: userId, email, display_name: email })
           .select("*")
           .maybeSingle();
-        if (active) setProfile((created as Profile | null) ?? null);
+        if (active && generation === profileGeneration)
+          setProfile((created as Profile | null) ?? null);
         return;
       }
 
-      if (active) setProfile(data as Profile);
+      if (active && generation === profileGeneration) setProfile(data as Profile);
+    }
+
+    function applySession(nextSession: Session | null) {
+      if (!active) return;
+      setSession(nextSession);
+      setLoading(false);
+      const nextUser = nextSession?.user;
+      if (!nextUser) {
+        loadedUserId = "";
+        profileGeneration += 1;
+        setProfile(null);
+        return;
+      }
+      if (loadedUserId === nextUser.id) return;
+      loadedUserId = nextUser.id;
+      const generation = ++profileGeneration;
+      void loadProfile(nextUser.id, nextUser.email ?? "", generation);
     }
 
     supabase.auth.getSession().then(({ data, error }) => {
       if (error) {
         console.error("Failed to restore session:", error);
       }
-      if (!active) return;
-      setSession(data.session);
-      setLoading(false);
-      if (data.session) {
-        void loadProfile(data.session.user.id, data.session.user.email ?? "");
-      }
+      applySession(data.session);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (!active) return;
-      setSession(newSession);
-      setLoading(false);
-      if (newSession) {
-        void loadProfile(newSession.user.id, newSession.user.email ?? "");
-      } else {
-        setProfile(null);
-      }
+      applySession(newSession);
     });
 
     return () => {
@@ -83,23 +99,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setProfile(null);
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (!session?.user) return;
     const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
     setProfile((data as Profile | null) ?? null);
-  };
+  }, [session?.user]);
+
+  const value = useMemo(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      profile,
+      loading,
+      signOut,
+      refreshProfile,
+    }),
+    [loading, profile, refreshProfile, session, signOut],
+  );
 
   return (
-    <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, profile, loading, signOut, refreshProfile }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
   );
 }
 

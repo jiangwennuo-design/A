@@ -7,6 +7,7 @@ import { ChatNav } from "@/components/ChatNav";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAvatarUrl } from "@/lib/avatar";
+import { resolveSignedMediaUrl } from "@/lib/signed-media";
 import { generateMomentInteraction } from "@/lib/companion.functions";
 import type { AiPersona, MomentComment, MomentLike, MomentPost } from "@/lib/types";
 
@@ -37,9 +38,11 @@ function MomentsPage() {
   const [replyTarget, setReplyTarget] = useState<Record<string, MomentComment | undefined>>({});
   const fileInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(async () => {
     if (!user) return;
+    const generation = ++loadGeneration.current;
     const [{ data: postRows }, { data: likeRows }, { data: commentRows }, { data: charRows }] =
       await Promise.all([
         (supabase as any)
@@ -61,12 +64,12 @@ function MomentsPage() {
         ...post,
         imageUrls: await Promise.all(
           (post.image_paths || []).map(async (path) => {
-            const { data } = await supabase.storage.from("moments").createSignedUrl(path, 3600);
-            return data?.signedUrl || "";
+            return resolveSignedMediaUrl("moments", path);
           }),
         ),
       })),
     );
+    if (generation !== loadGeneration.current) return;
     setPosts(resolved);
     setLikes((likeRows || []) as MomentLike[]);
     setComments((commentRows || []) as MomentComment[]);
@@ -80,10 +83,19 @@ function MomentsPage() {
 
   useEffect(() => {
     void load();
+    return () => {
+      loadGeneration.current += 1;
+    };
   }, [load]);
 
   useEffect(() => {
-    void resolveAvatarUrl(profile?.avatar_url).then(setMyAvatar);
+    let active = true;
+    void resolveAvatarUrl(profile?.avatar_url).then((url) => {
+      if (active) setMyAvatar(url);
+    });
+    return () => {
+      active = false;
+    };
   }, [profile?.avatar_url]);
 
   useEffect(() => {
@@ -95,12 +107,9 @@ function MomentsPage() {
         active = false;
       };
     }
-    void supabase.storage
-      .from("moments")
-      .createSignedUrl(path, 3600)
-      .then(({ data }) => {
-        if (active) setCoverUrl(data?.signedUrl || "");
-      });
+    void resolveSignedMediaUrl("moments", path).then((url) => {
+      if (active) setCoverUrl(url);
+    });
     return () => {
       active = false;
     };
@@ -190,15 +199,33 @@ function MomentsPage() {
     const existing = likes.find(
       (item) => item.post_id === postId && item.actor_kind === "user" && !item.char_id,
     );
-    if (existing) await (supabase as any).from("moment_likes").delete().eq("id", existing.id);
-    else
-      await (supabase as any).from("moment_likes").insert({
+    if (existing) {
+      const { error: deleteError } = await (supabase as any)
+        .from("moment_likes")
+        .delete()
+        .eq("id", existing.id);
+      if (deleteError) {
+        setError("取消点赞失败。");
+        return;
+      }
+      setLikes((current) => current.filter((item) => item.id !== existing.id));
+      return;
+    }
+    const { data, error: insertError } = await (supabase as any)
+      .from("moment_likes")
+      .insert({
         post_id: postId,
         user_id: user.id,
         actor_kind: "user",
         char_id: null,
-      });
-    await load();
+      })
+      .select("*")
+      .single();
+    if (insertError || !data) {
+      setError("点赞失败。");
+      return;
+    }
+    setLikes((current) => [...current, data as MomentLike]);
   }
 
   async function sendComment(postId: string) {
@@ -224,7 +251,7 @@ function MomentsPage() {
     }
     setCommentDrafts((value) => ({ ...value, [postId]: "" }));
     setReplyTarget((value) => ({ ...value, [postId]: undefined }));
-    await load();
+    setComments((current) => [...current, data as MomentComment]);
     if (target?.actor_kind === "char" && target.char_id) {
       setBusyPost(postId);
       try {
@@ -256,9 +283,18 @@ function MomentsPage() {
 
   async function removePost(post: FeedPost) {
     if (!window.confirm("删除这条动态吗？")) return;
-    await (supabase as any).from("moment_posts").delete().eq("id", post.id);
+    const { error: deleteError } = await (supabase as any)
+      .from("moment_posts")
+      .delete()
+      .eq("id", post.id);
+    if (deleteError) {
+      setError("动态删除失败。");
+      return;
+    }
+    setPosts((current) => current.filter((item) => item.id !== post.id));
+    setLikes((current) => current.filter((item) => item.post_id !== post.id));
+    setComments((current) => current.filter((item) => item.post_id !== post.id));
     if (post.image_paths.length) await supabase.storage.from("moments").remove(post.image_paths);
-    await load();
   }
 
   return (

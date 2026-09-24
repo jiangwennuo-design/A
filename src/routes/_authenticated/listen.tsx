@@ -20,6 +20,7 @@ import { closeSystemApp } from "@/lib/app-transition";
 import { SystemSheet } from "@/components/system-ui";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAvatarUrl } from "@/lib/avatar";
+import { resolveSignedMediaUrl } from "@/lib/signed-media";
 import { generateMusicCompanionMessage } from "@/lib/companion.functions";
 import type { AiPersona, MusicMessage, MusicTrack } from "@/lib/types";
 
@@ -36,6 +37,8 @@ function ListenPage() {
   const askCompanion = useServerFn(generateMusicCompanionMessage);
   const audioRef = useRef<HTMLAudioElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const libraryGeneration = useRef(0);
+  const messageGeneration = useRef(0);
   const [tracks, setTracks] = useState<PlayableTrack[]>([]);
   const [currentId, setCurrentId] = useState("");
   const [playing, setPlaying] = useState(false);
@@ -60,6 +63,7 @@ function ListenPage() {
 
   const loadLibrary = useCallback(async () => {
     if (!user) return;
+    const generation = ++libraryGeneration.current;
     const [{ data: trackRows }, { data: charRows }] = await Promise.all([
       (supabase as any)
         .from("music_tracks")
@@ -70,12 +74,10 @@ function ListenPage() {
     ]);
     const resolved = await Promise.all(
       ((trackRows || []) as MusicTrack[]).map(async (track) => {
-        const { data } = await supabase.storage
-          .from("music")
-          .createSignedUrl(track.file_path, 3600);
-        return { ...track, url: data?.signedUrl || "" };
+        return { ...track, url: await resolveSignedMediaUrl("music", track.file_path) };
       }),
     );
+    if (generation !== libraryGeneration.current) return;
     setTracks(resolved);
     setPersonas((charRows || []) as AiPersona[]);
     setCurrentId((value) => value || resolved[0]?.id || "");
@@ -83,6 +85,7 @@ function ListenPage() {
   }, [user]);
 
   const loadMessages = useCallback(async () => {
+    const generation = ++messageGeneration.current;
     if (!user || !currentId || !charId) {
       setMessages([]);
       return;
@@ -94,20 +97,39 @@ function ListenPage() {
       .eq("track_id", currentId)
       .eq("char_id", charId)
       .order("created_at", { ascending: true });
+    if (generation !== messageGeneration.current) return;
     setMessages((data || []) as MusicMessage[]);
   }, [user, currentId, charId]);
 
   useEffect(() => {
     void loadLibrary();
+    return () => {
+      libraryGeneration.current += 1;
+    };
   }, [loadLibrary]);
   useEffect(() => {
     void loadMessages();
+    return () => {
+      messageGeneration.current += 1;
+    };
   }, [loadMessages]);
   useEffect(() => {
-    void resolveAvatarUrl(profile?.avatar_url).then(setMyAvatar);
+    let active = true;
+    void resolveAvatarUrl(profile?.avatar_url).then((url) => {
+      if (active) setMyAvatar(url);
+    });
+    return () => {
+      active = false;
+    };
   }, [profile?.avatar_url]);
   useEffect(() => {
-    void resolveAvatarUrl(selectedChar?.avatar_url).then(setCharAvatar);
+    let active = true;
+    void resolveAvatarUrl(selectedChar?.avatar_url).then((url) => {
+      if (active) setCharAvatar(url);
+    });
+    return () => {
+      active = false;
+    };
   }, [selectedChar?.avatar_url]);
 
   async function uploadTrack() {

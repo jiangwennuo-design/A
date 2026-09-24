@@ -2,12 +2,6 @@ const ACTIVE_APP_KEY = "cxyj-active-system-app";
 
 type TransitionKind = "app-open" | "app-close" | "push" | "pop" | "tab";
 
-interface ViewTransitionDocument extends Document {
-  startViewTransition?: (update: () => void | Promise<void>) => {
-    finished: Promise<void>;
-  };
-}
-
 function setOrigin(element?: HTMLElement | null) {
   const root = document.documentElement;
   if (!element) {
@@ -23,14 +17,14 @@ function setOrigin(element?: HTMLElement | null) {
 
 async function runTransition(kind: TransitionKind, update: () => void | Promise<void>) {
   const root = document.documentElement;
-  const transitionDocument = document as ViewTransitionDocument;
-  root.dataset.systemTransition = kind;
+  const transitionDocument = document;
+  root.dataset["systemTransition"] = kind;
 
   if (!transitionDocument.startViewTransition) {
     root.classList.add("system-transition-fallback");
     await update();
     window.setTimeout(() => {
-      delete root.dataset.systemTransition;
+      delete root.dataset["systemTransition"];
       root.classList.remove("system-transition-fallback");
     }, 430);
     return;
@@ -40,7 +34,7 @@ async function runTransition(kind: TransitionKind, update: () => void | Promise<
   try {
     await transition.finished;
   } finally {
-    delete root.dataset.systemTransition;
+    delete root.dataset["systemTransition"];
   }
 }
 

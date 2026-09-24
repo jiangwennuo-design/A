@@ -203,7 +203,7 @@ async function generatePrivateReply(args: {
 
 export const queuePenpalMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => queuedMessageInput.parse(data))
+  .validator((data: unknown) => queuedMessageInput.parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     await loadOwnedContext(db, context.userId, data.session_id, data.char_id);
@@ -229,7 +229,7 @@ export const queuePenpalMessage = createServerFn({ method: "POST" })
 
 export const requestPenpalReply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => replyInput.parse(data))
+  .validator((data: unknown) => replyInput.parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     const { character, profile } = await loadOwnedContext(
@@ -286,7 +286,7 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
 
 export const rerollPenpalTurn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         session_id: uuid,
@@ -346,7 +346,7 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
 
 export const clearCurrentChat = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ session_id: uuid, char_id: uuid }).parse(data))
+  .validator((data: unknown) => z.object({ session_id: uuid, char_id: uuid }).parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     const { error } = await db.rpc("clear_current_chat", {
@@ -359,7 +359,7 @@ export const clearCurrentChat = createServerFn({ method: "POST" })
 
 export const createDiaryReply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ diary_id: uuid, char_id: uuid }).parse(data))
+  .validator((data: unknown) => z.object({ diary_id: uuid, char_id: uuid }).parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     const [{ data: character }, { data: profile }, { data: diary }] = await Promise.all([

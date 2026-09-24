@@ -40,7 +40,7 @@ const momentInput = z.object({
 
 export const generateMomentInteraction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => momentInput.parse(data))
+  .validator((data: unknown) => momentInput.parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     const userId = context.userId;
@@ -142,7 +142,7 @@ const focusInput = z.object({
 
 export const generateFocusCompanionMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => focusInput.parse(data))
+  .validator((data: unknown) => focusInput.parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     const { character, profile } = await ownedPersona(db, context.userId, data.char_id);
@@ -172,7 +172,7 @@ const foodInput = z.object({
 
 export const generateFoodCompanionMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => foodInput.parse(data))
+  .validator((data: unknown) => foodInput.parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     const { character, profile } = await ownedPersona(db, context.userId, data.char_id);
@@ -207,7 +207,7 @@ const musicInput = z.object({
 
 export const generateMusicCompanionMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => musicInput.parse(data))
+  .validator((data: unknown) => musicInput.parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
     const userId = context.userId;

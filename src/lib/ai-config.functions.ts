@@ -62,7 +62,7 @@ export const listAiConfigs = createServerFn({ method: "GET" })
 
 export const saveAiConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => saveSchema.parse(data))
+  .validator((data: unknown) => saveSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { encryptApiKey } = await import("./ai/crypto.server");
     const { normalizeBaseUrl } = await import("./ai/service.server");
@@ -128,7 +128,7 @@ export const saveAiConfig = createServerFn({ method: "POST" })
 
 export const deleteAiConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("ai_configs")
@@ -141,7 +141,7 @@ export const deleteAiConfig = createServerFn({ method: "POST" })
 
 export const setAiConfigEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -156,7 +156,7 @@ export const setAiConfigEnabled = createServerFn({ method: "POST" })
 
 export const setDefaultAiConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const supabase = context.supabase;
     await supabase
@@ -208,7 +208,7 @@ async function resolveCredentials(
 
 export const testAiConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => credentialsSchema.parse(data))
+  .validator((data: unknown) => credentialsSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { testConnection } = await import("./ai/service.server");
     let result: { ok: boolean; kind: string; message: string };
@@ -240,7 +240,7 @@ export const testAiConnection = createServerFn({ method: "POST" })
 
 export const listAiModels = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => credentialsSchema.parse(data))
+  .validator((data: unknown) => credentialsSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { listModels } = await import("./ai/service.server");
     try {

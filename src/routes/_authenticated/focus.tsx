@@ -65,14 +65,20 @@ function FocusPage() {
     ]);
     setPersonas((chars || []) as AiPersona[]);
     setHistory((sessions || []) as FocusSession[]);
-    if (!charId && chars?.[0]) setCharId(chars[0].id);
-  }, [user, charId]);
+    setCharId((current) => current || chars?.[0]?.id || "");
+  }, [user]);
 
   useEffect(() => {
     void load();
   }, [load]);
   useEffect(() => {
-    void resolveAvatarUrl(selectedChar?.avatar_url).then(setAvatar);
+    let active = true;
+    void resolveAvatarUrl(selectedChar?.avatar_url).then((url) => {
+      if (active) setAvatar(url);
+    });
+    return () => {
+      active = false;
+    };
   }, [selectedChar?.avatar_url]);
   useEffect(() => {
     if (state === "idle") setRemaining(durations[mode] * 60);
@@ -82,7 +88,7 @@ function FocusPage() {
     if (state !== "running") return;
     const tick = () => setRemaining(Math.max(0, Math.ceil((endAt - Date.now()) / 1000)));
     tick();
-    const timer = window.setInterval(tick, 250);
+    const timer = window.setInterval(tick, 1_000);
     return () => window.clearInterval(timer);
   }, [state, endAt]);
 

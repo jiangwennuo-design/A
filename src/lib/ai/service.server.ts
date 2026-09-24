@@ -357,6 +357,7 @@ export type AiScene =
   | "reroll"
   | "moment_comment"
   | "focus_companion"
+  | "food_companion"
   | "music_companion";
 
 export interface GenerateOptions {

@@ -49,16 +49,6 @@ export function SystemModal({
   );
 }
 
-export function SystemSkeleton({ lines = 3 }: { lines?: number }) {
-  return (
-    <div className="system-skeleton" aria-hidden="true">
-      {Array.from({ length: lines }, (_, index) => (
-        <span key={index} style={{ width: `${92 - index * 11}%` }} />
-      ))}
-    </div>
-  );
-}
-
 export function SystemSheet({
   open,
   title,

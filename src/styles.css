@@ -1044,24 +1044,6 @@ textarea {
   backdrop-filter: blur(10px);
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.app-home-button {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  place-items: center;
-  border: 1px solid var(--color-border);
-  border-radius: 13px;
-  background: rgb(255 255 255 / 88%);
-  color: var(--color-primary);
-}
-
 .chat-nav {
   position: fixed;
   z-index: 45;
@@ -1981,16 +1963,6 @@ textarea {
   justify-self: end;
   color: var(--color-primary);
 }
-.listen-compliance {
-  margin-top: 14px;
-  padding: 9px 11px;
-  border: 1px solid rgb(103 126 114 / 0.18);
-  border-radius: 11px;
-  background: rgb(255 255 255 / 0.5);
-  color: var(--color-text-secondary);
-  font-size: 10px;
-  line-height: 1.55;
-}
 .listen-room {
   margin-top: 14px;
   padding: 18px 16px;
@@ -2821,11 +2793,6 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.chat-inbox__eyebrow {
-  color: #737378;
-  font-size: 13px;
-  font-weight: 500;
 }
 .chat-icon-button {
   display: grid;
@@ -3831,11 +3798,11 @@ html.system-transition-fallback[data-system-transition="tab"] .phone-shell > * {
 }
 
 @media (pointer: coarse) {
-  :where(.app-home-button, .chat-nav__item, .diary-entry-card, .settings-row) {
+  .chat-nav__item {
     transition: transform var(--motion-fast) var(--ease-spring);
   }
 
-  :where(.app-home-button, .chat-nav__item, .diary-entry-card, .settings-row):active {
+  .chat-nav__item:active {
     transform: scale(0.975);
   }
 }

@@ -142,7 +142,7 @@ function FoodWheelPage() {
     const spin: PendingSpin = {
       id: ++spinSequence.current,
       index,
-      food: foodOptions[index],
+      food: foodOptions[index]!,
       charId,
     };
     lastIndex.current = index;
