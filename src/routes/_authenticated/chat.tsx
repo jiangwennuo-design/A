@@ -705,6 +705,8 @@ function ConversationPage({
     await sendMessage("sticker", "", {
       sticker_path: sticker.file_path,
       sticker_id: sticker.id,
+      sticker_name: sticker.name,
+      sticker_tags: sticker.tags,
       ...(sticker.width ? { width: sticker.width } : {}),
       ...(sticker.height ? { height: sticker.height } : {}),
     });

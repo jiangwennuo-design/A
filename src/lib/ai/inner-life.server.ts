@@ -150,7 +150,7 @@ The <thinking> section is private system working material and must never be refe
 
 export function privateChatInnerLifePrompt(enabled: boolean) {
   if (!enabled) return "";
-  return `${PRIVATE_CHAT_INNER_LIFE}\n\nBecause this chat requires strict JSON, return exactly one JSON object shaped as {"thinking":"<thinking>private reaction</thinking>","messages":["visible message"]}. The private material must exist only in the thinking field and never inside a visible message string.`;
+  return `${PRIVATE_CHAT_INNER_LIFE}\n\nBecause this chat requires strict JSON, return exactly one JSON object shaped as {"thinking":"<thinking>private reaction</thinking>","messages":[{"type":"text","content":"visible message"}]}. The private material must exist only in the thinking field and never inside a visible message.`;
 }
 
 export function letterMindsetPrompt(enabled: boolean) {

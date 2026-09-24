@@ -32,9 +32,12 @@ type ChatRow = {
 type StickerRow = {
   id: string;
   file_path: string;
+  name: string;
+  tags: string[];
   width: number | null;
   height: number | null;
 };
+type ParsedBubble = { type: "text"; content: string } | { type: "sticker"; stickerId: string };
 type GeneratedBubble = {
   content: string;
   message_type: "text" | "sticker";
@@ -43,7 +46,7 @@ type GeneratedBubble = {
 const newTurnId = () => crypto.randomUUID();
 const cleanText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
-function parseBubbles(raw: string, min: number, max: number): string[] {
+function parseBubbles(raw: string, min: number, max: number): ParsedBubble[] {
   const candidate = raw
     .replace(/^```json\s*/i, "")
     .replace(/```\s*$/i, "")
@@ -57,9 +60,25 @@ function parseBubbles(raw: string, min: number, max: number): string[] {
   const messages = (parsed as { messages?: unknown })?.messages;
   if (!Array.isArray(messages) || messages.length < min || messages.length > max)
     throw new Error(`AI 回复数量应在 ${min} 到 ${max} 条之间。`);
-  const cleaned = messages.map(cleanText);
-  if (cleaned.some((message) => !message)) throw new Error("AI 返回了空消息，请重试。");
-  return cleaned;
+  return messages.map((message): ParsedBubble => {
+    if (typeof message === "string") {
+      const content = cleanText(message);
+      const legacySticker = content.match(/^__STICKER__:(.+)$/)?.[1]?.trim();
+      if (legacySticker) return { type: "sticker", stickerId: legacySticker };
+      if (!content) throw new Error("AI 返回了空消息，请重试。");
+      return { type: "text", content };
+    }
+    if (!message || typeof message !== "object") throw new Error("AI 返回格式不正确，请重试。");
+    const value = message as Record<string, unknown>;
+    if (value["type"] === "sticker") {
+      const stickerId = cleanText(value["stickerId"]);
+      if (!stickerId) throw new Error("AI 没有选择有效表情，请重试。");
+      return { type: "sticker", stickerId };
+    }
+    const content = cleanText(value["content"]);
+    if (!content) throw new Error("AI 返回了空消息，请重试。");
+    return { type: "text", content };
+  });
 }
 
 async function loadOwnedContext(db: Db, userId: string, sessionId: string, charId: string) {
@@ -195,21 +214,22 @@ async function generatePrivateReply(args: {
   const max = Math.max(min, Number(args.character.maximum_messages ?? min));
   const { data: stickerData } = await args.db
     .from("chat_stickers")
-    .select("id, file_path, width, height")
+    .select("id, file_path, name, tags, width, height")
     .eq("user_id", args.userId)
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(80);
   const stickers = (stickerData ?? []) as StickerRow[];
+  const catalog = selectStickerCatalog(stickers, args.pending);
   const { privateChatInnerLifePrompt, stripPrivateThinking } =
     await import("./ai/inner-life.server");
   const innerLifePrompt = privateChatInnerLifePrompt(args.profile?.inner_life_enabled !== false);
   const responseShape = innerLifePrompt
-    ? '{"thinking":"<thinking>...</thinking>","messages":["..."]}'
-    : '{"messages":["..."]}';
-  const stickerInstruction = stickers.length
-    ? "你可以在确实自然时把其中一条消息精确写成 __STICKER__，系统会发送一个已有表情；不要解释这个标记，也不要频繁使用。"
+    ? '{"thinking":"<thinking>...</thinking>","messages":[{"type":"text","content":"..."}]}'
+    : '{"messages":[{"type":"text","content":"..."}]}';
+  const stickerInstruction = catalog.length
+    ? `你可以在确实自然时把一条消息写成 {"type":"sticker","stickerId":"目录中的 id"}。只根据语境选择，不要解释选择过程，也不要频繁使用。可用表情目录（仅语义，不含图片）：${JSON.stringify(catalog.map(({ id, name, tags }) => ({ id, name, tags })))}`
     : "";
-  const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条独立的、完整但自然的聊天气泡。${stickerInstruction}${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
+  const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。${stickerInstruction}${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
   const { generate, AiServiceError } = await import("./ai/service.server");
   const historyMessages = args.history.map((row) => ({
     role: row.role,
@@ -240,30 +260,57 @@ async function generatePrivateReply(args: {
     result = await request(args.pending.map(messageTextForAi).join("\n"));
   }
   const bubbles = parseBubbles(stripPrivateThinking(result.text), min, max);
-  return bubbles.map((content, index): GeneratedBubble => {
-    if (content === "__STICKER__" && stickers.length) {
-      const sticker = stickers[(args.history.length + index) % stickers.length]!;
+  return bubbles.map((bubble): GeneratedBubble => {
+    if (bubble.type === "sticker") {
+      const sticker = catalog.find((item) => item.id === bubble.stickerId);
+      if (!sticker) throw new Error("AI 选择了不存在的表情，请重试。");
       return {
         content: "",
         message_type: "sticker",
         payload: {
           sticker_path: sticker.file_path,
           sticker_id: sticker.id,
+          sticker_name: sticker.name,
+          sticker_tags: sticker.tags,
           width: sticker.width ?? 1,
           height: sticker.height ?? 1,
         },
       };
     }
-    return { content, message_type: "text", payload: {} };
+    return { content: bubble.content, message_type: "text", payload: {} };
   });
+}
+
+function selectStickerCatalog(stickers: StickerRow[], pending: ChatRow[]) {
+  const context = pending
+    .map((row) => row.content)
+    .join(" ")
+    .toLocaleLowerCase();
+  return stickers
+    .map((sticker, index) => ({
+      sticker,
+      index,
+      score: [sticker.name, ...(sticker.tags ?? [])].filter(
+        (value) => value && context.includes(value.toLocaleLowerCase()),
+      ).length,
+    }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 30)
+    .map(({ sticker }) => sticker);
 }
 
 function messageTextForAi(row: ChatRow) {
   if (!row.message_type || row.message_type === "text") return row.content;
   if (row.message_type === "image")
     return row.content || "用户发送了一张图片；若当前模型无法读取图片，不要猜测具体内容。";
-  if (row.message_type === "sticker")
-    return row.role === "assistant" ? "角色发送了一个表情包。" : "用户发送了一个表情包。";
+  if (row.message_type === "sticker") {
+    const name = cleanText(row.payload?.["sticker_name"]);
+    const tags = Array.isArray(row.payload?.["sticker_tags"])
+      ? row.payload["sticker_tags"].filter((value): value is string => typeof value === "string")
+      : [];
+    const semantic = [name, ...tags].filter(Boolean).join("/");
+    return `${row.role === "assistant" ? "角色" : "用户"}发送了一个表情包${semantic ? `（${semantic}）` : ""}。`;
+  }
   if (row.message_type === "transfer")
     return `用户发送了一笔转账：¥${Number(row.payload?.["amount"] ?? 0).toFixed(2)}${row.payload?.["note"] ? `，备注：${String(row.payload["note"])}` : ""}。`;
   const duration = Number(row.payload?.["duration"] ?? 0);
@@ -308,6 +355,14 @@ function validateMessagePayload(type: string, raw: Record<string, unknown>, user
     return {
       sticker_path: stickerPath,
       sticker_id: cleanText(raw["sticker_id"]) || undefined,
+      sticker_name: cleanText(raw["sticker_name"]).slice(0, 80) || undefined,
+      sticker_tags: Array.isArray(raw["sticker_tags"])
+        ? raw["sticker_tags"]
+            .filter((value): value is string => typeof value === "string")
+            .map((value) => value.trim().slice(0, 40))
+            .filter(Boolean)
+            .slice(0, 20)
+        : [],
       width: Math.max(1, Number(raw["width"]) || 1),
       height: Math.max(1, Number(raw["height"]) || 1),
     };

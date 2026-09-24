@@ -88,6 +88,8 @@ export type ChatMessagePayload =
   | {
       sticker_path: string;
       sticker_id?: string;
+      sticker_name?: string;
+      sticker_tags?: string[];
       width?: number;
       height?: number;
     }
@@ -106,9 +108,24 @@ export interface ChatSticker {
   id: string;
   user_id: string;
   file_path: string;
+  pack_id: string | null;
+  name: string;
+  tags: string[];
+  source_url: string | null;
+  mime_type: string | null;
+  content_hash: string | null;
   width: number | null;
   height: number | null;
   created_at: string;
+}
+
+export interface StickerPack {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  stickerCount?: number;
 }
 
 export interface DiaryReply {
