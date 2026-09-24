@@ -110,8 +110,24 @@ function ProfilePage() {
           </div>
           <div className="user-profile-info">
             <div>
+              <small>昵称</small>
+              <p>{profile?.display_name || "未填写"}</p>
+            </div>
+            <div>
               <small>简介</small>
               <p>{profile?.signature || "未填写"}</p>
+            </div>
+            <div>
+              <small>性别</small>
+              <p>
+                {profile?.gender === "male"
+                  ? "男"
+                  : profile?.gender === "female"
+                    ? "女"
+                    : profile?.gender === "non_binary"
+                      ? "非二元"
+                      : "未填写"}
+              </p>
             </div>
             <div>
               <small>Persona / 用户设定</small>

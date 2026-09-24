@@ -21,15 +21,10 @@ export function TransferSheet({
     setNote("");
   }
   return (
-    <SystemSheet
-      open={open}
-      title="模拟转账"
-      description="仅用于虚拟聊天，不会产生真实交易"
-      onClose={onClose}
-    >
+    <SystemSheet open={open} title="转账" onClose={onClose}>
       <form onSubmit={submit} className="transfer-form">
         <label>
-          <span>金额</span>
+          <span>转账金额</span>
           <div>
             <b>¥</b>
             <input
@@ -41,7 +36,7 @@ export function TransferSheet({
           </div>
         </label>
         <label>
-          <span>备注（可选）</span>
+          <span>备注</span>
           <input
             value={note}
             maxLength={100}
@@ -50,7 +45,7 @@ export function TransferSheet({
           />
         </label>
         <button className="btn-primary w-full" disabled={!Number.isFinite(numeric) || numeric <= 0}>
-          发送模拟转账
+          确认转账
         </button>
       </form>
     </SystemSheet>

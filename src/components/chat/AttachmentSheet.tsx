@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ImagePlus, RotateCcw, WalletCards } from "lucide-react";
+import { ImagePlus, RotateCcw, Smile, WalletCards } from "lucide-react";
 import { SystemSheet } from "@/components/system-ui";
 
 export function AttachmentSheet({
@@ -7,6 +7,7 @@ export function AttachmentSheet({
   canReroll,
   onClose,
   onImage,
+  onStickers,
   onTransfer,
   onReroll,
 }: {
@@ -14,12 +15,13 @@ export function AttachmentSheet({
   canReroll: boolean;
   onClose: () => void;
   onImage: (file: File) => void;
+  onStickers: () => void;
   onTransfer: () => void;
   onReroll: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <SystemSheet open={open} title="聊天工具" description="发送图片或虚拟转账" onClose={onClose}>
+    <SystemSheet open={open} title="聊天工具" onClose={onClose}>
       <input
         ref={input}
         hidden
@@ -36,9 +38,13 @@ export function AttachmentSheet({
           <ImagePlus size={22} />
           <span>图片</span>
         </button>
+        <button type="button" onClick={onStickers}>
+          <Smile size={22} />
+          <span>表情包</span>
+        </button>
         <button type="button" onClick={onTransfer}>
           <WalletCards size={22} />
-          <span>模拟转账</span>
+          <span>转账</span>
         </button>
         <button type="button" disabled={!canReroll} onClick={onReroll}>
           <RotateCcw size={22} />

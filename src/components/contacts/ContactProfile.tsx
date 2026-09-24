@@ -3,13 +3,21 @@ import type { AiPersona } from "@/lib/types";
 import { ContactAvatar } from "./ContactList";
 
 const details: Array<[keyof AiPersona, string]> = [
+  ["gender", "性别"],
   ["personality", "性格"],
   ["speaking_style", "说话方式"],
   ["interests", "喜欢"],
   ["dislikes", "不喜欢"],
   ["relationship", "与你的关系"],
   ["background", "背景"],
+  ["additional_prompt", "补充设定"],
 ];
+
+const genderLabels: Record<string, string> = {
+  male: "男",
+  female: "女",
+  non_binary: "非二元",
+};
 
 export function ContactProfile({
   contact,
@@ -39,14 +47,21 @@ export function ContactProfile({
         <h2>角色资料</h2>
         {details.map(([key, label]) => {
           const value = contact[key];
-          if (typeof value !== "string" || !value.trim()) return null;
+          const shown =
+            key === "gender" ? (genderLabels[String(value ?? "")] ?? "") : String(value ?? "");
           return (
             <div key={key}>
               <small>{label}</small>
-              <p>{value}</p>
+              <p>{shown.trim() || "未填写"}</p>
             </div>
           );
         })}
+        <div>
+          <small>限制回复句子数</small>
+          <p>
+            {contact.minimum_messages}–{contact.maximum_messages} 条
+          </p>
+        </div>
       </section>
     </div>
   );

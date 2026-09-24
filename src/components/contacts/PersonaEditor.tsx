@@ -104,20 +104,24 @@ export function PersonaEditor({
           onChange={(value) => set(key, value)}
         />
       ))}
-      <div className="contact-editor__pair">
-        <EditorField
-          label="最少回复气泡"
-          type="number"
-          value={String(form.minimum_messages)}
-          onChange={(value) => set("minimum_messages", value)}
-        />
-        <EditorField
-          label="最多回复气泡"
-          type="number"
-          value={String(form.maximum_messages)}
-          onChange={(value) => set("maximum_messages", value)}
-        />
-      </div>
+      <section className="contact-editor__group">
+        <h2>回复设置</h2>
+        <p>限制角色每次回复的句子数量。</p>
+        <div className="contact-editor__pair">
+          <EditorField
+            label="最少回复句子数"
+            type="number"
+            value={String(form.minimum_messages)}
+            onChange={(value) => set("minimum_messages", value)}
+          />
+          <EditorField
+            label="最多回复句子数"
+            type="number"
+            value={String(form.maximum_messages)}
+            onChange={(value) => set("maximum_messages", value)}
+          />
+        </div>
+      </section>
       <button className="btn-primary w-full" disabled={saving}>
         {saving ? "保存中…" : existing ? "保存修改" : "创建角色"}
       </button>

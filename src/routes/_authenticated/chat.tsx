@@ -989,7 +989,6 @@ function ConversationPage({
         onChange={setInput}
         onSubmit={submit}
         onAttachments={() => setAttachmentsOpen(true)}
-        onStickers={() => setStickersOpen(true)}
         onReply={() => void triggerReply()}
       />
 
@@ -998,6 +997,10 @@ function ConversationPage({
         canReroll={Boolean(latestTurnId) && !sending && !savingMessage}
         onClose={() => setAttachmentsOpen(false)}
         onImage={(file) => void sendImage(file)}
+        onStickers={() => {
+          setAttachmentsOpen(false);
+          setStickersOpen(true);
+        }}
         onTransfer={() => {
           setAttachmentsOpen(false);
           setTransferOpen(true);

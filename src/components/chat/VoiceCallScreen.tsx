@@ -31,7 +31,7 @@ export function VoiceCallScreen({
     <div className="voice-call-screen">
       <header>
         <span aria-hidden="true" />
-        <span>模拟语音通话</span>
+        <span>语音通话</span>
       </header>
       <main>
         <div className="voice-call-avatar">
@@ -42,7 +42,7 @@ export function VoiceCallScreen({
         <small>当前未接入实时 AI 语音</small>
         {state === "calling" && (
           <button type="button" className="voice-call-connect" onClick={onConnect}>
-            进入模拟通话
+            接听
           </button>
         )}
       </main>

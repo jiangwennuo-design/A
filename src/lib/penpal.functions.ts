@@ -29,6 +29,17 @@ type ChatRow = {
   message_type?: "text" | "image" | "sticker" | "transfer" | "call";
   payload?: Record<string, unknown>;
 };
+type StickerRow = {
+  id: string;
+  file_path: string;
+  width: number | null;
+  height: number | null;
+};
+type GeneratedBubble = {
+  content: string;
+  message_type: "text" | "sticker";
+  payload: Record<string, unknown>;
+};
 const newTurnId = () => crypto.randomUUID();
 const cleanText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -182,13 +193,23 @@ async function generatePrivateReply(args: {
 }) {
   const min = Math.max(1, Number(args.character.minimum_messages ?? 1));
   const max = Math.max(min, Number(args.character.maximum_messages ?? min));
+  const { data: stickerData } = await args.db
+    .from("chat_stickers")
+    .select("id, file_path, width, height")
+    .eq("user_id", args.userId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const stickers = (stickerData ?? []) as StickerRow[];
   const { privateChatInnerLifePrompt, stripPrivateThinking } =
     await import("./ai/inner-life.server");
   const innerLifePrompt = privateChatInnerLifePrompt(args.profile?.inner_life_enabled !== false);
   const responseShape = innerLifePrompt
     ? '{"thinking":"<thinking>...</thinking>","messages":["..."]}'
     : '{"messages":["..."]}';
-  const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条独立的、完整但自然的聊天气泡。${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
+  const stickerInstruction = stickers.length
+    ? "你可以在确实自然时把其中一条消息精确写成 __STICKER__，系统会发送一个已有表情；不要解释这个标记，也不要频繁使用。"
+    : "";
+  const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条独立的、完整但自然的聊天气泡。${stickerInstruction}${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
   const { generate, AiServiceError } = await import("./ai/service.server");
   const historyMessages = args.history.map((row) => ({
     role: row.role,
@@ -218,16 +239,33 @@ async function generatePrivateReply(args: {
       throw error;
     result = await request(args.pending.map(messageTextForAi).join("\n"));
   }
-  return parseBubbles(stripPrivateThinking(result.text), min, max);
+  const bubbles = parseBubbles(stripPrivateThinking(result.text), min, max);
+  return bubbles.map((content, index): GeneratedBubble => {
+    if (content === "__STICKER__" && stickers.length) {
+      const sticker = stickers[(args.history.length + index) % stickers.length]!;
+      return {
+        content: "",
+        message_type: "sticker",
+        payload: {
+          sticker_path: sticker.file_path,
+          sticker_id: sticker.id,
+          width: sticker.width ?? 1,
+          height: sticker.height ?? 1,
+        },
+      };
+    }
+    return { content, message_type: "text", payload: {} };
+  });
 }
 
 function messageTextForAi(row: ChatRow) {
   if (!row.message_type || row.message_type === "text") return row.content;
   if (row.message_type === "image")
     return row.content || "用户发送了一张图片；若当前模型无法读取图片，不要猜测具体内容。";
-  if (row.message_type === "sticker") return "用户发送了一个表情包。";
+  if (row.message_type === "sticker")
+    return row.role === "assistant" ? "角色发送了一个表情包。" : "用户发送了一个表情包。";
   if (row.message_type === "transfer")
-    return `用户发送了一笔虚拟转账：¥${Number(row.payload?.["amount"] ?? 0).toFixed(2)}${row.payload?.["note"] ? `，备注：${String(row.payload["note"])}` : ""}。`;
+    return `用户发送了一笔转账：¥${Number(row.payload?.["amount"] ?? 0).toFixed(2)}${row.payload?.["note"] ? `，备注：${String(row.payload["note"])}` : ""}。`;
   const duration = Number(row.payload?.["duration"] ?? 0);
   return `语音通话记录：${String(row.payload?.["status"] ?? "cancelled")}${duration ? `，${duration} 秒` : ""}。`;
 }
@@ -277,7 +315,7 @@ function validateMessagePayload(type: string, raw: Record<string, unknown>, user
   if (type === "transfer") {
     const amount = Number(raw["amount"]);
     if (!Number.isFinite(amount) || amount <= 0 || amount > 999999.99)
-      throw new Error("请输入有效的模拟转账金额。");
+      throw new Error("请输入有效的转账金额。");
     return {
       amount: Math.round(amount * 100) / 100,
       note: cleanText(raw["note"]).slice(0, 100),
@@ -363,11 +401,14 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
     const { data: inserted, error } = await db
       .from("chat_messages")
       .insert(
-        bubbles.map((content, index) => ({
+        bubbles.map((bubble, index) => ({
           session_id: data.session_id,
           user_id: context.userId,
           role: "assistant",
-          content,
+          content: bubble.content,
+          message_type: bubble.message_type,
+          payload: bubble.payload,
+          delivery_status: "sent",
           turn_id: turnId,
           message_order: index + 1,
         })),

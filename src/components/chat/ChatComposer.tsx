@@ -1,5 +1,5 @@
 import { useEffect, useRef, type FormEvent } from "react";
-import { ArrowUp, Plus, Smile } from "lucide-react";
+import { ArrowUp, Plus, Reply } from "lucide-react";
 
 export function ChatComposer({
   value,
@@ -9,7 +9,6 @@ export function ChatComposer({
   onChange,
   onSubmit,
   onAttachments,
-  onStickers,
   onReply,
 }: {
   value: string;
@@ -19,7 +18,6 @@ export function ChatComposer({
   onChange: (value: string) => void;
   onSubmit: (event: FormEvent) => void;
   onAttachments: () => void;
-  onStickers: () => void;
   onReply: () => void;
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
@@ -50,11 +48,13 @@ export function ChatComposer({
       />
       <button
         type="button"
-        aria-label="表情包"
-        onClick={onStickers}
-        className="chat-composer__emoji"
+        aria-label={replying ? "角色回复中" : "让角色回复"}
+        title={replying ? "回复中" : "让角色回复"}
+        disabled={!canReply || disabled}
+        onClick={onReply}
+        className={`chat-composer__reply ${replying ? "is-replying" : ""}`}
       >
-        <Smile size={19} />
+        <Reply size={18} />
       </button>
       <button
         disabled={disabled || !value.trim()}
@@ -62,14 +62,6 @@ export function ChatComposer({
         className="chat-composer__send"
       >
         <ArrowUp size={19} />
-      </button>
-      <button
-        type="button"
-        disabled={!canReply || disabled}
-        onClick={onReply}
-        className="chat-composer__reply"
-      >
-        {replying ? "回复中" : "回复"}
       </button>
     </form>
   );

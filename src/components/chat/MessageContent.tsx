@@ -76,7 +76,7 @@ export const MessageContent = memo(function MessageContent({
         </span>
         <div>
           <strong>¥ {Number(payload["amount"] ?? 0).toFixed(2)}</strong>
-          <p>{String(payload["note"] || "模拟转账")}</p>
+          <p>{String(payload["note"] || "转账")}</p>
           <small>{transferStatus(String(payload["status"] ?? "pending"))}</small>
         </div>
       </div>
@@ -94,7 +94,7 @@ export const MessageContent = memo(function MessageContent({
 });
 
 function transferStatus(status: string) {
-  return status === "accepted" ? "已接收" : status === "returned" ? "已退回" : "待接收 · 虚拟功能";
+  return status === "accepted" ? "已接收" : status === "returned" ? "已退回" : "待接收";
 }
 function callLabel(status: string, duration: number) {
   if (status === "missed") return "未接听";

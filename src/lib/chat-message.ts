@@ -24,7 +24,7 @@ export function messagePreview(message?: ChatMessage) {
     text: message.content,
     image: "[图片]",
     sticker: "[表情]",
-    transfer: "[模拟转账]",
+    transfer: "[转账]",
     call: "[语音通话]",
   };
   return labels[message.message_type ?? "text"];
