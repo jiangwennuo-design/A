@@ -1,4 +1,4 @@
-import { useRef, type FormEvent } from "react";
+import { useRef, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { AvatarPicker } from "@/components/AvatarPicker";
 import { importPersonaFile } from "@/lib/persona-file";
@@ -33,14 +33,14 @@ export function PersonaEditor({
   userId: string;
   existing: boolean;
   saving: boolean;
-  onChange: (next: PersonaDraft) => void;
+  onChange: Dispatch<SetStateAction<PersonaDraft>>;
   onSubmit: (event: FormEvent) => void;
   onDelete: () => void;
   onError: (message: string) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const set = (key: keyof PersonaDraft, value: string | number) =>
-    onChange({ ...form, [key]: value });
+    onChange((current) => ({ ...current, [key]: value }));
   async function importFile(file?: File) {
     if (!file) return;
     try {

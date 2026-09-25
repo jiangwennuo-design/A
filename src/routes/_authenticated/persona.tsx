@@ -56,6 +56,11 @@ function PersonaPage() {
         if (loadError) setError("加载名册失败。");
         const list = (data ?? []) as AiPersona[];
         setItems(list);
+        if (
+          list.length &&
+          !list.some((item) => item.id === localStorage.getItem("current-char-id"))
+        )
+          localStorage.setItem("current-char-id", list[0]!.id);
         const pairs = await Promise.all(
           list.map(async (item) => [item.id, await resolveAvatarUrl(item.avatar_url)] as const),
         );
@@ -88,17 +93,25 @@ function PersonaPage() {
     if (!form.name.trim()) return setError("请填写名字。");
     const min = Number(form.minimum_messages);
     const max = Number(form.maximum_messages);
-    if (min < 1 || max < min) return setError("请检查回复气泡数量。");
+    if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max < min)
+      return setError("请检查回复气泡数量。");
     setSaving(true);
     setError("");
     const values = {
-      ...form,
       name: form.name.trim(),
+      description: form.description,
+      personality: form.personality,
+      speaking_style: form.speaking_style,
+      interests: form.interests,
+      dislikes: form.dislikes,
+      relationship: form.relationship,
+      background: form.background,
+      additional_prompt: form.additional_prompt,
       avatar_url: form.avatar_url || null,
       gender: form.gender || null,
       minimum_messages: min,
       maximum_messages: max,
-    } as any;
+    };
     const result = active
       ? await db.from("ai_personas").update(values).eq("id", active.id).select("*").single()
       : await db.from("ai_personas").insert(values).select("*").single();
@@ -115,11 +128,17 @@ function PersonaPage() {
     select(saved);
   }
   async function remove() {
-    if (!active || !confirm(`确定删除角色“${active.name}”吗？`)) return;
+    if (!active || !confirm(`确定删除角色“${active.name}”吗？相关会话将不再可用。`)) return;
     const { error: removeError } = await db.from("ai_personas").delete().eq("id", active.id);
     if (removeError) return setError("删除失败，请确认没有受保护的关联数据。");
-    setItems((current) => current.filter((item) => item.id !== active.id));
+    const next = items.filter((item) => item.id !== active.id);
+    setItems(next);
+    if (localStorage.getItem("current-char-id") === active.id) {
+      if (next[0]) localStorage.setItem("current-char-id", next[0].id);
+      else localStorage.removeItem("current-char-id");
+    }
     setActive(null);
+    setForm(blank);
     setView("list");
   }
   function goBack() {
