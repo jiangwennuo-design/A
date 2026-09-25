@@ -105,7 +105,7 @@ export function PersonaEditor({
         />
       ))}
       <section className="contact-editor__group">
-        <h2>回复设置</h2>
+        <h2>限制回复句子数</h2>
         <p>限制角色每次回复的句子数量。</p>
         <div className="contact-editor__pair">
           <EditorField
