@@ -162,7 +162,7 @@ export const ChatMessages = memo(function ChatMessages({
                 name={isUser ? userName : assistantName}
               />
               <div
-                className={`message-bubble is-${message.message_type ?? "text"}`}
+                className="message-content-wrapper"
                 aria-label={`${isUser ? userName : assistantName}的消息，长按可操作`}
                 onPointerDown={(event) => startLongPress(message.id, event)}
                 onPointerMove={moveLongPress}

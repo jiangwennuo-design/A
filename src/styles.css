@@ -1711,16 +1711,6 @@ textarea {
   grid-template-columns: 32px minmax(0, 1fr) 32px 34px;
 }
 
-.message-bubble.is-image,
-.message-bubble.is-sticker,
-.message-bubble.is-transfer,
-.message-bubble.is-call {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
 .chat-media {
   position: relative;
   width: min(58vw, 258px);
@@ -1735,7 +1725,10 @@ textarea {
   width: min(34vw, 136px);
   max-height: 150px;
   border-radius: 6px;
+  padding: 0;
+  border: 0;
   background: transparent;
+  box-shadow: none;
 }
 
 .chat-media img {
@@ -1766,6 +1759,14 @@ textarea {
   height: 120px;
   border-radius: 17px;
   color: #aaa;
+}
+
+.chat-media-placeholder.is-sticker {
+  width: min(34vw, 136px);
+  height: 110px;
+  border-radius: 0;
+  background: transparent;
+  animation: none;
 }
 
 @keyframes media-skeleton {
@@ -4292,6 +4293,15 @@ textarea {
   height: 100%;
   object-fit: cover;
 }
+.message-content-wrapper {
+  max-width: min(76%, 330px);
+  min-width: 0;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+  -webkit-touch-callout: none;
+}
 .message-bubble {
   max-width: min(76%, 330px);
   padding: 8px 12px 9px;
@@ -4305,6 +4315,9 @@ textarea {
   cursor: pointer;
   -webkit-touch-callout: none;
   box-shadow: 0 1px 1px rgb(0 0 0 / 3%);
+}
+.message-content-wrapper .message-bubble {
+  max-width: 100%;
 }
 .message-bubble p {
   margin: 0;

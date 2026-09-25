@@ -40,7 +40,12 @@ export const MessageContent = memo(function MessageContent({
       alive = false;
     };
   }, [localPreview, path]);
-  if (type === "text") return <p>{message.content}</p>;
+  if (type === "text")
+    return (
+      <div className="message-bubble">
+        <p>{message.content}</p>
+      </div>
+    );
   if (type === "image" || type === "sticker") {
     const width = Math.max(1, Number(payload["width"]) || 1);
     const height = Math.max(1, Number(payload["height"]) || 1);
@@ -57,7 +62,7 @@ export const MessageContent = memo(function MessageContent({
         onClick={() => onOpenImage(url, type === "sticker" ? "表情包" : "聊天图片")}
         style={{ aspectRatio: `${width} / ${height}` }}
       >
-        {!loaded && <span className="chat-media-skeleton" />}
+        {!loaded && type === "image" && <span className="chat-media-skeleton" />}
         <img
           src={url}
           alt={type === "sticker" ? "表情包" : "聊天图片"}
