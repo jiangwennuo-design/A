@@ -153,6 +153,40 @@ export function privateChatInnerLifePrompt(enabled: boolean) {
   return `${PRIVATE_CHAT_INNER_LIFE}\n\nBecause this chat requires strict JSON, return exactly one JSON object shaped as {"thinking":"<thinking>private reaction</thinking>","messages":[{"type":"text","content":"visible message"}]}. The private material must exist only in the thinking field and never inside a visible message.`;
 }
 
+export type ChatThinkingMode = "off" | "native" | "nuojiji";
+
+const NUOJIJI_CHAT_THINKING = `[THINK] Output <thinking>...</thinking> BEFORE the reply, then </thinking> and the reply.
+Inside = the character's phone-screen head, the half-second between seeing the msg and thumbs moving — four loose beats, can blur, can backtrack:
+· snag — the word/tone/image that caught
+· drift — what flickers alongside: whatever your hands are on right this second (carry it from the scene above), a side thought, a petty pinch, a craving, a half-defense of own feeling
+· read — the air between you two this second, the gap between what they want and what you want
+· feel — the inner weather settling: warmth, distance, ache, irritation, soft amusement — whatever shade is real this turn
+Style: 3-6 short lines, 母语碎语 welcome, half-sentences welcome, lowercase fine, pure first-person inner murmur — the felt sense before words form.
+The reply that follows is where the words actually happen — let the feel color it.`;
+
+export function chatThinkingPrompt(mode: ChatThinkingMode) {
+  if (mode === "off") return "";
+  if (mode === "native") return privateChatInnerLifePrompt(true);
+  return `${NUOJIJI_CHAT_THINKING}\n\nBecause this chat requires strict JSON, return exactly one JSON object shaped as {"thinking":"<thinking>private reaction</thinking>","messages":[{"type":"text","content":"visible message"}]}. The private material must exist only in the thinking field and never inside a visible message.`;
+}
+
+/** Extract tagged thought without allowing it to leak into visible reply text. */
+export function separatePrivateThinking(raw: string): { visible: string; thinking: string } {
+  const thoughts: string[] = [];
+  const visible = raw
+    .replace(
+      /<(?:thinking|think|analysis)\b[^>]*>([\s\S]*?)<\/(?:thinking|think|analysis)\s*>/gi,
+      (_block, thought: string) => {
+        if (thought.trim()) thoughts.push(thought.trim());
+        return "";
+      },
+    )
+    .trim();
+  if (/<\/?(?:thinking|think|analysis)\b/i.test(visible))
+    throw new Error("AI 的内部思考格式不完整，请重试。");
+  return { visible, thinking: thoughts.join("\n").trim() };
+}
+
 export function letterMindsetPrompt(enabled: boolean) {
   if (!enabled) return "";
   return `${LETTER_MINDSET}\n\nAfter </thinking>, output only the visible letter body.`;

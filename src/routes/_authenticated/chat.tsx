@@ -33,6 +33,7 @@ import { TransferSheet } from "@/components/chat/TransferSheet";
 import { StickerPicker } from "@/components/chat/StickerPicker";
 import { ImageViewer } from "@/components/chat/ImageViewer";
 import { VoiceCallScreen, type CallState } from "@/components/chat/VoiceCallScreen";
+import { ChatCharacterEditor } from "@/components/chat/ChatCharacterEditor";
 import { SystemSheet } from "@/components/system-ui";
 import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { lastReadAt, markChatRead } from "@/lib/chat-read-state";
@@ -357,6 +358,7 @@ function ConversationPage({
   const [callMuted, setCallMuted] = useState(false);
   const [callSpeaker, setCallSpeaker] = useState(false);
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
+  const [characterEditOpen, setCharacterEditOpen] = useState(false);
   const [messageMenu, setMessageMenu] = useState<{
     messageId: string;
     left: number;
@@ -925,6 +927,7 @@ function ConversationPage({
       {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
       <ChatMessages
         messages={messages}
+        showThinking={current.chat_thinking_mode !== "off" && current.show_chat_thinking}
         sending={sending}
         assistantAvatar={assistantAvatar}
         userAvatar={userAvatar}
@@ -1068,7 +1071,10 @@ function ConversationPage({
         </label>
         <button
           type="button"
-          onClick={() => navigate({ to: "/persona" })}
+          onClick={() => {
+            setChatSettingsOpen(false);
+            setCharacterEditOpen(true);
+          }}
           className="btn-secondary w-full mb-3"
         >
           编辑当前角色与头像
@@ -1082,6 +1088,17 @@ function ConversationPage({
           清空当前对话
         </button>
       </SystemSheet>
+      {characterEditOpen && user && (
+        <ChatCharacterEditor
+          character={current}
+          userId={user.id}
+          open
+          defaultMode={profile?.inner_life_enabled === false ? "off" : "native"}
+          onClose={() => setCharacterEditOpen(false)}
+          onSaved={setCurrent}
+          onDeleted={() => void navigate({ to: "/chat", search: {} })}
+        />
+      )}
     </div>
   );
 }

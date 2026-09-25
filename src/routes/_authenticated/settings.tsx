@@ -148,9 +148,9 @@ function SettingsPage() {
                 className="mt-0.5 shrink-0 text-[var(--color-text-secondary)]"
               />
               <div>
-                <p className="text-sm text-[var(--color-text)]">思维链</p>
+                <p className="text-sm text-[var(--color-text)]">回信思维链</p>
                 <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
-                  让角色在聊天与回信前进行隐藏的自然思考
+                  控制日记回信；聊天请在各角色的聊天设置中单独选择
                 </p>
               </div>
             </div>
@@ -158,7 +158,7 @@ function SettingsPage() {
               type="button"
               role="switch"
               aria-checked={profile?.inner_life_enabled !== false}
-              aria-label="思维链"
+              aria-label="回信思维链"
               disabled={savingInnerLife}
               className={`settings-switch ${profile?.inner_life_enabled !== false ? "is-on" : ""}`}
               onClick={async () => {

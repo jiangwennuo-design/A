@@ -44,6 +44,8 @@ export interface AiPersona {
   gender: "male" | "female" | "non_binary" | null;
   minimum_messages: number;
   maximum_messages: number;
+  chat_thinking_mode: "off" | "native" | "nuojiji";
+  show_chat_thinking: boolean;
   created_at: string;
   updated_at: string;
 }

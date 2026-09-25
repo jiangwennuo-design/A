@@ -14,6 +14,7 @@ import { MessageContent } from "@/components/chat/MessageContent";
 
 interface Props {
   messages: ChatMessage[];
+  showThinking: boolean;
   sending: boolean;
   assistantAvatar: string;
   userAvatar: string;
@@ -35,6 +36,7 @@ export interface MessageAnchor {
 
 export const ChatMessages = memo(function ChatMessages({
   messages,
+  showThinking,
   sending,
   assistantAvatar,
   userAvatar,
@@ -171,6 +173,16 @@ export const ChatMessages = memo(function ChatMessages({
                 onPointerLeave={cancelLongPress}
                 onContextMenu={(event) => openContextMenu(message.id, event)}
               >
+                {!isUser &&
+                  showThinking &&
+                  message.message_order === 1 &&
+                  typeof (message.payload as Record<string, unknown>)["thinking"] === "string" && (
+                    <p className="chat-thinking-text">
+                      {(message.payload as Record<string, unknown>)["thinking_source"] ===
+                        "nuojiji" && <span className="chat-thinking-source">@糯叽机</span>}
+                      {(message.payload as Record<string, unknown>)["thinking"] as string}
+                    </p>
+                  )}
                 <MessageContent message={message} onOpenImage={onOpenImage} />
               </div>
               {message.delivery_status === "failed" && (

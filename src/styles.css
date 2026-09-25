@@ -1666,6 +1666,18 @@ textarea {
 .contact-editor__group .contact-editor__field {
   margin-bottom: 0;
 }
+.chat-thinking-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.contact-editor__field.chat-thinking-toggle input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--color-primary);
+}
 
 .contact-import,
 .contact-delete {
@@ -4324,6 +4336,20 @@ textarea {
 }
 .message-content-wrapper .message-bubble {
   max-width: 100%;
+}
+.chat-thinking-text {
+  margin: 0 0 6px;
+  color: #92969c;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-thinking-source {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 10px;
 }
 .message-bubble p {
   margin: 0;

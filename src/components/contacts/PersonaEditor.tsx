@@ -1,4 +1,4 @@
-import { useRef, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useRef, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { AvatarPicker } from "@/components/AvatarPicker";
 import { importPersonaFile } from "@/lib/persona-file";
@@ -28,6 +28,7 @@ export function PersonaEditor({
   onSubmit,
   onDelete,
   onError,
+  extraSettings,
 }: {
   form: PersonaDraft;
   userId: string;
@@ -37,6 +38,7 @@ export function PersonaEditor({
   onSubmit: (event: FormEvent) => void;
   onDelete: () => void;
   onError: (message: string) => void;
+  extraSettings?: ReactNode;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const set = (key: keyof PersonaDraft, value: string | number) =>
@@ -122,6 +124,7 @@ export function PersonaEditor({
           />
         </div>
       </section>
+      {extraSettings}
       <button className="btn-primary w-full" disabled={saving}>
         {saving ? "保存中…" : existing ? "保存修改" : "创建角色"}
       </button>

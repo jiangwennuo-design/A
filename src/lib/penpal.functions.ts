@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AiMessage } from "./ai/multimodal";
 import { IMAGE_UNAVAILABLE } from "./ai/multimodal";
+import type { ChatThinkingMode } from "./ai/inner-life.server";
 
 const uuid = z.string().uuid();
 const queuedMessageInput = z.object({
@@ -48,7 +49,11 @@ type GeneratedBubble = {
 const newTurnId = () => crypto.randomUUID();
 const cleanText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
-function parseBubbles(raw: string, min: number, max: number): ParsedBubble[] {
+function parseBubbles(
+  raw: string,
+  min: number,
+  max: number,
+): { bubbles: ParsedBubble[]; thinking: string } {
   const candidate = raw
     .replace(/^```json\s*/i, "")
     .replace(/```\s*$/i, "")
@@ -62,7 +67,8 @@ function parseBubbles(raw: string, min: number, max: number): ParsedBubble[] {
   const messages = (parsed as { messages?: unknown })?.messages;
   if (!Array.isArray(messages) || messages.length < min || messages.length > max)
     throw new Error(`AI 回复数量应在 ${min} 到 ${max} 条之间。`);
-  return messages.map((message): ParsedBubble => {
+  const thinking = cleanText((parsed as { thinking?: unknown })?.thinking);
+  const bubbles = messages.map((message): ParsedBubble => {
     if (typeof message === "string") {
       const content = cleanText(message);
       const legacySticker = content.match(/^__STICKER__:(.+)$/)?.[1]?.trim();
@@ -81,6 +87,7 @@ function parseBubbles(raw: string, min: number, max: number): ParsedBubble[] {
     if (!content) throw new Error("AI 返回了空消息，请重试。");
     return { type: "text", content };
   });
+  return { bubbles, thinking };
 }
 
 async function loadOwnedContext(db: Db, userId: string, sessionId: string, charId: string) {
@@ -222,9 +229,15 @@ async function generatePrivateReply(args: {
     .limit(80);
   const stickers = (stickerData ?? []) as StickerRow[];
   const catalog = selectStickerCatalog(stickers, args.pending);
-  const { privateChatInnerLifePrompt, stripPrivateThinking } =
-    await import("./ai/inner-life.server");
-  const innerLifePrompt = privateChatInnerLifePrompt(args.profile?.inner_life_enabled !== false);
+  const { chatThinkingPrompt, separatePrivateThinking } = await import("./ai/inner-life.server");
+  const thinkingMode: ChatThinkingMode = ["off", "native", "nuojiji"].includes(
+    args.character.chat_thinking_mode,
+  )
+    ? args.character.chat_thinking_mode
+    : args.profile?.inner_life_enabled === false
+      ? "off"
+      : "native";
+  const innerLifePrompt = chatThinkingPrompt(thinkingMode);
   const responseShape = innerLifePrompt
     ? '{"thinking":"<thinking>...</thinking>","messages":[{"type":"text","content":"..."}]}'
     : '{"messages":[{"type":"text","content":"..."}]}';
@@ -243,8 +256,12 @@ async function generatePrivateReply(args: {
     messages,
     outputFormat: "json",
   });
-  const bubbles = parseBubbles(stripPrivateThinking(result.text), min, max);
-  return bubbles.map((bubble): GeneratedBubble => {
+  const separated = separatePrivateThinking(result.text);
+  const parsed = parseBubbles(separated.visible, min, max);
+  const thinking = thinkingMode === "off" ? "" : separated.thinking || parsed.thinking;
+  return parsed.bubbles.map((bubble, index): GeneratedBubble => {
+    const thinkingPayload =
+      index === 0 && thinking ? { thinking, thinking_source: thinkingMode } : {};
     if (bubble.type === "sticker") {
       const sticker = catalog.find((item) => item.id === bubble.stickerId);
       if (!sticker) throw new Error("AI 选择了不存在的表情，请重试。");
@@ -258,10 +275,11 @@ async function generatePrivateReply(args: {
           sticker_tags: sticker.tags,
           width: sticker.width ?? 1,
           height: sticker.height ?? 1,
+          ...thinkingPayload,
         },
       };
     }
-    return { content: bubble.content, message_type: "text", payload: {} };
+    return { content: bubble.content, message_type: "text", payload: thinkingPayload };
   });
 }
 
