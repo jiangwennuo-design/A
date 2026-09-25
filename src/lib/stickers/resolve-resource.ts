@@ -5,6 +5,50 @@ const blockedNames = new Set([
   "0.0.0.0",
 ]);
 
+// Postimages direct links use an eight-character image directory followed by
+// the original filename. A manifest can omit the host, so verify at least one
+// actual image before applying this provider rule to the pack.
+const POSTIMAGES_BASE_URL = "https://i.postimg.cc/";
+const postimagesReference = /^[a-z0-9]{8}\/[^/?#]+\.(?:png|jpe?g|webp|gif)$/i;
+
+export function isPostimagesResourceReference(reference: string) {
+  return postimagesReference.test(unwrapResourceReference(reference));
+}
+
+export async function discoverStickerResourceBase(
+  references: string[],
+  inspect: (url: string) => Promise<unknown>,
+) {
+  const matches = [...new Set(references.map(unwrapResourceReference))].filter(
+    isPostimagesResourceReference,
+  );
+  // Sample across the whole pack, rather than only its first few links: older
+  // images near the top may have expired while later ones still work.
+  const candidates =
+    matches.length <= 12
+      ? matches
+      : Array.from(
+          { length: 12 },
+          (_, index) => matches[Math.floor((index * (matches.length - 1)) / 11)]!,
+        );
+  for (let offset = 0; offset < candidates.length; offset += 4) {
+    const results = await Promise.all(
+      candidates.slice(offset, offset + 4).map(async (reference) => {
+        const resolved = resolveStickerResource(reference, POSTIMAGES_BASE_URL);
+        if (!("url" in resolved)) return false;
+        try {
+          await inspect(resolved.url);
+          return true;
+        } catch {
+          return false;
+        }
+      }),
+    );
+    if (results.some(Boolean)) return POSTIMAGES_BASE_URL;
+  }
+  return null;
+}
+
 export function unwrapResourceReference(value: string) {
   let clean = value.trim().replace(/^https?\\:\/\//i, (match) => match.replace("\\", ""));
   const markdown = clean.match(/^\[[^\]]*\]\((https?:\/\/[^)]+)\)$/i);

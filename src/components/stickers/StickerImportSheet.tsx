@@ -5,6 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractStickerManifestText, stickerManifestAccept } from "@/lib/stickers/extract-text";
 import { mapWithConcurrency } from "@/lib/stickers/import-pack";
 import { parseStickerManifest } from "@/lib/stickers/parse-manifest";
+import {
+  discoverStickerResourceBase,
+  isPostimagesResourceReference,
+  resolveStickerResource,
+} from "@/lib/stickers/resolve-resource";
 import { importRemoteSticker, inspectRemoteSticker } from "@/lib/stickers/sticker-import.functions";
 import type { StickerManifestEntry, StickerManifestIssue } from "@/lib/stickers/types";
 import { StickerImportPreview } from "./StickerImportPreview";
@@ -42,6 +47,24 @@ export function StickerImportSheet({
       const text = await extractStickerManifestText(file);
       const parsed = parseStickerManifest(text, file.name);
       if (!parsed.entries.length) throw new Error("索引文件中没有找到有效表情记录。");
+      if (!parsed.metadata.baseUrl) {
+        const baseUrl = await discoverStickerResourceBase(
+          parsed.entries
+            .filter((entry) => entry.status === "unresolved")
+            .map((entry) => entry.reference),
+          (sourceUrl) => inspectRemoteSticker({ data: { sourceUrl } }),
+        );
+        if (baseUrl) {
+          parsed.entries = parsed.entries.map((entry) => {
+            if (entry.status !== "unresolved" || !isPostimagesResourceReference(entry.reference))
+              return entry;
+            const resolved = resolveStickerResource(entry.reference, baseUrl);
+            return "url" in resolved
+              ? { ...entry, sourceUrl: resolved.url, status: "checking" as const, error: "" }
+              : entry;
+          });
+        }
+      }
       setPackName(parsed.metadata.packName || "导入的表情包");
       setEntries(parsed.entries);
       setIssues(parsed.issues);
