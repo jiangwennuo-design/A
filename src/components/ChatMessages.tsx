@@ -177,11 +177,18 @@ export const ChatMessages = memo(function ChatMessages({
                   showThinking &&
                   message.message_order === 1 &&
                   typeof (message.payload as Record<string, unknown>)["thinking"] === "string" && (
-                    <p className="chat-thinking-text">
-                      {(message.payload as Record<string, unknown>)["thinking_source"] ===
-                        "nuojiji" && <span className="chat-thinking-source">@糯叽机</span>}
-                      {(message.payload as Record<string, unknown>)["thinking"] as string}
-                    </p>
+                    <details
+                      className="chat-thinking"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onContextMenu={(event) => event.stopPropagation()}
+                    >
+                      <summary>思考</summary>
+                      <div className="chat-thinking__content">
+                        {(message.payload as Record<string, unknown>)["thinking_source"] ===
+                          "nuojiji" && <span className="chat-thinking-source">@糯叽机</span>}
+                        {(message.payload as Record<string, unknown>)["thinking"] as string}
+                      </div>
+                    </details>
                   )}
                 <MessageContent message={message} onOpenImage={onOpenImage} />
               </div>

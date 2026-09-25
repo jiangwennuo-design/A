@@ -4337,8 +4337,33 @@ textarea {
 .message-content-wrapper .message-bubble {
   max-width: 100%;
 }
-.chat-thinking-text {
+.chat-thinking {
   margin: 0 0 6px;
+  max-width: 100%;
+}
+.chat-thinking > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #edf1ee;
+  color: #8d9891;
+  font-size: 11px;
+  line-height: 1.3;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.chat-thinking > summary::-webkit-details-marker {
+  display: none;
+}
+.chat-thinking[open] > summary {
+  background: #e6ece8;
+}
+.chat-thinking__content {
+  margin: 6px 0 0;
+  padding: 0 2px;
   color: #92969c;
   font-size: 11px;
   font-weight: 400;
