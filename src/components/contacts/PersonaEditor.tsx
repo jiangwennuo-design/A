@@ -61,7 +61,7 @@ export function PersonaEditor({
       />
       <EditorField label="名字" value={form.name} onChange={(value) => set("name", value)} />
       <EditorField
-        label="一句简介"
+        label="人设描述"
         value={form.description}
         multiline
         onChange={(value) => set("description", value)}

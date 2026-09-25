@@ -1342,6 +1342,12 @@ textarea {
   color: var(--color-text);
 }
 
+.contacts-page {
+  height: 100dvh;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .user-profile-page {
   padding-bottom: calc(92px + env(safe-area-inset-bottom));
 }
