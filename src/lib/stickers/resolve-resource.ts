@@ -22,15 +22,15 @@ export async function discoverStickerResourceBase(
   const matches = [...new Set(references.map(unwrapResourceReference))].filter(
     isPostimagesResourceReference,
   );
-  // Sample across the whole pack, rather than only its first few links: older
-  // images near the top may have expired while later ones still work.
-  const candidates =
-    matches.length <= 12
-      ? matches
-      : Array.from(
-          { length: 12 },
-          (_, index) => matches[Math.floor((index * (matches.length - 1)) / 11)]!,
-        );
+  // Check the first few entries, then sample the rest: this handles both
+  // manifests with a few dead links up front and packs with older dead links.
+  const spreadCount = Math.min(8, matches.length);
+  const spread = Array.from(
+    { length: spreadCount },
+    (_, index) =>
+      matches[Math.floor((index * (matches.length - 1)) / Math.max(1, spreadCount - 1))]!,
+  );
+  const candidates = [...new Set([...matches.slice(0, 8), ...spread])];
   for (let offset = 0; offset < candidates.length; offset += 4) {
     const results = await Promise.all(
       candidates.slice(offset, offset + 4).map(async (reference) => {
