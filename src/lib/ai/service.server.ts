@@ -10,6 +10,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { decryptApiKey } from "./crypto.server";
+import type { AiMessage } from "./multimodal";
+import {
+  explicitlyRejectsImages,
+  hasImages,
+  toOpenAiCompatibleMessages,
+  withoutImages,
+} from "./multimodal";
 
 export type AiErrorKind =
   | "invalid_base_url"
@@ -366,15 +373,7 @@ export interface GenerateOptions {
   supabase: SupabaseClient<Database>;
   charId?: string | null;
   systemPrompt?: string;
-  messages: Array<{
-    role: "system" | "user" | "assistant";
-    content:
-      | string
-      | Array<
-          | { type: "text"; text: string }
-          | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
-        >;
-  }>;
+  messages: AiMessage[];
   outputFormat?: "text" | "json";
   temperature?: number | null;
   maxTokens?: number | null;
@@ -399,21 +398,43 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
   const temperature = options.temperature ?? config.temperature;
   const maxTokens = options.maxTokens ?? config.maxTokens;
 
-  const body: Record<string, unknown> = { model: config.model, messages };
+  const body: Record<string, unknown> = {
+    model: config.model,
+    messages: toOpenAiCompatibleMessages(messages),
+  };
   if (typeof temperature === "number" && !Number.isNaN(temperature))
     body["temperature"] = temperature;
   if (typeof maxTokens === "number" && maxTokens > 0) body["max_tokens"] = maxTokens;
   if (options.outputFormat === "json") body["response_format"] = { type: "json_object" };
 
-  const response = await aiFetch(
-    buildEndpoint(config.baseUrl, "chat/completions"),
-    {
-      method: "POST",
-      headers: buildHeaders(config),
-      body: JSON.stringify(body),
-    },
-    DEFAULT_TIMEOUT_MS,
-  );
+  const endpoint = buildEndpoint(config.baseUrl, "chat/completions");
+  const send = () =>
+    aiFetch(
+      endpoint,
+      {
+        method: "POST",
+        headers: buildHeaders(config),
+        body: JSON.stringify(body),
+      },
+      DEFAULT_TIMEOUT_MS,
+    );
+
+  let response = await send();
+  if (!response.ok && hasImages(messages)) {
+    const snippet = await readSnippet(response);
+    if (explicitlyRejectsImages(response.status, snippet)) {
+      // Only explicit lack of vision support is downgraded. Keep the original
+      // message order and tell the model it cannot see the affected images.
+      body["messages"] = toOpenAiCompatibleMessages(withoutImages(messages));
+      response = await send();
+    } else {
+      safeLog(
+        `generate:${options.scene}`,
+        `${config.source} multimodal request failed with ${response.status}`,
+      );
+      throw classifyHttpStatus(response.status, snippet);
+    }
+  }
 
   if (!response.ok) {
     const error = classifyHttpStatus(response.status, await readSnippet(response));

@@ -2,6 +2,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { AiMessage } from "./ai/multimodal";
+import { IMAGE_UNAVAILABLE } from "./ai/multimodal";
 
 const uuid = z.string().uuid();
 const queuedMessageInput = z.object({
@@ -230,35 +232,17 @@ async function generatePrivateReply(args: {
     ? `你可以在确实自然时把一条消息写成 {"type":"sticker","stickerId":"目录中的 id"}。只根据语境选择，不要解释选择过程，也不要频繁使用。可用表情目录（仅语义，不含图片）：${JSON.stringify(catalog.map(({ id, name, tags }) => ({ id, name, tags })))}`
     : "";
   const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。${stickerInstruction}${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
-  const { generate, AiServiceError } = await import("./ai/service.server");
-  const historyMessages = args.history.map((row) => ({
-    role: row.role,
-    content: messageTextForAi(row),
-  }));
-  const pendingContent = await pendingContentForAi(args.db, args.pending);
-  const request = (content: typeof pendingContent | string) =>
-    generate({
-      scene: "private_chat",
-      userId: args.userId,
-      supabase: args.db,
-      charId: args.character.id,
-      systemPrompt,
-      messages: [...historyMessages, { role: "user", content }],
-      outputFormat: "json",
-    });
-  let result;
-  try {
-    result = await request(pendingContent);
-  } catch (error) {
-    const hasImage = args.pending.some((row) => row.message_type === "image");
-    if (
-      !hasImage ||
-      !(error instanceof AiServiceError) ||
-      !["client_error", "bad_response"].includes(error.kind)
-    )
-      throw error;
-    result = await request(args.pending.map(messageTextForAi).join("\n"));
-  }
+  const { generate } = await import("./ai/service.server");
+  const messages = await chatRowsForAi(args.db, args.userId, [...args.history, ...args.pending]);
+  const result = await generate({
+    scene: "private_chat",
+    userId: args.userId,
+    supabase: args.db,
+    charId: args.character.id,
+    systemPrompt,
+    messages,
+    outputFormat: "json",
+  });
   const bubbles = parseBubbles(stripPrivateThinking(result.text), min, max);
   return bubbles.map((bubble): GeneratedBubble => {
     if (bubble.type === "sticker") {
@@ -301,8 +285,7 @@ function selectStickerCatalog(stickers: StickerRow[], pending: ChatRow[]) {
 
 function messageTextForAi(row: ChatRow) {
   if (!row.message_type || row.message_type === "text") return row.content;
-  if (row.message_type === "image")
-    return row.content || "用户发送了一张图片；若当前模型无法读取图片，不要猜测具体内容。";
+  if (row.message_type === "image") return cleanText(row.payload?.["caption"]) || IMAGE_UNAVAILABLE;
   if (row.message_type === "sticker") {
     const name = cleanText(row.payload?.["sticker_name"]);
     const tags = Array.isArray(row.payload?.["sticker_tags"])
@@ -317,24 +300,78 @@ function messageTextForAi(row: ChatRow) {
   return `语音通话记录：${String(row.payload?.["status"] ?? "cancelled")}${duration ? `，${duration} 秒` : ""}。`;
 }
 
-async function pendingContentForAi(db: Db, rows: ChatRow[]) {
-  const parts: Array<
-    | { type: "text"; text: string }
-    | { type: "image_url"; image_url: { url: string; detail: "auto" } }
-  > = [];
-  for (const row of rows) {
-    if (row.message_type === "image" && typeof row.payload?.["image_path"] === "string") {
-      const { data } = await db.storage
-        .from("chat-media")
-        .createSignedUrl(row.payload["image_path"], 600);
-      if (data?.signedUrl)
-        parts.push({ type: "image_url", image_url: { url: data.signedUrl, detail: "auto" } });
-      else parts.push({ type: "text", text: messageTextForAi(row) });
-    } else {
-      parts.push({ type: "text", text: messageTextForAi(row) });
+async function chatRowsForAi(db: Db, userId: string, rows: ChatRow[]): Promise<AiMessage[]> {
+  const messages: AiMessage[] = [];
+  // Bounded concurrency avoids a burst of signed-URL requests for long histories.
+  for (let start = 0; start < rows.length; start += 4) {
+    const batch = await Promise.all(
+      rows.slice(start, start + 4).map(async (row): Promise<AiMessage> => {
+        if (row.message_type !== "image") return { role: row.role, content: messageTextForAi(row) };
+        const path = cleanText(row.payload?.["image_path"]);
+        if (!path.startsWith(`${userId}/messages/`))
+          return { role: row.role, content: IMAGE_UNAVAILABLE };
+        const { data, error } = await db.storage.from("chat-media").createSignedUrl(path, 600);
+        if (error || !data?.signedUrl) return { role: row.role, content: IMAGE_UNAVAILABLE };
+        const caption = cleanText(row.payload?.["caption"]);
+        return {
+          role: row.role,
+          content: [
+            ...(caption ? [{ type: "text" as const, text: caption }] : []),
+            { type: "image" as const, url: data.signedUrl, detail: "auto" as const },
+          ],
+        };
+      }),
+    );
+    messages.push(...batch);
+  }
+  // Private Storage URLs cannot always be fetched by third-party providers.
+  // Inline a few recent images (including an image followed by a text question),
+  // while keeping older images attached to their original messages via signed URLs.
+  let inlineBudget = 12 * 1024 * 1024;
+  let inlineCount = 0;
+  for (let index = rows.length - 1; index >= 0 && inlineCount < 6 && inlineBudget > 0; index--) {
+    const row = rows[index];
+    if (!row || row.message_type !== "image") continue;
+    const path = cleanText(row.payload?.["image_path"]);
+    if (!path.startsWith(`${userId}/messages/`)) continue;
+    inlineCount++;
+    try {
+      const { data, error } = await db.storage.from("chat-media").download(path);
+      if (error || !data || data.size > Math.min(3 * 1024 * 1024, inlineBudget)) continue;
+      const mime = imageMimeForAi(path, data.type);
+      if (!mime) continue;
+      const bytes = new Uint8Array(await data.arrayBuffer());
+      let binary = "";
+      for (let offset = 0; offset < bytes.length; offset += 8192)
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+      const caption = cleanText(row.payload?.["caption"]);
+      messages[index] = {
+        role: row.role,
+        content: [
+          ...(caption ? [{ type: "text", text: caption } as const] : []),
+          { type: "image", url: `data:${mime};base64,${btoa(binary)}`, detail: "auto" },
+        ],
+      };
+      inlineBudget -= data.size;
+    } catch {
+      // The signed URL remains available for this exact message.
     }
   }
-  return parts;
+  return messages;
+}
+
+function imageMimeForAi(path: string, reported: string) {
+  if (["image/png", "image/jpeg", "image/webp", "image/gif"].includes(reported)) return reported;
+  const extension = path.split(".").at(-1)?.toLowerCase();
+  return extension === "png"
+    ? "image/png"
+    : extension === "jpg" || extension === "jpeg"
+      ? "image/jpeg"
+      : extension === "webp"
+        ? "image/webp"
+        : extension === "gif"
+          ? "image/gif"
+          : null;
 }
 
 function validateMessagePayload(type: string, raw: Record<string, unknown>, userId: string) {
