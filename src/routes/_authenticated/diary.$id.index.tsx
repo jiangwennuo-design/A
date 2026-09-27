@@ -8,7 +8,7 @@ import { createDiaryReply } from "@/lib/penpal.functions";
 import type { AiPersona, Diary, DiaryReply } from "@/lib/types";
 import { MessageCircle, Pencil, Trash2 } from "lucide-react";
 import { LockKeyhole } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useDiaryProfile } from "@/context/DiaryProfileContext";
 import { DiaryAvatar } from "@/components/DiaryAvatar";
 
 export const Route = createFileRoute("/_authenticated/diary/$id/")({
@@ -32,7 +32,7 @@ function DiaryDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const router = useRouter();
-  const { profile } = useAuth();
+  const { diaryProfile, avatarUrl } = useDiaryProfile();
   const [diary, setDiary] = useState<Diary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -107,7 +107,7 @@ function DiaryDetailPage() {
 
   if (loading) {
     return (
-      <div className="page-container">
+      <div className="page-container diary-app">
         <LoadingSpinner />
       </div>
     );
@@ -115,7 +115,7 @@ function DiaryDetailPage() {
 
   if (error || !diary) {
     return (
-      <div className="page-container">
+      <div className="page-container diary-app">
         <Header title="日记" onBack={() => void popSystemPage(() => router.history.back())} />
         <ErrorBanner message={error || "日记不存在"} />
       </div>
@@ -127,7 +127,7 @@ function DiaryDetailPage() {
       <div className="fade-in">
         <Header
           className="diary-page-header"
-          title={`${profile?.display_name || "我"} · 日记`}
+          title={`${diaryProfile?.displayName || "我"} · 日记`}
           onBack={() => void popSystemPage(() => router.history.back())}
           rightAction={
             <div className="diary-header-actions">
@@ -157,10 +157,10 @@ function DiaryDetailPage() {
 
         <article className="diary-entry">
           <div className="diary-entry__author">
-            <DiaryAvatar name={profile?.display_name || "我"} url={profile?.avatar_url} />
+            <DiaryAvatar name={diaryProfile?.displayName || "我"} url={avatarUrl} />
             <div>
-              <strong>{profile?.display_name || "我"}</strong>
-              <span>我的日记</span>
+              <strong>{diaryProfile?.displayName || "我"}</strong>
+              <span>@{diaryProfile?.username || "diary"}</span>
             </div>
           </div>
           <h1>{diary.title || "无题"}</h1>

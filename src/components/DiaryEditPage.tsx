@@ -3,7 +3,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { Header, LoadingSpinner, ErrorBanner } from "@/components/ui-kit";
 import type { Diary } from "@/lib/types";
-import { closeSystemApp, popSystemPage } from "@/lib/app-transition";
+import { popSystemPage } from "@/lib/app-transition";
 
 export function DiaryEditPage({ id }: { id?: string }) {
   const navigate = useNavigate();
@@ -55,7 +55,7 @@ export function DiaryEditPage({ id }: { id?: string }) {
           .insert({ title, content, diary_date: diaryDate });
         if (error) throw error;
       }
-      void closeSystemApp("diary", () => navigate({ to: "/" }));
+      void navigate({ to: "/diary" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
       setSaving(false);
@@ -64,7 +64,7 @@ export function DiaryEditPage({ id }: { id?: string }) {
 
   if (loading) {
     return (
-      <div className="page-container">
+      <div className="page-container diary-app">
         <LoadingSpinner />
       </div>
     );

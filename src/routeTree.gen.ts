@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAiSettingsRouteImport } from './routes/_authenticated/ai-settings'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
+import { Route as AuthenticatedDiaryRouteImport } from './routes/_authenticated/diary'
 import { Route as AuthenticatedFocusRouteImport } from './routes/_authenticated/focus'
 import { Route as AuthenticatedFoodRouteImport } from './routes/_authenticated/food'
 import { Route as AuthenticatedListenRouteImport } from './routes/_authenticated/listen'
@@ -23,7 +24,9 @@ import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedWallpaperRouteImport } from './routes/_authenticated/wallpaper'
 import { Route as AuthenticatedDiaryIndexRouteImport } from './routes/_authenticated/diary.index'
+import { Route as AuthenticatedDiaryMeRouteImport } from './routes/_authenticated/diary.me'
 import { Route as AuthenticatedDiaryNewRouteImport } from './routes/_authenticated/diary.new'
+import { Route as AuthenticatedDiaryProfileEditRouteImport } from './routes/_authenticated/diary.profile-edit'
 import { Route as AuthenticatedDiaryIdIndexRouteImport } from './routes/_authenticated/diary.$id.index'
 import { Route as AuthenticatedDiaryIdEditRouteImport } from './routes/_authenticated/diary.$id.edit'
 
@@ -49,6 +52,11 @@ const AuthenticatedAiSettingsRoute = AuthenticatedAiSettingsRouteImport.update({
 const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDiaryRoute = AuthenticatedDiaryRouteImport.update({
+  id: '/diary',
+  path: '/diary',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedFocusRoute = AuthenticatedFocusRouteImport.update({
@@ -92,26 +100,37 @@ const AuthenticatedWallpaperRoute = AuthenticatedWallpaperRouteImport.update({
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDiaryIndexRoute = AuthenticatedDiaryIndexRouteImport.update({
-  id: '/diary/',
-  path: '/diary/',
-  getParentRoute: () => AuthenticatedRouteRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedDiaryRoute,
+} as any)
+const AuthenticatedDiaryMeRoute = AuthenticatedDiaryMeRouteImport.update({
+  id: '/me',
+  path: '/me',
+  getParentRoute: () => AuthenticatedDiaryRoute,
 } as any)
 const AuthenticatedDiaryNewRoute = AuthenticatedDiaryNewRouteImport.update({
-  id: '/diary/new',
-  path: '/diary/new',
-  getParentRoute: () => AuthenticatedRouteRoute,
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AuthenticatedDiaryRoute,
 } as any)
+const AuthenticatedDiaryProfileEditRoute =
+  AuthenticatedDiaryProfileEditRouteImport.update({
+    id: '/profile-edit',
+    path: '/profile-edit',
+    getParentRoute: () => AuthenticatedDiaryRoute,
+  } as any)
 const AuthenticatedDiaryIdIndexRoute =
   AuthenticatedDiaryIdIndexRouteImport.update({
-    id: '/diary/$id/',
-    path: '/diary/$id/',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    id: '/$id/',
+    path: '/$id/',
+    getParentRoute: () => AuthenticatedDiaryRoute,
   } as any)
 const AuthenticatedDiaryIdEditRoute =
   AuthenticatedDiaryIdEditRouteImport.update({
-    id: '/diary/$id/edit',
-    path: '/diary/$id/edit',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    id: '/$id/edit',
+    path: '/$id/edit',
+    getParentRoute: () => AuthenticatedDiaryRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -119,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/diary': typeof AuthenticatedDiaryRouteWithChildren
   '/focus': typeof AuthenticatedFocusRoute
   '/food': typeof AuthenticatedFoodRoute
   '/listen': typeof AuthenticatedListenRoute
@@ -127,7 +147,9 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wallpaper': typeof AuthenticatedWallpaperRoute
+  '/diary/me': typeof AuthenticatedDiaryMeRoute
   '/diary/new': typeof AuthenticatedDiaryNewRoute
+  '/diary/profile-edit': typeof AuthenticatedDiaryProfileEditRoute
   '/diary/': typeof AuthenticatedDiaryIndexRoute
   '/diary/$id/edit': typeof AuthenticatedDiaryIdEditRoute
   '/diary/$id/': typeof AuthenticatedDiaryIdIndexRoute
@@ -145,7 +167,9 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/wallpaper': typeof AuthenticatedWallpaperRoute
   '/': typeof AuthenticatedIndexRoute
+  '/diary/me': typeof AuthenticatedDiaryMeRoute
   '/diary/new': typeof AuthenticatedDiaryNewRoute
+  '/diary/profile-edit': typeof AuthenticatedDiaryProfileEditRoute
   '/diary': typeof AuthenticatedDiaryIndexRoute
   '/diary/$id/edit': typeof AuthenticatedDiaryIdEditRoute
   '/diary/$id': typeof AuthenticatedDiaryIdIndexRoute
@@ -156,6 +180,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/ai-settings': typeof AuthenticatedAiSettingsRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
+  '/_authenticated/diary': typeof AuthenticatedDiaryRouteWithChildren
   '/_authenticated/focus': typeof AuthenticatedFocusRoute
   '/_authenticated/food': typeof AuthenticatedFoodRoute
   '/_authenticated/listen': typeof AuthenticatedListenRoute
@@ -165,7 +190,9 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/wallpaper': typeof AuthenticatedWallpaperRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/diary/me': typeof AuthenticatedDiaryMeRoute
   '/_authenticated/diary/new': typeof AuthenticatedDiaryNewRoute
+  '/_authenticated/diary/profile-edit': typeof AuthenticatedDiaryProfileEditRoute
   '/_authenticated/diary/': typeof AuthenticatedDiaryIndexRoute
   '/_authenticated/diary/$id/edit': typeof AuthenticatedDiaryIdEditRoute
   '/_authenticated/diary/$id/': typeof AuthenticatedDiaryIdIndexRoute
@@ -177,6 +204,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/ai-settings'
     | '/chat'
+    | '/diary'
     | '/focus'
     | '/food'
     | '/listen'
@@ -185,7 +213,9 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/wallpaper'
+    | '/diary/me'
     | '/diary/new'
+    | '/diary/profile-edit'
     | '/diary/'
     | '/diary/$id/edit'
     | '/diary/$id/'
@@ -203,7 +233,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/wallpaper'
     | '/'
+    | '/diary/me'
     | '/diary/new'
+    | '/diary/profile-edit'
     | '/diary'
     | '/diary/$id/edit'
     | '/diary/$id'
@@ -213,6 +245,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/ai-settings'
     | '/_authenticated/chat'
+    | '/_authenticated/diary'
     | '/_authenticated/focus'
     | '/_authenticated/food'
     | '/_authenticated/listen'
@@ -222,7 +255,9 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/wallpaper'
     | '/_authenticated/'
+    | '/_authenticated/diary/me'
     | '/_authenticated/diary/new'
+    | '/_authenticated/diary/profile-edit'
     | '/_authenticated/diary/'
     | '/_authenticated/diary/$id/edit'
     | '/_authenticated/diary/$id/'
@@ -268,6 +303,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof AuthenticatedChatRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/diary': {
+      id: '/_authenticated/diary'
+      path: '/diary'
+      fullPath: '/diary'
+      preLoaderRoute: typeof AuthenticatedDiaryRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/focus': {
@@ -328,38 +370,74 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/diary/': {
       id: '/_authenticated/diary/'
-      path: '/diary'
+      path: '/'
       fullPath: '/diary/'
       preLoaderRoute: typeof AuthenticatedDiaryIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedDiaryRoute
+    }
+    '/_authenticated/diary/me': {
+      id: '/_authenticated/diary/me'
+      path: '/me'
+      fullPath: '/diary/me'
+      preLoaderRoute: typeof AuthenticatedDiaryMeRouteImport
+      parentRoute: typeof AuthenticatedDiaryRoute
     }
     '/_authenticated/diary/new': {
       id: '/_authenticated/diary/new'
-      path: '/diary/new'
+      path: '/new'
       fullPath: '/diary/new'
       preLoaderRoute: typeof AuthenticatedDiaryNewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedDiaryRoute
+    }
+    '/_authenticated/diary/profile-edit': {
+      id: '/_authenticated/diary/profile-edit'
+      path: '/profile-edit'
+      fullPath: '/diary/profile-edit'
+      preLoaderRoute: typeof AuthenticatedDiaryProfileEditRouteImport
+      parentRoute: typeof AuthenticatedDiaryRoute
     }
     '/_authenticated/diary/$id/': {
       id: '/_authenticated/diary/$id/'
-      path: '/diary/$id'
+      path: '/$id'
       fullPath: '/diary/$id/'
       preLoaderRoute: typeof AuthenticatedDiaryIdIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedDiaryRoute
     }
     '/_authenticated/diary/$id/edit': {
       id: '/_authenticated/diary/$id/edit'
-      path: '/diary/$id/edit'
+      path: '/$id/edit'
       fullPath: '/diary/$id/edit'
       preLoaderRoute: typeof AuthenticatedDiaryIdEditRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      parentRoute: typeof AuthenticatedDiaryRoute
     }
   }
 }
 
+interface AuthenticatedDiaryRouteChildren {
+  AuthenticatedDiaryMeRoute: typeof AuthenticatedDiaryMeRoute
+  AuthenticatedDiaryNewRoute: typeof AuthenticatedDiaryNewRoute
+  AuthenticatedDiaryProfileEditRoute: typeof AuthenticatedDiaryProfileEditRoute
+  AuthenticatedDiaryIndexRoute: typeof AuthenticatedDiaryIndexRoute
+  AuthenticatedDiaryIdEditRoute: typeof AuthenticatedDiaryIdEditRoute
+  AuthenticatedDiaryIdIndexRoute: typeof AuthenticatedDiaryIdIndexRoute
+}
+
+const AuthenticatedDiaryRouteChildren: AuthenticatedDiaryRouteChildren = {
+  AuthenticatedDiaryMeRoute: AuthenticatedDiaryMeRoute,
+  AuthenticatedDiaryNewRoute: AuthenticatedDiaryNewRoute,
+  AuthenticatedDiaryProfileEditRoute: AuthenticatedDiaryProfileEditRoute,
+  AuthenticatedDiaryIndexRoute: AuthenticatedDiaryIndexRoute,
+  AuthenticatedDiaryIdEditRoute: AuthenticatedDiaryIdEditRoute,
+  AuthenticatedDiaryIdIndexRoute: AuthenticatedDiaryIdIndexRoute,
+}
+
+const AuthenticatedDiaryRouteWithChildren =
+  AuthenticatedDiaryRoute._addFileChildren(AuthenticatedDiaryRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAiSettingsRoute: typeof AuthenticatedAiSettingsRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedDiaryRoute: typeof AuthenticatedDiaryRouteWithChildren
   AuthenticatedFocusRoute: typeof AuthenticatedFocusRoute
   AuthenticatedFoodRoute: typeof AuthenticatedFoodRoute
   AuthenticatedListenRoute: typeof AuthenticatedListenRoute
@@ -369,15 +447,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedWallpaperRoute: typeof AuthenticatedWallpaperRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
-  AuthenticatedDiaryNewRoute: typeof AuthenticatedDiaryNewRoute
-  AuthenticatedDiaryIndexRoute: typeof AuthenticatedDiaryIndexRoute
-  AuthenticatedDiaryIdEditRoute: typeof AuthenticatedDiaryIdEditRoute
-  AuthenticatedDiaryIdIndexRoute: typeof AuthenticatedDiaryIdIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAiSettingsRoute: AuthenticatedAiSettingsRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedDiaryRoute: AuthenticatedDiaryRouteWithChildren,
   AuthenticatedFocusRoute: AuthenticatedFocusRoute,
   AuthenticatedFoodRoute: AuthenticatedFoodRoute,
   AuthenticatedListenRoute: AuthenticatedListenRoute,
@@ -387,10 +462,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedWallpaperRoute: AuthenticatedWallpaperRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
-  AuthenticatedDiaryNewRoute: AuthenticatedDiaryNewRoute,
-  AuthenticatedDiaryIndexRoute: AuthenticatedDiaryIndexRoute,
-  AuthenticatedDiaryIdEditRoute: AuthenticatedDiaryIdEditRoute,
-  AuthenticatedDiaryIdIndexRoute: AuthenticatedDiaryIdIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
