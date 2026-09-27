@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { BookOpen, House, PenLine } from "lucide-react";
+import { House, LockKeyhole, PenLine } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
 import type { Diary } from "@/lib/types";
 import { closeSystemApp, pushSystemPage } from "@/lib/app-transition";
+import { DiaryAvatar } from "@/components/DiaryAvatar";
 
 export const Route = createFileRoute("/_authenticated/diary/")({
   head: () => ({
@@ -22,6 +23,7 @@ function DiaryHomePage() {
   const { profile } = useAuth();
   const [diaries, setDiaries] = useState<Diary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
   useEffect(() => {
     void loadDiaries();
@@ -39,16 +41,14 @@ function DiaryHomePage() {
     setLoading(false);
   }
 
-  const dateStr = new Date().toLocaleDateString("zh-CN", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  });
+  const authorName = profile?.display_name || "我";
+  const openDiary = (id: string) =>
+    void pushSystemPage(() => navigate({ to: "/diary/$id", params: { id } }));
+  const openEditor = () => void pushSystemPage(() => navigate({ to: "/diary/new" }));
 
   return (
     <div className="page-container diary-app diary-home">
-      <div className="fade-in">
+      <div className="fade-in diary-home__inner">
         <header className="diary-topbar">
           <button
             type="button"
@@ -56,36 +56,28 @@ function DiaryHomePage() {
             onClick={() => void closeSystemApp("diary", () => navigate({ to: "/" }))}
             className="diary-icon-button"
           >
-            <House size={18} />
+            <House size={20} />
           </button>
-          <p>{dateStr}</p>
+          <h1>
+            此心一笺 <span>· 我的日记</span>
+          </h1>
+          <button
+            type="button"
+            onClick={openEditor}
+            className="diary-icon-button"
+            aria-label="写日记"
+          >
+            <PenLine size={20} />
+          </button>
         </header>
 
-        <section className="diary-hero">
-          <span>此心一笺</span>
-          <h1>
-            {greeting()}，{profile?.display_name || "朋友"}
-          </h1>
-          <p>今天，也留一点时间给自己。</p>
-        </section>
-
-        <button
-          onClick={() => void pushSystemPage(() => navigate({ to: "/diary/new" }))}
-          className="diary-compose-card"
-        >
-          <div className="diary-compose-card__icon">
-            <PenLine size={21} />
-          </div>
-          <div>
-            <strong>写下此刻</strong>
-            <span>文字会替你收好今天</span>
-          </div>
-          <span aria-hidden="true">＋</span>
+        <button onClick={openEditor} className="diary-compose-card">
+          <DiaryAvatar name={authorName} url={profile?.avatar_url} />
+          <span>写点什么</span>
         </button>
 
         <div className="diary-section-heading">
-          <BookOpen size={18} className="text-[var(--color-text-secondary)]" />
-          <h2>我的日记</h2>
+          <h2>日记</h2>
           {diaries.length > 0 && <span>{diaries.length} 篇</span>}
         </div>
 
@@ -95,27 +87,58 @@ function DiaryHomePage() {
           <EmptyState icon="📔" title="还没有日记" subtitle="点击上方按钮，写下你的第一篇日记吧" />
         ) : (
           <div className="diary-list">
-            {diaries.map((diary) => (
-              <button
-                key={diary.id}
-                onClick={() =>
-                  void pushSystemPage(() =>
-                    navigate({ to: "/diary/$id", params: { id: diary.id } }),
-                  )
-                }
-                className="diary-card"
-              >
-                <time dateTime={diary.diary_date}>
-                  <b>{formatDateDay(diary.diary_date)}</b>
-                  <span>{formatDateMonth(diary.diary_date)}</span>
-                </time>
-                <div>
-                  <h3>{diary.title || "无题"}</h3>
-                  <p>{diary.content || "（空白）"}</p>
-                  <small>{formatDate(diary.diary_date)}</small>
-                </div>
-              </button>
-            ))}
+            {diaries.map((diary) => {
+              const isLong = diary.content.length > 260;
+              const expanded = expandedIds.includes(diary.id);
+              return (
+                <article key={diary.id} className="diary-card" onClick={() => openDiary(diary.id)}>
+                  <div className="diary-card__author">
+                    <DiaryAvatar name={authorName} url={profile?.avatar_url} />
+                    <div className="diary-card__identity">
+                      <strong>{authorName}</strong>
+                      <span>我的日记</span>
+                    </div>
+                    <time dateTime={diary.diary_date}>{formatDate(diary.diary_date)}</time>
+                  </div>
+                  <div className="diary-card__article">
+                    {diary.title && <h3>{diary.title}</h3>}
+                    <p className={!expanded && isLong ? "diary-card__excerpt" : undefined}>
+                      {diary.content || "（空白）"}
+                    </p>
+                    {isLong && (
+                      <button
+                        type="button"
+                        className="diary-card__expand"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setExpandedIds((current) =>
+                            expanded
+                              ? current.filter((item) => item !== diary.id)
+                              : [...current, diary.id],
+                          );
+                        }}
+                      >
+                        {expanded ? "收起" : `点击展开（${Array.from(diary.content).length}字）`}
+                      </button>
+                    )}
+                  </div>
+                  <div className="diary-card__footer">
+                    <span>
+                      <LockKeyhole size={14} /> 私密
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openDiary(diary.id);
+                      }}
+                    >
+                      阅读日记 <span aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
@@ -123,23 +146,7 @@ function DiaryHomePage() {
   );
 }
 
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 6) return "夜深了";
-  if (hour < 12) return "早上好";
-  if (hour < 14) return "中午好";
-  if (hour < 18) return "下午好";
-  return "晚上好";
-}
-
 function formatDate(dateStr: string): string {
   const date = new Date(`${dateStr}T00:00:00`);
   return date.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
-}
-
-function formatDateDay(dateStr: string) {
-  return new Date(`${dateStr}T00:00:00`).getDate().toString().padStart(2, "0");
-}
-function formatDateMonth(dateStr: string) {
-  return `${new Date(`${dateStr}T00:00:00`).getMonth() + 1}月`;
 }

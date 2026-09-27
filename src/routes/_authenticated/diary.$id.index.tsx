@@ -7,6 +7,9 @@ import { popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import { createDiaryReply } from "@/lib/penpal.functions";
 import type { AiPersona, Diary, DiaryReply } from "@/lib/types";
 import { MessageCircle, Pencil, Trash2 } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { DiaryAvatar } from "@/components/DiaryAvatar";
 
 export const Route = createFileRoute("/_authenticated/diary/$id/")({
   head: () => ({
@@ -29,6 +32,7 @@ function DiaryDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const router = useRouter();
+  const { profile } = useAuth();
   const [diary, setDiary] = useState<Diary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -123,50 +127,64 @@ function DiaryDetailPage() {
       <div className="fade-in">
         <Header
           className="diary-page-header"
-          title="日记详情"
+          title={`${profile?.display_name || "我"} · 日记`}
           onBack={() => void popSystemPage(() => router.history.back())}
           rightAction={
-            <div className="flex items-center gap-2">
+            <div className="diary-header-actions">
               <button
+                type="button"
+                aria-label="编辑日记"
                 onClick={() =>
                   void pushSystemPage(() =>
                     navigate({ to: "/diary/$id/edit", params: { id: diary.id } }),
                   )
                 }
-                className="w-9 h-9 rounded-full flex items-center justify-center bg-white border border-[var(--color-border)]"
+                className="diary-icon-button"
               >
-                <Pencil size={16} className="text-[var(--color-text-secondary)]" />
+                <Pencil size={18} />
               </button>
               <button
+                type="button"
+                aria-label="删除日记"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="w-9 h-9 rounded-full flex items-center justify-center bg-white border border-[var(--color-border)]"
+                className="diary-icon-button"
               >
-                <Trash2 size={16} className="text-[var(--color-error)]" />
+                <Trash2 size={18} />
               </button>
             </div>
           }
         />
 
         <article className="diary-entry">
-          <p className="diary-entry__date">{formatDateFull(diary.diary_date)}</p>
+          <div className="diary-entry__author">
+            <DiaryAvatar name={profile?.display_name || "我"} url={profile?.avatar_url} />
+            <div>
+              <strong>{profile?.display_name || "我"}</strong>
+              <span>我的日记</span>
+            </div>
+          </div>
           <h1>{diary.title || "无题"}</h1>
           <div className="diary-entry__content">{diary.content || "（空白）"}</div>
+          <div className="diary-entry__meta">
+            <time dateTime={diary.diary_date}>{formatDateFull(diary.diary_date)}</time>
+            <span>
+              <LockKeyhole size={14} /> 私密
+            </span>
+          </div>
         </article>
 
         <button
           onClick={() => navigate({ to: "/chat", search: { diary: diary.id } })}
           className="diary-letter-cta"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)] bg-opacity-15 flex items-center justify-center">
-              <MessageCircle size={20} className="text-[var(--color-accent)]" />
-            </div>
+          <div className="diary-letter-cta__label">
+            <MessageCircle size={20} />
             <div className="text-left">
-              <p className="font-medium text-[var(--color-text)] text-sm">让笔友读这篇</p>
-              <p className="text-xs text-[var(--color-text-secondary)]">和笔友聊聊这篇日记</p>
+              <p>让笔友读这篇</p>
+              <small>和笔友聊聊这篇日记</small>
             </div>
           </div>
-          <span className="text-lg text-[var(--color-text-secondary)]">→</span>
+          <span aria-hidden="true">→</span>
         </button>
 
         <section className="diary-replies">
