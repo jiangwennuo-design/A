@@ -8,8 +8,6 @@ import { SystemSheet } from "@/components/system-ui";
 import { supabase } from "@/integrations/supabase/client";
 import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
 import { sha256Hex } from "@/lib/stickers/hash";
-import { mapWithConcurrency } from "@/lib/stickers/import-pack";
-import { resolveSignedMediaUrl } from "@/lib/signed-media";
 import type { ChatSticker, StickerPack } from "@/lib/types";
 
 const recentKey = "cxyj-recent-stickers";
@@ -32,30 +30,67 @@ export function StickerPicker({
   const imageInput = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<ChatSticker[]>([]);
   const [packs, setPacks] = useState<StickerPack[]>([]);
-  const [urls, setUrls] = useState<Record<string, string>>({});
+  const loadedAt = useRef(0);
+  const loadedUser = useRef(userId);
+  const requestVersion = useRef(0);
+  const alive = useRef(true);
+  const opening = useRef(false);
+  const errorHandler = useRef(onError);
+  useEffect(() => {
+    errorHandler.current = onError;
+  }, [onError]);
   const [view, setView] = useState<StickerView>("picker");
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
-    const [{ data: stickerRows }, { data: packRows }] = await Promise.all([
-      db.from("chat_stickers").select("*").order("created_at", { ascending: false }),
-      db.from("sticker_packs").select("*").order("created_at", { ascending: false }),
-    ]);
+    const version = ++requestVersion.current;
+    const [{ data: stickerRows, error: stickerError }, { data: packRows, error: packError }] =
+      await Promise.all([
+        db
+          .from("chat_stickers")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false }),
+        db
+          .from("sticker_packs")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false }),
+      ]);
+    if (!alive.current || version !== requestVersion.current) return;
+    if (stickerError || packError) throw new Error("表情列表读取失败，请稍后重试。");
     const next = (stickerRows ?? []) as ChatSticker[];
-    const pairs = await mapWithConcurrency(
-      next,
-      6,
-      async (item) => [item.id, await resolveSignedMediaUrl("chat-media", item.file_path)] as const,
-    );
     setItems(next);
     setPacks((packRows ?? []) as StickerPack[]);
-    setUrls(Object.fromEntries(pairs));
-  }, [db]);
+    loadedAt.current = Date.now();
+  }, [db, userId]);
 
   useEffect(() => {
-    if (open) void load();
-  }, [load, open]);
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      requestVersion.current++;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (loadedUser.current !== userId) {
+      loadedUser.current = userId;
+      loadedAt.current = 0;
+      requestVersion.current++;
+      setItems([]);
+      setPacks([]);
+    }
+    if (open && !opening.current && Date.now() - loadedAt.current > 60_000) {
+      opening.current = true;
+      void load()
+        .catch(() => errorHandler.current("表情列表读取失败，请稍后重试。"))
+        .finally(() => {
+          opening.current = false;
+        });
+    }
+  }, [load, open, userId]);
 
   async function saveImage(file?: File) {
     if (!file || busy) return;
@@ -98,7 +133,7 @@ export function StickerPicker({
         .select("*")
         .single();
       if (error || !data) throw new Error("表情保存失败。");
-      await load();
+      setItems((current) => [data as ChatSticker, ...current]);
     } catch (reason) {
       if (path) await db.storage.from("chat-media").remove([path]);
       onError(reason instanceof Error ? reason.message : "表情导入失败。");
@@ -173,14 +208,13 @@ export function StickerPicker({
             />
           </label>
           {!query && recent.length > 0 && (
-            <StickerSection title="最近使用" items={recent} urls={urls} onSend={send} />
+            <StickerSection title="最近使用" items={recent} onSend={send} />
           )}
           {packs.map((pack) => (
             <StickerSection
               key={pack.id}
               title={pack.name}
               items={matching.filter((item) => item.pack_id === pack.id)}
-              urls={urls}
               onSend={send}
               hideEmpty
             />
@@ -188,7 +222,6 @@ export function StickerPicker({
           <StickerSection
             title={packs.length ? "未分组" : "我的表情"}
             items={matching.filter((item) => !item.pack_id)}
-            urls={urls}
             onSend={send}
             hideEmpty={packs.length > 0}
           />
@@ -218,13 +251,7 @@ export function StickerPicker({
               <span>管理表情包</span>
             </button>
           </div>
-          <StickerSection
-            title="全部表情"
-            items={items}
-            urls={urls}
-            onSend={send}
-            onDelete={remove}
-          />
+          <StickerSection title="全部表情" items={items} onSend={send} onDelete={remove} />
         </>
       )}
 
@@ -233,7 +260,7 @@ export function StickerPicker({
           userId={userId}
           onBack={() => setView("manage")}
           onDone={() => {
-            void load();
+            void load().catch(() => onError("表情列表读取失败，请稍后重试。"));
             setView("manage");
           }}
           onError={onError}
@@ -256,14 +283,12 @@ export function StickerPicker({
 function StickerSection({
   title,
   items,
-  urls,
   onSend,
   onDelete,
   hideEmpty = false,
 }: {
   title: string;
   items: ChatSticker[];
-  urls: Record<string, string>;
   onSend: (item: ChatSticker) => void;
   onDelete?: (item: ChatSticker) => void;
   hideEmpty?: boolean;
@@ -272,7 +297,7 @@ function StickerSection({
   return (
     <section className="sticker-section">
       <h3>{title}</h3>
-      <StickerGrid items={items} urls={urls} onSend={onSend} {...(onDelete ? { onDelete } : {})} />
+      <StickerGrid items={items} onSend={onSend} {...(onDelete ? { onDelete } : {})} />
     </section>
   );
 }

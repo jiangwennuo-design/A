@@ -10,6 +10,7 @@ interface AvatarPickerProps {
   onChange: (value: string) => void;
   onError: (message: string) => void;
   presentation?: "default" | "chat";
+  onUploadBusy?: (busy: boolean) => void;
 }
 
 export function AvatarPicker({
@@ -20,17 +21,34 @@ export function AvatarPicker({
   onChange,
   onError,
   presentation = "default",
+  onUploadBusy,
 }: AvatarPickerProps) {
   const albumInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState("");
   const [uploading, setUploading] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const local = useRef<{ value: string; url: string } | null>(null);
+  const alive = useRef(true);
+  const generation = useRef(0);
 
   useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      generation.current++;
+      if (local.current) URL.revokeObjectURL(local.current.url);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (local.current?.value === value) return;
+    const version = ++generation.current;
+    if (local.current) URL.revokeObjectURL(local.current.url);
+    local.current = null;
     let active = true;
     void resolveAvatarUrl(value).then((url) => {
-      if (active) setPreview(url);
+      if (active && generation.current === version) setPreview(url);
     });
     return () => {
       active = false;
@@ -38,21 +56,39 @@ export function AvatarPicker({
   }, [value]);
 
   async function choose(file?: File) {
-    if (!file) return;
+    if (!file || uploading) return;
+    const version = ++generation.current;
     const temporaryUrl = URL.createObjectURL(file);
+    if (local.current) URL.revokeObjectURL(local.current.url);
+    local.current = { value, url: temporaryUrl };
     setPreview(temporaryUrl);
     setUploading(true);
+    onUploadBusy?.(true);
     onError("");
     try {
       const uploaded = await uploadAvatar(userId, file, owner);
+      if (!alive.current || generation.current !== version) {
+        URL.revokeObjectURL(uploaded.previewUrl);
+        return;
+      }
+      local.current = { value: uploaded.path, url: uploaded.previewUrl };
       onChange(uploaded.path);
       setPreview(uploaded.previewUrl);
     } catch (error) {
-      setPreview(await resolveAvatarUrl(value));
-      onError(error instanceof Error ? error.message : "头像上传失败。");
+      if (alive.current && generation.current === version) {
+        local.current = null;
+        const restored = await resolveAvatarUrl(value);
+        if (alive.current && generation.current === version) {
+          setPreview(restored);
+          onError(error instanceof Error ? error.message : "头像上传失败。");
+        }
+      }
     } finally {
       URL.revokeObjectURL(temporaryUrl);
-      setUploading(false);
+      if (alive.current) {
+        setUploading(false);
+        onUploadBusy?.(false);
+      }
       if (albumInput.current) albumInput.current.value = "";
       if (cameraInput.current) cameraInput.current.value = "";
     }
@@ -91,7 +127,7 @@ export function AvatarPicker({
                 <Camera size={17} /> 拍照
               </button>
             </div>
-            <p>{uploading ? "正在上传…" : "JPG、PNG 或 WebP，不超过 5MB"}</p>
+            <p>{uploading ? "正在上传…" : "JPG、PNG 或 WebP，不超过 16MB，自动压缩"}</p>
             <label>
               或粘贴图片网址
               <input
@@ -152,7 +188,7 @@ export function AvatarPicker({
             拍照
           </button>
           <p className="col-span-2 text-xs text-[var(--color-text-secondary)]">
-            {uploading ? "正在上传…" : "JPG、PNG 或 WebP，不超过 5MB"}
+            {uploading ? "正在上传…" : "JPG、PNG 或 WebP，不超过 16MB，自动压缩"}
           </p>
         </div>
       </div>

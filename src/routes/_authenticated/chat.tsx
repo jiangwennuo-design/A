@@ -54,6 +54,7 @@ import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
 import { characterChatName, readCharacterChatPreferences } from "@/lib/character-chat";
 import { bubbleStyles } from "@/lib/bubble-css";
 import { characterWallpaperUrl } from "@/lib/character-wallpaper";
+import { retainWallpaperUrl } from "@/lib/wallpaper-media";
 
 // The live schema includes multi-penpal migration fields not present in the generated client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -348,6 +349,7 @@ function ConversationPage({
   const clear = useServerFn(clearCurrentChat);
   const [current, setCurrent] = useState<AiPersona | null>(null);
   const [chatWallpaper, setChatWallpaper] = useState("");
+  useEffect(() => retainWallpaperUrl(chatWallpaper), [chatWallpaper]);
   const chatPreferences = useMemo(
     () => readCharacterChatPreferences(current?.chat_preferences),
     [current?.chat_preferences],

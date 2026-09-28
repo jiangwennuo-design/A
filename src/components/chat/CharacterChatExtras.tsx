@@ -11,6 +11,7 @@ import {
   summarizeCharacterMemory,
 } from "@/lib/character-memory.functions";
 import { characterWallpaperUrl, uploadCharacterWallpaper } from "@/lib/character-wallpaper";
+import { retainWallpaperUrl } from "@/lib/wallpaper-media";
 import { assertSafeRemoteUrl } from "@/lib/stickers/resolve-resource";
 import { supabase } from "@/integrations/supabase/client";
 import "@/styles/character-chat.css";
@@ -31,6 +32,7 @@ export function CharacterChatExtras({
   onUploadBusy: (busy: boolean) => void;
 }) {
   const [wallpaper, setWallpaper] = useState("");
+  useEffect(() => retainWallpaperUrl(wallpaper), [wallpaper]);
   const [link, setLink] = useState(value.wallpaperUrl ?? "");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -42,6 +44,8 @@ export function CharacterChatExtras({
   const alive = useRef(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const cancelLink = useRef<(() => void) | null>(null);
+  const localWallpaper = useRef<{ path: string; url: string } | null>(null);
+  const wallpaperVersion = useRef(0);
   const { wallpaperPath, wallpaperUrl } = value;
   const list = useServerFn(listCharacterMemories);
   const saveMemory = useServerFn(saveCharacterMemory);
@@ -54,12 +58,19 @@ export function CharacterChatExtras({
     return () => {
       alive.current = false;
       cancelLink.current?.();
+      if (localWallpaper.current) URL.revokeObjectURL(localWallpaper.current.url);
     };
   }, []);
   useEffect(() => {
     let active = true;
+    const version = wallpaperVersion.current;
+    if (localWallpaper.current?.path === wallpaperPath) return;
+    if (localWallpaper.current) {
+      URL.revokeObjectURL(localWallpaper.current.url);
+      localWallpaper.current = null;
+    }
     void characterWallpaperUrl({ wallpaperPath, wallpaperUrl }).then((url) => {
-      if (active) setWallpaper(url);
+      if (active && version === wallpaperVersion.current) setWallpaper(url);
     });
     return () => {
       active = false;
@@ -81,17 +92,28 @@ export function CharacterChatExtras({
     if (!file || uploading) return;
     setUploading(true);
     setError("");
+    wallpaperVersion.current++;
+    const previous = wallpaper;
+    const previewUrl = URL.createObjectURL(file);
+    setWallpaper(previewUrl);
     try {
       const path = await uploadCharacterWallpaper(userId, charId, file);
       if (alive.current) {
         onUploadedPath(path);
+        if (localWallpaper.current) URL.revokeObjectURL(localWallpaper.current.url);
+        localWallpaper.current = { path, url: previewUrl };
         update({ wallpaperPath: path, wallpaperUrl: null });
         setLink("");
       } else {
+        URL.revokeObjectURL(previewUrl);
         await supabase.storage.from("wallpapers").remove([path]);
       }
     } catch (reason) {
-      if (alive.current) setError(reason instanceof Error ? reason.message : "上传失败。");
+      URL.revokeObjectURL(previewUrl);
+      if (alive.current) {
+        setWallpaper(previous);
+        setError(reason instanceof Error ? reason.message : "上传失败。");
+      }
     } finally {
       if (alive.current) setUploading(false);
     }

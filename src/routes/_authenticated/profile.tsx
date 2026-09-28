@@ -28,6 +28,7 @@ function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   useEffect(() => {
     if (profile)
       setForm({
@@ -56,6 +57,7 @@ function ProfilePage() {
   const current = form;
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (avatarBusy || saving) return;
     if (!user || !current.display_name.trim()) return setError("请填写显示名称。");
     setSaving(true);
     setError("");
@@ -146,7 +148,10 @@ function ProfilePage() {
               owner="profile"
               userId={user.id}
               value={current.avatar_url}
-              onChange={(value) => setForm({ ...current, avatar_url: value })}
+              onChange={(value) =>
+                setForm((form) => (form ? { ...form, avatar_url: value } : form))
+              }
+              onUploadBusy={setAvatarBusy}
               onError={setError}
             />
           )}
@@ -193,7 +198,7 @@ function ProfilePage() {
           >
             <Upload size={15} /> 导入 TXT 或 DOCX
           </button>
-          <button className="btn-primary w-full" disabled={saving}>
+          <button className="btn-primary w-full" disabled={saving || avatarBusy}>
             {saving ? "保存中…" : "保存资料"}
           </button>
         </form>

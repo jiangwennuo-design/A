@@ -1,4 +1,11 @@
-import { useRef, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react";
+import {
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { Trash2, Upload } from "lucide-react";
 import { AvatarPicker } from "@/components/AvatarPicker";
 import { importPersonaFile } from "@/lib/persona-file";
@@ -31,6 +38,7 @@ export function PersonaEditor({
   extraSettings,
   presentation = "default",
   formId,
+  onAvatarBusy,
 }: {
   form: PersonaDraft;
   userId: string;
@@ -43,7 +51,9 @@ export function PersonaEditor({
   extraSettings?: ReactNode;
   presentation?: "default" | "chat";
   formId?: string;
+  onAvatarBusy?: (busy: boolean) => void;
 }) {
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const set = (key: keyof PersonaDraft, value: string | number) =>
     onChange((current) => ({ ...current, [key]: value }));
@@ -56,7 +66,14 @@ export function PersonaEditor({
     }
   }
   return (
-    <form id={formId} onSubmit={onSubmit} className="contact-editor fade-in">
+    <form
+      id={formId}
+      onSubmit={(event) => {
+        if (avatarBusy) event.preventDefault();
+        else onSubmit(event);
+      }}
+      className="contact-editor fade-in"
+    >
       <AvatarPicker
         label="角色头像"
         owner="penpal"
@@ -65,6 +82,10 @@ export function PersonaEditor({
         onChange={(value) => set("avatar_url", value)}
         onError={onError}
         presentation={presentation}
+        onUploadBusy={(busy) => {
+          setAvatarBusy(busy);
+          onAvatarBusy?.(busy);
+        }}
       />
       <EditorField
         label={presentation === "chat" ? "名称" : "名字"}
@@ -138,7 +159,7 @@ export function PersonaEditor({
       </section>
       {extraSettings}
       {presentation !== "chat" && (
-        <button className="btn-primary w-full" disabled={saving}>
+        <button className="btn-primary w-full" disabled={saving || avatarBusy}>
           {saving ? "保存中…" : existing ? "保存修改" : "创建角色"}
         </button>
       )}

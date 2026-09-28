@@ -1,11 +1,10 @@
 import { useSyncExternalStore } from "react";
 import type { Profile } from "@/lib/types";
-import { resolveAvatarUrl } from "@/lib/avatar";
+import { prepareChatImage } from "./chat-media";
+import { cachedWallpaperUrl } from "./wallpaper-media";
 
 const STORAGE_KEY = "kdeji-wallpaper-v1";
 const MAX_UPLOAD_EDGE = 2_160;
-const REENCODE_PIXEL_THRESHOLD = 2_600_000;
-const REENCODE_BYTE_THRESHOLD = 1_500_000;
 
 export interface WallpaperSnapshot {
   path: string;
@@ -57,15 +56,19 @@ function emit() {
 
 function writeStoredSnapshot(value: WallpaperSnapshot) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      path: value.path,
-      preset: value.preset,
-      blur: value.blur,
-      opacity: value.opacity,
-    }),
-  );
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        path: value.path,
+        preset: value.preset,
+        blur: value.blur,
+        opacity: value.opacity,
+      }),
+    );
+  } catch {
+    /* Browser storage may be unavailable; database persistence still works. */
+  }
 }
 
 export function getWallpaperSnapshot() {
@@ -138,18 +141,28 @@ export function cacheWallpaperUrl(path: string, url: string) {
 
 export function preloadWallpaperUrl(url: string): Promise<string> {
   if (!url || typeof window === "undefined") return Promise.resolve(url);
+  if (url.startsWith("blob:")) return Promise.resolve(url);
   const cached = decodedImages.get(url);
   if (cached) return cached;
   const promise = new Promise<string>((resolve) => {
     const image = new Image();
+    const finish = (value: string) => {
+      clearTimeout(timer);
+      image.onload = image.onerror = null;
+      if (!value) {
+        decodedImages.delete(url);
+        image.src = "";
+      }
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(""), 12_000);
     image.decoding = "async";
     image.onload = () => {
       const decode = typeof image.decode === "function" ? image.decode() : Promise.resolve();
-      void decode.catch(() => undefined).finally(() => resolve(url));
+      void decode.catch(() => undefined).finally(() => finish(url));
     };
     image.onerror = () => {
-      decodedImages.delete(url);
-      resolve("");
+      finish("");
     };
     image.src = url;
   });
@@ -160,7 +173,7 @@ export function preloadWallpaperUrl(url: string): Promise<string> {
 
 export async function resolveWallpaperUrl(path: string): Promise<string> {
   if (!path) return "";
-  const url = await resolveAvatarUrl(path);
+  const url = await cachedWallpaperUrl(path);
   if (!url) return "";
   const decoded = await preloadWallpaperUrl(url);
   if (decoded) cacheWallpaperUrl(path, decoded);
@@ -168,36 +181,8 @@ export async function resolveWallpaperUrl(path: string): Promise<string> {
 }
 
 export async function optimizeWallpaperUpload(file: File): Promise<File> {
-  if (typeof window === "undefined" || typeof createImageBitmap !== "function") return file;
-  let bitmap: ImageBitmap | null = null;
-  try {
-    bitmap = await createImageBitmap(file);
-    const pixels = bitmap.width * bitmap.height;
-    if (
-      Math.max(bitmap.width, bitmap.height) <= MAX_UPLOAD_EDGE &&
-      pixels <= REENCODE_PIXEL_THRESHOLD &&
-      file.size <= REENCODE_BYTE_THRESHOLD
-    )
-      return file;
-
-    const scale = Math.min(1, MAX_UPLOAD_EDGE / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) return file;
-    context.drawImage(bitmap, 0, 0, width, height);
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/webp", 0.86),
-    );
-    if (!blob || blob.size >= file.size) return file;
-    const baseName = file.name.replace(/\.[^.]+$/, "") || "wallpaper";
-    return new File([blob], `${baseName}.webp`, { type: "image/webp", lastModified: Date.now() });
-  } catch {
-    return file;
-  } finally {
-    bitmap?.close();
-  }
+  const image = await prepareChatImage(file, MAX_UPLOAD_EDGE, 5 * 1024 * 1024);
+  URL.revokeObjectURL(image.previewUrl);
+  const baseName = file.name.replace(/\.[^.]+$/, "") || "wallpaper";
+  return new File([image.blob], `${baseName}.${image.extension}`, { type: image.blob.type });
 }

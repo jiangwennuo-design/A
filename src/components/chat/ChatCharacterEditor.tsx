@@ -46,6 +46,7 @@ export function ChatCharacterEditor({
   const committedWallpaper = useRef(preferences.wallpaperPath);
   const [saving, setSaving] = useState(false);
   const [wallpaperBusy, setWallpaperBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [error, setError] = useState("");
   const pageRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
@@ -78,7 +79,7 @@ export function ChatCharacterEditor({
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (wallpaperBusy || saving) return;
+    if (wallpaperBusy || avatarBusy || saving) return;
     if (!form.name.trim()) return setError("请填写名字。");
     const min = Number(form.minimum_messages);
     const max = Number(form.maximum_messages);
@@ -159,7 +160,11 @@ export function ChatCharacterEditor({
           <ChevronLeft size={25} />
         </button>
         <h1 id="chat-character-title">编辑当前角色</h1>
-        <button type="submit" form="chat-character-form" disabled={saving || wallpaperBusy}>
+        <button
+          type="submit"
+          form="chat-character-form"
+          disabled={saving || wallpaperBusy || avatarBusy}
+        >
           {saving ? "保存中…" : "完成"}
         </button>
       </header>
@@ -172,6 +177,7 @@ export function ChatCharacterEditor({
           userId={userId}
           existing
           saving={saving}
+          onAvatarBusy={setAvatarBusy}
           onChange={setForm}
           onSubmit={save}
           onDelete={() => void remove()}

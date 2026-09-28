@@ -1,11 +1,11 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
-  preloadWallpaperUrl,
   resolveWallpaperUrl,
   syncWallpaperFromProfile,
   useWallpaperSnapshot,
 } from "@/lib/wallpaper";
+import { retainWallpaperUrl } from "@/lib/wallpaper-media";
 
 /** Wallpaper belongs to the launcher only, never to the authenticated app shell. */
 export const DesktopWallpaper = memo(function DesktopWallpaper({
@@ -18,6 +18,8 @@ export const DesktopWallpaper = memo(function DesktopWallpaper({
   const [displayedUrl, setDisplayedUrl] = useState(wallpaper.url);
   const [previousUrl, setPreviousUrl] = useState("");
   const displayedRef = useRef(displayedUrl);
+  useEffect(() => retainWallpaperUrl(displayedUrl), [displayedUrl]);
+  useEffect(() => retainWallpaperUrl(previousUrl), [previousUrl]);
 
   useEffect(() => {
     syncWallpaperFromProfile(profile);
@@ -31,9 +33,7 @@ export const DesktopWallpaper = memo(function DesktopWallpaper({
       setDisplayedUrl("");
       return;
     }
-    const readyUrl = wallpaper.url
-      ? preloadWallpaperUrl(wallpaper.url)
-      : resolveWallpaperUrl(wallpaper.path);
+    const readyUrl = resolveWallpaperUrl(wallpaper.path);
     void readyUrl.then((url) => {
       if (!active || !url || url === displayedRef.current) return;
       setPreviousUrl(displayedRef.current);

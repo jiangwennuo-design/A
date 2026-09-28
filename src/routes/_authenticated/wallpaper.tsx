@@ -7,15 +7,14 @@ import { ErrorBanner, Header, LoadingSpinner } from "@/components/ui-kit";
 import { closeSystemApp } from "@/lib/app-transition";
 import {
   applyWallpaperOptimistically,
-  cacheWallpaperUrl,
   commitWallpaper,
   getWallpaperSnapshot,
   optimizeWallpaperUpload,
-  preloadWallpaperUrl,
   resolveWallpaperUrl,
   rollbackWallpaper,
   type WallpaperSnapshot,
 } from "@/lib/wallpaper";
+import { rememberWallpaper, retainWallpaperUrl } from "@/lib/wallpaper-media";
 
 // The production profile/storage fields are newer than the generated Supabase client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,6 +36,8 @@ function WallpaperPage() {
   const { user, profile, refreshProfile } = useAuth();
   const fileInput = useRef<HTMLInputElement>(null);
   const objectPreview = useRef("");
+  const alive = useRef(true);
+  const dirty = useRef(false);
   const [wallpaperUrl, setWallpaperUrl] = useState("");
   const [preview, setPreview] = useState("");
   const [blur, setBlur] = useState(0);
@@ -45,9 +46,11 @@ function WallpaperPage() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => retainWallpaperUrl(preview), [preview]);
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || dirty.current) return;
+    let active = true;
     setWallpaperUrl(profile.wallpaper_url ?? "");
     setBlur(Number(profile.wallpaper_blur ?? 0));
     setOpacity(Number(profile.wallpaper_opacity ?? 0.18));
@@ -56,56 +59,69 @@ function WallpaperPage() {
       setPreview("");
       return;
     }
-    void resolveWallpaperUrl(profile.wallpaper_url).then(setPreview);
+    void resolveWallpaperUrl(profile.wallpaper_url).then((url) => {
+      if (active && !dirty.current) setPreview(url);
+    });
+    return () => {
+      active = false;
+    };
   }, [profile]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
       if (objectPreview.current) URL.revokeObjectURL(objectPreview.current);
-    },
-    [],
-  );
+    };
+  }, []);
 
   async function upload(file?: File) {
-    if (!file || !user) return;
+    if (!file || !user || uploading || saving) return;
     setError("");
     if (
       !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-      file.size > 5 * 1024 * 1024
+      file.size > 16 * 1024 * 1024
     ) {
-      setError("壁纸需为 JPG、PNG 或 WebP，且不超过 5MB。");
+      setError("壁纸需为 JPG、PNG 或 WebP，且不超过 16MB（上传前会压缩）。");
       return;
     }
     setUploading(true);
-    const optimizedFile = await optimizeWallpaperUpload(file);
+    dirty.current = true;
+    const previousPreview = preview;
     if (objectPreview.current) URL.revokeObjectURL(objectPreview.current);
-    objectPreview.current = URL.createObjectURL(optimizedFile);
+    objectPreview.current = URL.createObjectURL(file);
     setPreview(objectPreview.current);
-    void preloadWallpaperUrl(objectPreview.current);
-    const ext = optimizedFile.type === "image/webp" ? "webp" : file.name.split(".").pop() || "jpg";
-    const path = `${user.id}/wallpaper-${Date.now()}.${ext}`;
-    const { error: uploadError } = await db.storage
-      .from("wallpapers")
-      .upload(path, optimizedFile, { upsert: false, contentType: optimizedFile.type });
-    if (uploadError) {
-      setError("壁纸上传失败，请稍后重试。");
+    try {
+      const optimizedFile = await optimizeWallpaperUpload(file);
+      const ext = optimizedFile.name.split(".").pop() || "jpg";
+      const path = `${user.id}/wallpaper-${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await db.storage
+        .from("wallpapers")
+        .upload(path, optimizedFile, { upsert: false, contentType: optimizedFile.type });
+      if (uploadError) throw new Error("壁纸上传失败，请稍后重试。");
+      if (!alive.current) {
+        await db.storage.from("wallpapers").remove([path]);
+        return;
+      }
+      const localUrl = rememberWallpaper(path, optimizedFile);
+      setWallpaperUrl(path);
+      setPreview(localUrl);
       URL.revokeObjectURL(objectPreview.current);
       objectPreview.current = "";
-      setPreview("");
-      setUploading(false);
-      return;
+    } catch (reason) {
+      if (alive.current) {
+        setError(reason instanceof Error ? reason.message : "壁纸处理失败。");
+        setPreview(previousPreview);
+      }
+      if (objectPreview.current) URL.revokeObjectURL(objectPreview.current);
+      objectPreview.current = "";
+    } finally {
+      if (alive.current) setUploading(false);
     }
-    const signedUrl = await resolveWallpaperUrl(path);
-    setWallpaperUrl(path);
-    setPreview(signedUrl);
-    cacheWallpaperUrl(path, signedUrl);
-    URL.revokeObjectURL(objectPreview.current);
-    objectPreview.current = "";
-    setUploading(false);
   }
 
   async function save() {
-    if (!user) return;
+    if (!user || uploading || saving) return;
     const previous = getWallpaperSnapshot();
     const next: WallpaperSnapshot = {
       path: wallpaperUrl,
@@ -245,7 +261,7 @@ function WallpaperPage() {
         </button>
         <button
           type="button"
-          disabled={!wallpaperUrl || saving}
+          disabled={!wallpaperUrl || saving || uploading}
           onClick={() => void removeCustomWallpaper()}
           className="btn-secondary flex items-center justify-center gap-2 disabled:opacity-40"
         >
