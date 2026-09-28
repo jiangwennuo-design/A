@@ -82,7 +82,12 @@ export function safeBubbleDeclarations(input: string): string {
     .join("");
 }
 
-export function bubbleStyles(scope: string, userCss: string, charCss: string): string {
+export function bubbleStyles(
+  scope: string,
+  userCss: string,
+  charCss: string,
+  preview = false,
+): string {
   if (!/^[a-z\d-]{1,80}$/i.test(scope)) return "";
   return (
     [
@@ -98,7 +103,9 @@ export function bubbleStyles(scope: string, userCss: string, charCss: string): s
         return "";
       }
       if (!declarations) return "";
-      const selector = `[data-chat-scope="${scope}"] .chat-message-row.is-${side} .message-content-wrapper>.message-bubble`;
+      // Saved styles must never reach the editor's nested live preview.
+      const container = preview ? "" : ">.chat-message-list ";
+      const selector = `[data-chat-scope="${scope}"] ${container}.chat-message-row.is-${side} .message-content-wrapper>.message-bubble`;
       const fontSize = declarations.match(/(?:^|;)font-size:([^;]+);/)?.[1];
       return `${selector}{${declarations}}${fontSize ? `${selector}>p{font-size:${fontSize};}` : ""}`;
     })

@@ -233,6 +233,7 @@ export function CharacterChatExtras({
               <button
                 type="button"
                 className="is-danger"
+                disabled={uploading}
                 onClick={() => {
                   update({ wallpaperPath: null, wallpaperUrl: null });
                   setLink("");
@@ -242,6 +243,7 @@ export function CharacterChatExtras({
               </button>
               <button
                 type="button"
+                disabled={uploading}
                 onClick={() => {
                   update({ wallpaperPath: null, wallpaperUrl: null });
                   setLink("");
@@ -256,7 +258,7 @@ export function CharacterChatExtras({
             data-chat-scope={scope}
             style={wallpaper ? { backgroundImage: `url(${JSON.stringify(wallpaper)})` } : undefined}
           >
-            <style>{bubbleStyles(scope, value.userBubbleCss, value.charBubbleCss)}</style>
+            <style>{bubbleStyles(scope, value.userBubbleCss, value.charBubbleCss, true)}</style>
             <small>实时预览</small>
             <div className="chat-message-row is-char">
               <div className="message-content-wrapper">

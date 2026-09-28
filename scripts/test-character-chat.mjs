@@ -45,6 +45,8 @@ test("safe declarations are scoped to current role and text renderer on both sid
   assert.match(css, /is-user/);
   assert.match(css, /is-char/);
   assert.match(css, /message-content-wrapper>\.message-bubble/);
+  assert.match(css, />\.chat-message-list /);
+  assert.doesNotMatch(bubbleStyles("preview-a", "color:red", "", true), /chat-message-list/);
   assert.match(css, />p\{font-size:18px/);
   assert.doesNotMatch(css, /char-b|image-content|sticker|button|body/);
   assert.equal(bubbleStyles('a"] body', "color:red", ""), "");
