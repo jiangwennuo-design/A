@@ -1349,7 +1349,16 @@ textarea {
 }
 
 .user-profile-page {
+  height: 100dvh;
+  overscroll-behavior: contain;
   padding-bottom: calc(92px + env(safe-area-inset-bottom));
+}
+
+.user-profile-page > .contacts-header {
+  position: sticky;
+  top: env(safe-area-inset-top);
+  z-index: 2;
+  background: inherit;
 }
 
 .contacts-header {

@@ -61,19 +61,26 @@ function ProfilePage() {
     if (!user || !current.display_name.trim()) return setError("请填写显示名称。");
     setSaving(true);
     setError("");
-    const { error: saveError } = await supabase
-      .from("profiles")
-      .update({
-        ...current,
-        display_name: current.display_name.trim(),
-        avatar_url: current.avatar_url || null,
-        gender: current.gender || null,
-      })
-      .eq("id", user.id);
-    setSaving(false);
-    if (saveError) return setError("保存失败，请稍后重试。");
-    await refreshProfile();
-    setEditing(false);
+    try {
+      const { error: saveError } = await supabase
+        .from("profiles")
+        .update({
+          ...current,
+          display_name: current.display_name.trim(),
+          avatar_url: current.avatar_url || null,
+          gender: current.gender || null,
+        })
+        .eq("id", user.id)
+        .select("id")
+        .single();
+      if (saveError) return setError("保存失败，请稍后重试。");
+      await refreshProfile();
+      setEditing(false);
+    } catch {
+      setError("保存失败，请稍后重试。");
+    } finally {
+      setSaving(false);
+    }
   }
   async function importText(file?: File) {
     if (!file) return;
@@ -92,7 +99,16 @@ function ProfilePage() {
           <ArrowLeft size={21} />
         </button>
         <span>{editing ? "编辑资料" : "我的资料"}</span>
-        {!editing && (
+        {editing ? (
+          <button
+            type="submit"
+            form="user-profile-form"
+            className="user-profile-edit"
+            disabled={saving || avatarBusy}
+          >
+            {saving ? "保存中…" : "完成"}
+          </button>
+        ) : (
           <button type="button" onClick={() => setEditing(true)} className="user-profile-edit">
             <Pencil size={15} /> 编辑
           </button>
@@ -141,7 +157,7 @@ function ProfilePage() {
           </button>
         </section>
       ) : (
-        <form onSubmit={save} className="contact-editor fade-in">
+        <form id="user-profile-form" onSubmit={save} className="contact-editor fade-in">
           {user && (
             <AvatarPicker
               label="头像"
@@ -198,7 +214,7 @@ function ProfilePage() {
           >
             <Upload size={15} /> 导入 TXT 或 DOCX
           </button>
-          <button className="btn-primary w-full" disabled={saving || avatarBusy}>
+          <button type="submit" className="btn-primary w-full" disabled={saving || avatarBusy}>
             {saving ? "保存中…" : "保存资料"}
           </button>
         </form>
