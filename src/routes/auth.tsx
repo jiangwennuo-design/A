@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { LockKeyhole, Mail, Smartphone } from "lucide-react";
+import { ArrowLeft, ArrowRight, LockKeyhole, Mail, Smartphone } from "lucide-react";
+import "@/styles/auth-entry.css";
 import { supabase } from "@/integrations/supabase/client";
 import { discordLoginEnabled } from "@/lib/app-config";
 import { ErrorBanner } from "@/components/ui-kit";
@@ -10,6 +11,7 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "登录 · K得机" },
+      { name: "theme-color", content: "#8cb7e4" },
       {
         name: "description",
         content: "登录你的私人小手机，记录生活，并和专属 AI 角色聊聊。",
@@ -22,6 +24,7 @@ export const Route = createFileRoute("/auth")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    links: [{ rel: "preload", as: "image", href: "/images/auth-sky-v1.png" }],
   }),
   component: LoginPage,
 });
@@ -32,6 +35,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const { session, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
+  const [showForm, setShowForm] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -123,8 +127,53 @@ function LoginPage() {
         ? "只需要邮箱和密码，就可以开始。"
         : "我们会把重置链接发送到你的邮箱。";
 
+  if (!showForm) {
+    return (
+      <main className={`auth-entry ${leaving ? "is-leaving" : ""}`}>
+        <section className="auth-entry__brand" aria-label="K得机">
+          <h1>
+            <img src="/images/auth-wordmark-v1.png" alt="K得机" width="2115" height="743" />
+          </h1>
+          <p className="auth-entry__english">KDEJI</p>
+          <p className="auth-entry__tagline">把重要的人放进这里。</p>
+        </section>
+        <section className="auth-entry__actions" aria-label="进入 K得机">
+          <button
+            type="button"
+            className="auth-entry__button auth-entry__button--primary"
+            onClick={() => setShowForm(true)}
+          >
+            <span>登录 / 注册</span>
+            <ArrowRight size={23} strokeWidth={1.5} aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="auth-entry__button auth-entry__button--guest"
+            disabled
+            aria-describedby="auth-guest-availability"
+          >
+            <span>游客进入</span>
+            <ArrowRight size={23} strokeWidth={1.5} aria-hidden />
+          </button>
+          <p id="auth-guest-availability" className="auth-entry__availability">
+            游客入口暂未开放
+          </p>
+          <p className="auth-entry__footer">和喜欢的人，过更长的日常</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <main className={`auth-screen ${leaving ? "is-leaving" : ""}`}>
+    <main className={`auth-screen auth-screen--form ${leaving ? "is-leaving" : ""}`}>
+      <button
+        type="button"
+        className="auth-entry-back"
+        onClick={() => setShowForm(false)}
+        aria-label="返回开屏"
+      >
+        <ArrowLeft size={22} />
+      </button>
       <div className="auth-orb auth-orb--blue" aria-hidden />
       <div className="auth-orb auth-orb--rose" aria-hidden />
       <section className="auth-panel">
