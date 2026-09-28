@@ -29,6 +29,8 @@ export function PersonaEditor({
   onDelete,
   onError,
   extraSettings,
+  presentation = "default",
+  formId,
 }: {
   form: PersonaDraft;
   userId: string;
@@ -39,6 +41,8 @@ export function PersonaEditor({
   onDelete: () => void;
   onError: (message: string) => void;
   extraSettings?: ReactNode;
+  presentation?: "default" | "chat";
+  formId?: string;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const set = (key: keyof PersonaDraft, value: string | number) =>
@@ -52,7 +56,7 @@ export function PersonaEditor({
     }
   }
   return (
-    <form onSubmit={onSubmit} className="contact-editor fade-in">
+    <form id={formId} onSubmit={onSubmit} className="contact-editor fade-in">
       <AvatarPicker
         label="角色头像"
         owner="penpal"
@@ -60,12 +64,19 @@ export function PersonaEditor({
         value={form.avatar_url}
         onChange={(value) => set("avatar_url", value)}
         onError={onError}
+        presentation={presentation}
       />
-      <EditorField label="名字" value={form.name} onChange={(value) => set("name", value)} />
+      <EditorField
+        label={presentation === "chat" ? "名称" : "名字"}
+        value={form.name}
+        count={presentation === "chat"}
+        onChange={(value) => set("name", value)}
+      />
       <EditorField
         label="人设描述"
         value={form.description}
         multiline
+        count={presentation === "chat"}
         onChange={(value) => set("description", value)}
       />
       <input
@@ -103,6 +114,7 @@ export function PersonaEditor({
           label={label}
           value={String(form[key])}
           multiline
+          count={presentation === "chat"}
           onChange={(value) => set(key, value)}
         />
       ))}
@@ -125,9 +137,11 @@ export function PersonaEditor({
         </div>
       </section>
       {extraSettings}
-      <button className="btn-primary w-full" disabled={saving}>
-        {saving ? "保存中…" : existing ? "保存修改" : "创建角色"}
-      </button>
+      {presentation !== "chat" && (
+        <button className="btn-primary w-full" disabled={saving}>
+          {saving ? "保存中…" : existing ? "保存修改" : "创建角色"}
+        </button>
+      )}
       {existing && (
         <button type="button" onClick={onDelete} className="contact-delete">
           <Trash2 size={15} /> 删除角色
@@ -143,12 +157,14 @@ function EditorField({
   onChange,
   multiline,
   type = "text",
+  count = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   multiline?: boolean;
   type?: string;
+  count?: boolean;
 }) {
   return (
     <label className="contact-editor__field">
@@ -163,6 +179,7 @@ function EditorField({
           onChange={(event) => onChange(event.target.value)}
         />
       )}
+      {count && <small className="contact-editor__count">{Array.from(value).length} 字</small>}
     </label>
   );
 }

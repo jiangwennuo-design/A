@@ -9,6 +9,7 @@ interface AvatarPickerProps {
   value: string;
   onChange: (value: string) => void;
   onError: (message: string) => void;
+  presentation?: "default" | "chat";
 }
 
 export function AvatarPicker({
@@ -18,11 +19,13 @@ export function AvatarPicker({
   value,
   onChange,
   onError,
+  presentation = "default",
 }: AvatarPickerProps) {
   const albumInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -53,6 +56,69 @@ export function AvatarPicker({
       if (albumInput.current) albumInput.current.value = "";
       if (cameraInput.current) cameraInput.current.value = "";
     }
+  }
+
+  if (presentation === "chat") {
+    return (
+      <section className="chat-character-avatar">
+        <div className="chat-character-avatar__portrait">
+          {preview ? <img src={preview} alt="头像预览" /> : <UserRound size={44} />}
+          <button
+            type="button"
+            aria-label="修改角色头像"
+            aria-expanded={optionsOpen}
+            onClick={() => setOptionsOpen((value) => !value)}
+            disabled={uploading}
+          >
+            <Camera size={19} />
+          </button>
+        </div>
+        {optionsOpen && (
+          <div className="chat-character-avatar__options">
+            <div>
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => albumInput.current?.click()}
+              >
+                <ImagePlus size={17} /> 从相册选择
+              </button>
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => cameraInput.current?.click()}
+              >
+                <Camera size={17} /> 拍照
+              </button>
+            </div>
+            <p>{uploading ? "正在上传…" : "JPG、PNG 或 WebP，不超过 5MB"}</p>
+            <label>
+              或粘贴图片网址
+              <input
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                placeholder="https://..."
+              />
+            </label>
+          </div>
+        )}
+        <input
+          ref={albumInput}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          onChange={(event) => void choose(event.target.files?.[0])}
+        />
+        <input
+          ref={cameraInput}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(event) => void choose(event.target.files?.[0])}
+        />
+      </section>
+    );
   }
 
   return (

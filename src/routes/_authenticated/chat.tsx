@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -1050,44 +1051,69 @@ function ConversationPage({
         />
       )}
 
-      <SystemSheet
-        open={chatSettingsOpen}
-        title="聊天设置"
-        description={current?.name}
-        onClose={() => setChatSettingsOpen(false)}
-      >
-        <label className="block text-sm font-medium mb-4">
-          日记读取权限
-          <select
-            value={mode}
-            onChange={(event) => void changeMode(event.target.value as DiaryContextMode)}
-            className="input-field mt-2"
+      <div className="chat-settings-scope">
+        <SystemSheet
+          open={chatSettingsOpen}
+          title="聊天设置"
+          onClose={() => setChatSettingsOpen(false)}
+        >
+          <div className="chat-settings-person">
+            <span>
+              {assistantAvatar ? <img src={assistantAvatar} alt="" /> : <UserRound size={24} />}
+            </span>
+            <strong>{current.name}</strong>
+          </div>
+          <div className="chat-settings-card">
+            <button
+              type="button"
+              onClick={() => {
+                setChatSettingsOpen(false);
+                setCharacterEditOpen(true);
+              }}
+              className="chat-settings-row"
+            >
+              <UserRound size={20} />
+              <span>编辑当前角色与头像</span>
+              <ChevronRight size={17} className="chat-settings-row__chevron" />
+            </button>
+            <label className="chat-settings-row">
+              <BookOpen size={20} />
+              <span>日记读取权限</span>
+              <span className="chat-settings-row__status">
+                {
+                  {
+                    none: "不读取日记",
+                    current: "读取当前日记",
+                    recent: "读取最近日记",
+                    all: "读取全部日记",
+                  }[mode]
+                }
+                <ChevronRight size={17} />
+              </span>
+              <select
+                aria-label="日记读取权限"
+                value={mode}
+                onChange={(event) => void changeMode(event.target.value as DiaryContextMode)}
+                className="chat-settings-row__select"
+              >
+                <option value="none">不读取日记</option>
+                <option value="current">读取当前日记</option>
+                <option value="recent">读取最近日记</option>
+                <option value="all">读取全部日记</option>
+              </select>
+            </label>
+          </div>
+          <button
+            type="button"
+            disabled={sending || savingMessage || messages.length === 0}
+            onClick={() => void clearChat()}
+            className="chat-settings-card chat-settings-row chat-settings-row--danger"
           >
-            <option value="none">不读取日记</option>
-            <option value="current">读取当前日记</option>
-            <option value="recent">读取最近日记</option>
-            <option value="all">读取全部日记</option>
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={() => {
-            setChatSettingsOpen(false);
-            setCharacterEditOpen(true);
-          }}
-          className="btn-secondary w-full mb-3"
-        >
-          编辑当前角色与头像
-        </button>
-        <button
-          type="button"
-          disabled={sending || savingMessage || messages.length === 0}
-          onClick={() => void clearChat()}
-          className="w-full py-3 rounded-xl border border-[var(--color-error)] text-[var(--color-error)] disabled:opacity-40"
-        >
-          清空当前对话
-        </button>
-      </SystemSheet>
+            <Trash2 size={20} />
+            清空当前对话
+          </button>
+        </SystemSheet>
+      </div>
       {characterEditOpen && user && (
         <ChatCharacterEditor
           character={current}

@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ChevronLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorBanner } from "@/components/ui-kit";
-import { SystemSheet } from "@/components/system-ui";
+import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { PersonaEditor, type PersonaDraft } from "@/components/contacts/PersonaEditor";
 import type { AiPersona } from "@/lib/types";
 import type { ChatThinkingMode } from "@/lib/ai/inner-life.server";
@@ -37,6 +38,25 @@ export function ChatCharacterEditor({
   const [showThinking, setShowThinking] = useState(character.show_chat_thinking ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const pageRef = useRef<HTMLElement>(null);
+  const backRef = useRef<HTMLButtonElement>(null);
+  useKeyboardViewport(pageRef, open);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    backRef.current?.focus({ preventScroll: true });
+    return () => previous?.focus({ preventScroll: true });
+  }, [open]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -87,50 +107,65 @@ export function ChatCharacterEditor({
     onDeleted();
   }
 
+  if (!open) return null;
+
   return (
-    <SystemSheet
-      open={open}
-      title="编辑当前角色"
-      description={character.name}
-      onClose={onClose}
-      scrollable
+    <section
+      ref={pageRef}
+      className="chat-character-page"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="chat-character-title"
     >
-      {error && <ErrorBanner message={error} />}
-      <PersonaEditor
-        form={form}
-        userId={userId}
-        existing
-        saving={saving}
-        onChange={setForm}
-        onSubmit={save}
-        onDelete={() => void remove()}
-        onError={setError}
-        extraSettings={
-          <section className="contact-editor__group">
-            <h2>聊天思维链</h2>
-            <label className="contact-editor__field">
-              <span>每位角色独立选择</span>
-              <select
-                value={thinkingMode}
-                onChange={(event) => setThinkingMode(event.target.value as ChatThinkingMode)}
-              >
-                <option value="off">关闭</option>
-                <option value="native">① K得机原生思维链</option>
-                <option value="nuojiji">② 糯叽机思维链</option>
-              </select>
-            </label>
-            <label className="contact-editor__field chat-thinking-toggle">
-              <span>显示思维链</span>
-              <input
-                type="checkbox"
-                checked={showThinking}
-                onChange={(event) => setShowThinking(event.target.checked)}
-              />
-            </label>
-            <p>仅控制聊天界面显示；关闭显示仍会正常生成思维链。</p>
-          </section>
-        }
-      />
-    </SystemSheet>
+      <header className="chat-character-page__header">
+        <button ref={backRef} type="button" onClick={onClose} aria-label="返回">
+          <ChevronLeft size={25} />
+        </button>
+        <h1 id="chat-character-title">编辑当前角色</h1>
+        <button type="submit" form="chat-character-form" disabled={saving}>
+          {saving ? "保存中…" : "完成"}
+        </button>
+      </header>
+      <div className="chat-character-page__scroll">
+        {error && <ErrorBanner message={error} />}
+        <PersonaEditor
+          presentation="chat"
+          formId="chat-character-form"
+          form={form}
+          userId={userId}
+          existing
+          saving={saving}
+          onChange={setForm}
+          onSubmit={save}
+          onDelete={() => void remove()}
+          onError={setError}
+          extraSettings={
+            <section className="contact-editor__group">
+              <h2>聊天思维链</h2>
+              <label className="contact-editor__field">
+                <span>每位角色独立选择</span>
+                <select
+                  value={thinkingMode}
+                  onChange={(event) => setThinkingMode(event.target.value as ChatThinkingMode)}
+                >
+                  <option value="off">关闭</option>
+                  <option value="native">① K得机原生思维链</option>
+                  <option value="nuojiji">② 糯叽机思维链</option>
+                </select>
+              </label>
+              <label className="contact-editor__field chat-thinking-toggle">
+                <span>显示思维链</span>
+                <input
+                  type="checkbox"
+                  checked={showThinking}
+                  onChange={(event) => setShowThinking(event.target.checked)}
+                />
+              </label>
+              <p>仅控制聊天界面显示；关闭显示仍会正常生成思维链。</p>
+            </section>
+          }
+        />
+      </div>
+    </section>
   );
 }
