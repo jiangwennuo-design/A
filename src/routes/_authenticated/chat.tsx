@@ -50,6 +50,9 @@ import type {
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import { messagePreview, normalizeChatMessage } from "@/lib/chat-message";
 import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
+import { readCharacterChatPreferences } from "@/lib/character-chat";
+import { bubbleStyles } from "@/lib/bubble-css";
+import { characterWallpaperUrl } from "@/lib/character-wallpaper";
 
 // The live schema includes multi-penpal migration fields not present in the generated client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -343,6 +346,22 @@ function ConversationPage({
   const reroll = useServerFn(rerollPenpalTurn);
   const clear = useServerFn(clearCurrentChat);
   const [current, setCurrent] = useState<AiPersona | null>(null);
+  const [chatWallpaper, setChatWallpaper] = useState("");
+  const chatPreferences = useMemo(
+    () => readCharacterChatPreferences(current?.chat_preferences),
+    [current?.chat_preferences],
+  );
+  const { wallpaperPath, wallpaperUrl } = chatPreferences;
+  useEffect(() => {
+    let active = true;
+    setChatWallpaper("");
+    void characterWallpaperUrl({ wallpaperPath, wallpaperUrl }).then((url) => {
+      if (active) setChatWallpaper(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [wallpaperPath, wallpaperUrl]);
   const [sessionId, setSessionId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -877,7 +896,10 @@ function ConversationPage({
     );
 
   return (
-    <div ref={conversationRef} className="chat-app chat-conversation">
+    <div ref={conversationRef} className="chat-app chat-conversation" data-chat-scope={charId}>
+      <style>
+        {bubbleStyles(charId, chatPreferences.userBubbleCss, chatPreferences.charBubbleCss)}
+      </style>
       <header className="chat-conversation__header">
         <button
           type="button"
@@ -927,6 +949,7 @@ function ConversationPage({
 
       {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
       <ChatMessages
+        wallpaperUrl={chatWallpaper}
         messages={messages}
         showThinking={current.chat_thinking_mode !== "off" && current.show_chat_thinking}
         sending={sending}

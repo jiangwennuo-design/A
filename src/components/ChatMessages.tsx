@@ -13,6 +13,7 @@ import type { ChatMessage } from "@/lib/types";
 import { MessageContent } from "@/components/chat/MessageContent";
 
 interface Props {
+  wallpaperUrl?: string;
   messages: ChatMessage[];
   showThinking: boolean;
   sending: boolean;
@@ -35,6 +36,7 @@ export interface MessageAnchor {
 }
 
 export const ChatMessages = memo(function ChatMessages({
+  wallpaperUrl,
   messages,
   showThinking,
   sending,
@@ -117,6 +119,16 @@ export const ChatMessages = memo(function ChatMessages({
     <main
       ref={viewport}
       className="chat-message-list"
+      style={
+        wallpaperUrl
+          ? {
+              backgroundImage: `url(${JSON.stringify(wallpaperUrl)})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+            }
+          : undefined
+      }
       aria-label="聊天消息"
       onScroll={() => {
         const el = viewport.current!;

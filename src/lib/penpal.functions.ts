@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AiMessage } from "./ai/multimodal";
 import { IMAGE_UNAVAILABLE } from "./ai/multimodal";
 import type { ChatThinkingMode } from "./ai/inner-life.server";
+import { memoryContext, readCharacterChatPreferences, recentChatContext } from "./character-chat";
 
 const uuid = z.string().uuid();
 const queuedMessageInput = z.object({
@@ -246,13 +247,20 @@ async function generatePrivateReply(args: {
     : "";
   const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。${stickerInstruction}${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
   const { generate } = await import("./ai/service.server");
-  const messages = await chatRowsForAi(args.db, args.userId, [...args.history, ...args.pending]);
+  const preferences = readCharacterChatPreferences(args.character.chat_preferences);
+  const memories = preferences.longTermMemory
+    ? await (
+        await import("./character-memory.server")
+      ).loadCharacterMemories(args.db, args.userId, args.character.id)
+    : [];
+  const rows = recentChatContext([...args.history, ...args.pending], preferences.contextDepth);
+  const messages = await chatRowsForAi(args.db, args.userId, rows);
   const result = await generate({
     scene: "private_chat",
     userId: args.userId,
     supabase: args.db,
     charId: args.character.id,
-    systemPrompt,
+    systemPrompt: systemPrompt + memoryContext(preferences.longTermMemory, memories),
     messages,
     outputFormat: "json",
   });
@@ -318,7 +326,7 @@ function messageTextForAi(row: ChatRow) {
   return `语音通话记录：${String(row.payload?.["status"] ?? "cancelled")}${duration ? `，${duration} 秒` : ""}。`;
 }
 
-async function chatRowsForAi(db: Db, userId: string, rows: ChatRow[]): Promise<AiMessage[]> {
+export async function chatRowsForAi(db: Db, userId: string, rows: ChatRow[]): Promise<AiMessage[]> {
   const messages: AiMessage[] = [];
   // Bounded concurrency avoids a burst of signed-URL requests for long histories.
   for (let start = 0; start < rows.length; start += 4) {
@@ -492,7 +500,7 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .order("created_at", { ascending: false })
       .order("message_order", { ascending: false })
-      .limit(80);
+      .limit(200);
     const rows = ((history ?? []) as ChatRow[]).reverse();
     const lastAssistantIndex = rows.map((row) => row.role).lastIndexOf("assistant");
     const pending = rows.slice(lastAssistantIndex + 1).filter((row) => row.role === "user");

@@ -29,6 +29,7 @@ export interface Diary {
 }
 
 export interface AiPersona {
+  chat_preferences?: import("./character-chat").CharacterChatPreferences;
   id: string;
   user_id: string;
   name: string;

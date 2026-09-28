@@ -7,6 +7,9 @@ import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { PersonaEditor, type PersonaDraft } from "@/components/contacts/PersonaEditor";
 import type { AiPersona } from "@/lib/types";
 import type { ChatThinkingMode } from "@/lib/ai/inner-life.server";
+import { CharacterChatExtras } from "./CharacterChatExtras";
+import { characterChatSchema, readCharacterChatPreferences } from "@/lib/character-chat";
+import { safeBubbleDeclarations } from "@/lib/bubble-css";
 
 const db = supabase as any;
 
@@ -36,7 +39,13 @@ export function ChatCharacterEditor({
     character.chat_thinking_mode ?? defaultMode,
   );
   const [showThinking, setShowThinking] = useState(character.show_chat_thinking ?? false);
+  const [preferences, setPreferences] = useState(() =>
+    readCharacterChatPreferences(character.chat_preferences),
+  );
+  const uploadedPaths = useRef<string[]>([]);
+  const committedWallpaper = useRef(preferences.wallpaperPath);
   const [saving, setSaving] = useState(false);
+  const [wallpaperBusy, setWallpaperBusy] = useState(false);
   const [error, setError] = useState("");
   const pageRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
@@ -45,7 +54,8 @@ export function ChatCharacterEditor({
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !document.querySelector('[data-memory-library="open"]'))
+        onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -58,13 +68,29 @@ export function ChatCharacterEditor({
     return () => previous?.focus({ preventScroll: true });
   }, [open]);
 
+  useEffect(
+    () => () => {
+      const unused = uploadedPaths.current.filter((path) => path !== committedWallpaper.current);
+      if (unused.length) void supabase.storage.from("wallpapers").remove(unused);
+    },
+    [],
+  );
+
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (wallpaperBusy || saving) return;
     if (!form.name.trim()) return setError("请填写名字。");
     const min = Number(form.minimum_messages);
     const max = Number(form.maximum_messages);
     if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max < min)
       return setError("请检查回复气泡数量。");
+    try {
+      characterChatSchema.parse(preferences);
+      safeBubbleDeclarations(preferences.userBubbleCss);
+      safeBubbleDeclarations(preferences.charBubbleCss);
+    } catch (reason) {
+      return setError(reason instanceof Error ? reason.message : "请检查美化和记忆配置。");
+    }
     setSaving(true);
     setError("");
     const { data, error: saveError } = await db
@@ -85,6 +111,7 @@ export function ChatCharacterEditor({
         maximum_messages: max,
         chat_thinking_mode: thinkingMode,
         show_chat_thinking: showThinking,
+        chat_preferences: preferences,
       })
       .eq("id", character.id)
       .eq("user_id", userId)
@@ -92,6 +119,16 @@ export function ChatCharacterEditor({
       .single();
     setSaving(false);
     if (saveError || !data) return setError("保存失败，请确认数据库迁移已完成。");
+    const previousWallpaper = readCharacterChatPreferences(
+      character.chat_preferences,
+    ).wallpaperPath;
+    committedWallpaper.current = preferences.wallpaperPath;
+    if (
+      previousWallpaper &&
+      previousWallpaper !== preferences.wallpaperPath &&
+      previousWallpaper.startsWith(`${userId}/chat-wallpapers/${character.id}/`)
+    )
+      void supabase.storage.from("wallpapers").remove([previousWallpaper]);
     onSaved(data as AiPersona);
     onClose();
   }
@@ -122,7 +159,7 @@ export function ChatCharacterEditor({
           <ChevronLeft size={25} />
         </button>
         <h1 id="chat-character-title">编辑当前角色</h1>
-        <button type="submit" form="chat-character-form" disabled={saving}>
+        <button type="submit" form="chat-character-form" disabled={saving || wallpaperBusy}>
           {saving ? "保存中…" : "完成"}
         </button>
       </header>
@@ -140,29 +177,39 @@ export function ChatCharacterEditor({
           onDelete={() => void remove()}
           onError={setError}
           extraSettings={
-            <section className="contact-editor__group">
-              <h2>聊天思维链</h2>
-              <label className="contact-editor__field">
-                <span>每位角色独立选择</span>
-                <select
-                  value={thinkingMode}
-                  onChange={(event) => setThinkingMode(event.target.value as ChatThinkingMode)}
-                >
-                  <option value="off">关闭</option>
-                  <option value="native">① K得机原生思维链</option>
-                  <option value="nuojiji">② 糯叽机思维链</option>
-                </select>
-              </label>
-              <label className="contact-editor__field chat-thinking-toggle">
-                <span>显示思维链</span>
-                <input
-                  type="checkbox"
-                  checked={showThinking}
-                  onChange={(event) => setShowThinking(event.target.checked)}
-                />
-              </label>
-              <p>仅控制聊天界面显示；关闭显示仍会正常生成思维链。</p>
-            </section>
+            <>
+              <section className="contact-editor__group">
+                <h2>聊天思维链</h2>
+                <label className="contact-editor__field">
+                  <span>每位角色独立选择</span>
+                  <select
+                    value={thinkingMode}
+                    onChange={(event) => setThinkingMode(event.target.value as ChatThinkingMode)}
+                  >
+                    <option value="off">关闭</option>
+                    <option value="native">① K得机原生思维链</option>
+                    <option value="nuojiji">② 糯叽机思维链</option>
+                  </select>
+                </label>
+                <label className="contact-editor__field chat-thinking-toggle">
+                  <span>显示思维链</span>
+                  <input
+                    type="checkbox"
+                    checked={showThinking}
+                    onChange={(event) => setShowThinking(event.target.checked)}
+                  />
+                </label>
+                <p>仅控制聊天界面显示；关闭显示仍会正常生成思维链。</p>
+              </section>
+              <CharacterChatExtras
+                charId={character.id}
+                userId={userId}
+                value={preferences}
+                onChange={setPreferences}
+                onUploadedPath={(path) => uploadedPaths.current.push(path)}
+                onUploadBusy={setWallpaperBusy}
+              />
+            </>
           }
         />
       </div>
