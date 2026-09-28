@@ -124,6 +124,7 @@ async function editor({ resultError = null, throws = false, avatarBusy = false }
   const form = nodes.find((node) => node.type === "form");
   const done = nodes.find((node) => node.type === "button" && node.props.form === form.props.id);
   assert.equal(done.props.type, "submit");
+  assert.equal(done.key, "save-profile");
   assert.equal(done.props.children, "完成");
   assert.equal(done.props.disabled, avatarBusy);
   assert.ok(
@@ -157,6 +158,7 @@ test("both save entries use the existing profile form; all five fields persist a
   assert.equal(page.refreshes(), 1);
   assert.equal(page.states[2], false);
   assert.equal(page.states[4], false);
+  assert.equal(page.render().props.children[0].props.children[2].key, "edit-profile");
   page.states[0] = null;
   page.render();
   page.effects[0]();

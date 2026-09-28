@@ -101,6 +101,7 @@ function ProfilePage() {
         <span>{editing ? "编辑资料" : "我的资料"}</span>
         {editing ? (
           <button
+            key="save-profile"
             type="submit"
             form="user-profile-form"
             className="user-profile-edit"
@@ -109,7 +110,12 @@ function ProfilePage() {
             {saving ? "保存中…" : "完成"}
           </button>
         ) : (
-          <button type="button" onClick={() => setEditing(true)} className="user-profile-edit">
+          <button
+            key="edit-profile"
+            type="button"
+            onClick={() => setEditing(true)}
+            className="user-profile-edit"
+          >
             <Pencil size={15} /> 编辑
           </button>
         )}
