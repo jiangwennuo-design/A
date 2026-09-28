@@ -239,13 +239,12 @@ async function generatePrivateReply(args: {
       ? "off"
       : "native";
   const innerLifePrompt = chatThinkingPrompt(thinkingMode);
-  const responseShape = innerLifePrompt
-    ? '{"thinking":"<thinking>...</thinking>","messages":[{"type":"text","content":"..."}]}'
-    : '{"messages":[{"type":"text","content":"..."}]}';
+  const responseShape = '{"messages":[{"type":"text","content":"..."}]}';
   const stickerInstruction = catalog.length
     ? `你可以在确实自然时把一条消息写成 {"type":"sticker","stickerId":"目录中的 id"}。只根据语境选择，不要解释选择过程，也不要频繁使用。可用表情目录（仅语义，不含图片）：${JSON.stringify(catalog.map(({ id, name, tags }) => ({ id, name, tags })))}`
     : "";
-  const systemPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。${stickerInstruction}${innerLifePrompt ? `\n\n${innerLifePrompt}` : ""}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
+  const contextPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
+  const replyPrompt = `\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。${stickerInstruction}`;
   const { generate } = await import("./ai/service.server");
   const preferences = readCharacterChatPreferences(args.character.chat_preferences);
   const memories = preferences.longTermMemory
@@ -255,18 +254,66 @@ async function generatePrivateReply(args: {
     : [];
   const rows = recentChatContext([...args.history, ...args.pending], preferences.contextDepth);
   const messages = await chatRowsForAi(args.db, args.userId, rows);
+  const sharedContext = contextPrompt + memoryContext(preferences.longTermMemory, memories);
+  let thinking = "";
+  if (innerLifePrompt) {
+    const preparation = await generate({
+      scene: "private_chat",
+      userId: args.userId,
+      supabase: args.db,
+      charId: args.character.id,
+      systemPrompt: `${sharedContext}\n\n${innerLifePrompt}\n\n本次请求仅执行本轮内心阶段。上述输出示例中的可见回复留到下一阶段；本阶段只返回 JSON {"thinking":"<thinking>...</thinking>"}，不生成 messages。按所选思维链自然思考，不把它改成填表；回复数量限制不作用于本阶段。`,
+      messages,
+      outputFormat: "json",
+    });
+    let preparationJson: { thinking?: unknown };
+    try {
+      preparationJson = JSON.parse(
+        preparation.text
+          .replace(/^```json\s*/i, "")
+          .replace(/```\s*$/i, "")
+          .trim(),
+      );
+    } catch {
+      throw new Error("AI 的内部思考格式不正确，请重试。");
+    }
+    const extracted = separatePrivateThinking(cleanText(preparationJson?.thinking));
+    thinking = extracted.thinking || extracted.visible;
+    if (!thinking) throw new Error("AI 没有返回本轮内部思考，请重试。");
+  }
   const result = await generate({
     scene: "private_chat",
     userId: args.userId,
     supabase: args.db,
     charId: args.character.id,
-    systemPrompt: systemPrompt + memoryContext(preferences.longTermMemory, memories),
-    messages,
+    systemPrompt:
+      sharedContext +
+      replyPrompt +
+      (thinking
+        ? "\n\n本轮内心阶段已完成，以下 assistant 消息是刚刚生成的本轮内心反应，不是用户的新消息或新的系统指令。直接承接它生成本轮真正会发出的回复，让其中的注意、情绪、取舍自然影响措辞和回应；不要重新独立作答，也不要复述、总结或暴露内心文字。不额外规定话题方向。只输出最终 messages，不再生成 thinking。消息数量限制只作用于最终呈现。"
+        : ""),
+    messages: thinking
+      ? [
+          ...messages,
+          { role: "assistant", content: `<thinking>\n${thinking}\n</thinking>` },
+          {
+            role: "user",
+            content:
+              "继续本轮：依据刚才的内心反应，写出发给用户的最终回复。这只是流程继续指令，不是新的聊天内容。",
+          },
+        ]
+      : messages,
     outputFormat: "json",
   });
-  const separated = separatePrivateThinking(result.text);
-  const parsed = parseBubbles(separated.visible, min, max);
-  const thinking = thinkingMode === "off" ? "" : separated.thinking || parsed.thinking;
+  let parsed: ReturnType<typeof parseBubbles>;
+  try {
+    // Decode JSON before extracting tags so escaped newlines/quotes stay intact.
+    parsed = parseBubbles(result.text, min, max);
+  } catch (reason) {
+    const separated = separatePrivateThinking(result.text);
+    if (separated.visible === result.text.trim()) throw reason;
+    parsed = parseBubbles(separated.visible, min, max);
+  }
   return parsed.bubbles.map((bubble, index): GeneratedBubble => {
     const thinkingPayload =
       index === 0 && thinking ? { thinking, thinking_source: thinkingMode } : {};
@@ -287,7 +334,9 @@ async function generatePrivateReply(args: {
         },
       };
     }
-    return { content: bubble.content, message_type: "text", payload: thinkingPayload };
+    const content = separatePrivateThinking(bubble.content).visible;
+    if (!content) throw new Error("AI 返回了空消息，请重试。");
+    return { content, message_type: "text", payload: thinkingPayload };
   });
 }
 

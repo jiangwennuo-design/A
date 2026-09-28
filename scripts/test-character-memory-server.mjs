@@ -67,6 +67,15 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
     ]),
   };
   const db = {
+    storage: {
+      from: () => ({
+        createSignedUrl: async () => ({
+          data: { signedUrl: "https://example.invalid/photo.png" },
+          error: null,
+        }),
+        download: async () => ({ data: null, error: new Error("use signed image") }),
+      }),
+    },
     from(table) {
       let filters = [],
         orders = [],
@@ -136,6 +145,7 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
   };
   let output = JSON.stringify({ messages: [{ type: "text", content: "收到" }] }),
     calls = [];
+  let preparedThinking = "嗯，先缓一下。\n他说的是“今天”，不是要我填表。";
   const context = vm.createContext({ console, crypto, URL, Date, TextEncoder, fetch });
   const cache = new Map();
   const synthetic = (key, exports) => {
@@ -175,6 +185,10 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
       return synthetic("model", {
         generate: async (request) => {
           calls.push(request);
+          if (request.systemPrompt.includes("本次请求仅执行本轮内心阶段"))
+            return {
+              text: JSON.stringify({ thinking: `<thinking>${preparedThinking}</thinking>` }),
+            };
           return { text: output };
         },
       });
@@ -240,4 +254,69 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
   await invoke("deleteCharacterMemory", { char_id: a, id: saved.id });
   assert.equal((await invoke("listCharacterMemories", { char_id: a })).length, 1);
   assert.equal((await invoke("listCharacterMemories", { char_id: b }))[0].content, "B独有记忆");
+  // Exercise the actual reply handler with both prompts and display disabled.
+  records.profiles[0].persona_text = "User Persona 必须保留";
+  records.ai_personas[0].minimum_messages = 2;
+  output = JSON.stringify({
+    messages: [
+      { type: "text", content: "<thinking>不能泄露</thinking>正文一" },
+      { type: "text", content: "正文二" },
+    ],
+  });
+  for (const mode of ["native", "nuojiji", "off"]) {
+    records.ai_personas[0].chat_thinking_mode = mode;
+    records.ai_personas[0].show_chat_thinking = false;
+    records.chat_messages = [
+      {
+        id: crypto.randomUUID(),
+        user_id: owner,
+        session_id: sa,
+        role: "user",
+        content: "看这张图片",
+        created_at: "2026-09-28T08:00:00Z",
+        message_type: "image",
+        payload: { image_path: `${owner}/messages/photo.png`, caption: "今天" },
+      },
+      {
+        id: crypto.randomUUID(),
+        user_id: owner,
+        session_id: sa,
+        role: "user",
+        content: "你觉得呢？",
+        created_at: "2026-09-28T08:01:00Z",
+        message_type: "text",
+        payload: {},
+      },
+    ];
+    calls.length = 0;
+    const result = await reply(a, sa);
+    assert.equal(calls.length, mode === "off" ? 1 : 2);
+    const final = calls.at(-1);
+    assert.equal(final.messages[0].content[1].type, "image");
+    assert.equal(final.messages[1].content, "你觉得呢？");
+    assert.match(final.systemPrompt, /User Persona 必须保留/);
+    assert.match(final.systemPrompt, /2 到 3 条/);
+    assert.equal(result.messages[0].content, "正文一");
+    assert.equal(result.messages[1].content, "正文二");
+    assert.equal(result.messages[1].payload.thinking, undefined);
+    if (mode !== "off") {
+      assert.equal(JSON.stringify(final.messages.slice(0, 2)), JSON.stringify(calls[0].messages));
+      assert.equal(final.messages[2].content, `<thinking>\n${preparedThinking}\n</thinking>`);
+      assert.equal(result.messages[0].payload.thinking, preparedThinking);
+      assert.equal(result.messages[0].payload.thinking_source, mode);
+      assert.match(
+        calls[0].systemPrompt,
+        mode === "native" ? /PRIVATE CHAT — INNER LIFE/ : /\[THINK\]/,
+      );
+      assert.doesNotMatch(
+        calls[0].systemPrompt,
+        mode === "native" ? /\[THINK\]/ : /PRIVATE CHAT — INNER LIFE/,
+      );
+      assert.doesNotMatch(final.systemPrompt, /PRIVATE CHAT — INNER LIFE|\[THINK\]/);
+    } else {
+      assert.equal(final.messages.length, 2);
+      assert.equal(result.messages[0].payload.thinking, undefined);
+      assert.doesNotMatch(final.systemPrompt, /PRIVATE CHAT — INNER LIFE|\[THINK\]/);
+    }
+  }
 });
