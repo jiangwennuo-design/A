@@ -4517,12 +4517,18 @@ textarea {
   min-width: 0;
   align-items: center;
   justify-self: start;
-  color: #087cf0;
+  color: #3a3a3c;
   font-size: 14px;
   line-height: 1;
 }
 .chat-header-back span {
   margin-left: -3px;
+}
+.chat-conversation__header .chat-icon-button {
+  color: #3a3a3c;
+}
+.chat-conversation__header .chat-icon-button:active {
+  background: #ececef;
 }
 .chat-conversation__contact {
   min-width: 0;
@@ -4810,7 +4816,7 @@ textarea {
 }
 .chat-composer__send {
   color: #fff;
-  background: #1682f5;
+  background: #3a3a3c;
 }
 .chat-composer__send:disabled {
   opacity: 0.32;
@@ -4821,11 +4827,58 @@ textarea {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: #1677e8;
-  background: #eaf4ff;
+  color: #515154;
+  background: #ececef;
 }
 .chat-composer__reply:disabled {
   opacity: 0.38;
+}
+
+.chat-remark-form {
+  display: grid;
+  gap: 12px;
+  color: #1c1c1e;
+}
+.chat-remark-form label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.chat-remark-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5e5ea;
+  border-radius: 12px;
+  background: #f7f7f9;
+  font-size: 16px;
+  outline-color: #8e8e93;
+}
+.chat-remark-form p {
+  color: #8e8e93;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.chat-remark-form > button {
+  min-height: 44px;
+  border-radius: 12px;
+  background: #3a3a3c;
+  color: #fff;
+  font-size: 15px;
+}
+.chat-remark-form > button:disabled {
+  opacity: 0.4;
+}
+.chat-remark-status {
+  max-width: 48%;
+  overflow: hidden;
+}
+.chat-remark-status > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-remark-status > svg {
+  flex-shrink: 0;
 }
 
 .chat-composer__reply.is-replying svg {

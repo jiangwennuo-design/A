@@ -35,6 +35,7 @@ import { StickerPicker } from "@/components/chat/StickerPicker";
 import { ImageViewer } from "@/components/chat/ImageViewer";
 import { VoiceCallScreen, type CallState } from "@/components/chat/VoiceCallScreen";
 import { ChatCharacterEditor } from "@/components/chat/ChatCharacterEditor";
+import { ChatRemarkSheet } from "@/components/chat/ChatRemarkSheet";
 import { SystemSheet } from "@/components/system-ui";
 import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { lastReadAt, markChatRead } from "@/lib/chat-read-state";
@@ -50,7 +51,7 @@ import type {
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import { messagePreview, normalizeChatMessage } from "@/lib/chat-message";
 import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
-import { readCharacterChatPreferences } from "@/lib/character-chat";
+import { characterChatName, readCharacterChatPreferences } from "@/lib/character-chat";
 import { bubbleStyles } from "@/lib/bubble-css";
 import { characterWallpaperUrl } from "@/lib/character-wallpaper";
 
@@ -234,7 +235,7 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
         <main className="chat-friends">
           {friends
             .filter(({ persona, lastMessage }) =>
-              `${persona.name} ${lastMessage?.content || ""}`
+              `${characterChatName(persona)} ${persona.name} ${lastMessage?.content || ""}`
                 .toLocaleLowerCase()
                 .includes(query.trim().toLocaleLowerCase()),
             )
@@ -245,10 +246,10 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
                 onClick={() => void openChat(persona)}
                 className="chat-friend"
               >
-                <FriendAvatar url={avatars[persona.id] ?? ""} label={persona.name} />
+                <FriendAvatar url={avatars[persona.id] ?? ""} label={characterChatName(persona)} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-semibold truncate">{persona.name}</h2>
+                    <h2 className="font-semibold truncate">{characterChatName(persona)}</h2>
                     <time className="shrink-0 text-[11px] text-[var(--color-text-secondary)]">
                       {formatChatTime(lastMessage?.created_at ?? session.updated_at)}
                     </time>
@@ -276,7 +277,7 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
       {friends.length > 0 &&
         query.trim() &&
         !friends.some(({ persona, lastMessage }) =>
-          `${persona.name} ${lastMessage?.content || ""}`
+          `${characterChatName(persona)} ${persona.name} ${lastMessage?.content || ""}`
             .toLocaleLowerCase()
             .includes(query.trim().toLocaleLowerCase()),
         ) && <p className="chat-search-empty">没有找到相关聊天</p>}
@@ -299,9 +300,9 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
                 onClick={() => void openChat(persona)}
                 className="w-full p-3 rounded-2xl flex items-center gap-3 text-left hover:bg-white disabled:opacity-50"
               >
-                <FriendAvatar url={avatars[persona.id] ?? ""} label={persona.name} />
+                <FriendAvatar url={avatars[persona.id] ?? ""} label={characterChatName(persona)} />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{persona.name}</p>
+                  <p className="font-medium truncate">{characterChatName(persona)}</p>
                   <p className="text-xs text-[var(--color-text-secondary)] truncate">
                     {adding === persona.id
                       ? "正在打开…"
@@ -379,6 +380,7 @@ function ConversationPage({
   const [callSpeaker, setCallSpeaker] = useState(false);
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
   const [characterEditOpen, setCharacterEditOpen] = useState(false);
+  const [remarkOpen, setRemarkOpen] = useState(false);
   const [messageMenu, setMessageMenu] = useState<{
     messageId: string;
     left: number;
@@ -857,7 +859,9 @@ function ConversationPage({
       !charId ||
       sending ||
       savingMessage ||
-      !confirm(`确定清空与${current?.name ?? "当前角色"}的全部聊天记录吗？此操作无法撤销。`)
+      !confirm(
+        `确定清空与${current ? characterChatName(current) : "当前角色"}的全部聊天记录吗？此操作无法撤销。`,
+      )
     )
       return;
     setSending(true);
@@ -915,7 +919,7 @@ function ConversationPage({
             {assistantAvatar ? (
               <img
                 src={assistantAvatar}
-                alt={current?.name ?? "角色"}
+                alt={characterChatName(current)}
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -923,7 +927,7 @@ function ConversationPage({
             )}
           </div>
           <div className="chat-conversation__identity">
-            <h1>{current.name}</h1>
+            <h1>{characterChatName(current)}</h1>
             {sending && <p>正在回复…</p>}
           </div>
         </div>
@@ -955,7 +959,7 @@ function ConversationPage({
         sending={sending}
         assistantAvatar={assistantAvatar}
         userAvatar={userAvatar}
-        assistantName={current.name}
+        assistantName={characterChatName(current)}
         userName={profile?.display_name || "我"}
         onOpenMessageMenu={openMessageMenu}
         onDismissMessageMenu={() => setMessageMenu(null)}
@@ -1061,7 +1065,7 @@ function ConversationPage({
       )}
       {callState !== "idle" && (
         <VoiceCallScreen
-          name={current.name}
+          name={characterChatName(current)}
           avatar={assistantAvatar}
           state={callState}
           startedAt={callStartedAt}
@@ -1084,9 +1088,24 @@ function ConversationPage({
             <span>
               {assistantAvatar ? <img src={assistantAvatar} alt="" /> : <UserRound size={24} />}
             </span>
-            <strong>{current.name}</strong>
+            <strong>{characterChatName(current)}</strong>
           </div>
           <div className="chat-settings-card">
+            <button
+              type="button"
+              onClick={() => {
+                setChatSettingsOpen(false);
+                setRemarkOpen(true);
+              }}
+              className="chat-settings-row"
+            >
+              <Pencil size={20} />
+              <span>聊天备注</span>
+              <span className="chat-settings-row__status chat-remark-status">
+                <span>{chatPreferences.remark || "未设置"}</span>
+                <ChevronRight size={17} />
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -1137,6 +1156,14 @@ function ConversationPage({
           </button>
         </SystemSheet>
       </div>
+      {remarkOpen && user && (
+        <ChatRemarkSheet
+          character={current}
+          userId={user.id}
+          onClose={() => setRemarkOpen(false)}
+          onSaved={setCurrent}
+        />
+      )}
       {characterEditOpen && user && (
         <ChatCharacterEditor
           character={current}

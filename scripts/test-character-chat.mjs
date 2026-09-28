@@ -2,12 +2,25 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   readCharacterChatPreferences,
+  characterChatName,
   recentChatContext,
   memoryContext,
   newMemoryContents,
 } from "../src/lib/character-chat.ts";
 import { safeBubbleDeclarations, bubbleStyles } from "../src/lib/bubble-css.ts";
 import { loadCharacterMemories, ownedMemoryCharacter } from "../src/lib/character-memory.server.ts";
+
+test("private chat remarks survive reload, stay character-specific and preserve original names", () => {
+  const a = { name: "角色甲", chat_preferences: { remark: "  小太阳  ", contextDepth: 7 } };
+  const b = { name: "角色乙", chat_preferences: { remark: "" } };
+  assert.equal(characterChatName(a), "小太阳");
+  assert.equal(characterChatName(JSON.parse(JSON.stringify(a))), "小太阳");
+  assert.equal(characterChatName(b), "角色乙");
+  assert.equal(characterChatName({ name: "旧角色" }), "旧角色");
+  assert.equal(characterChatName({ name: "角色甲", chat_preferences: { remark: "  " } }), "角色甲");
+  assert.equal(a.name, "角色甲");
+  assert.equal(readCharacterChatPreferences(a.chat_preferences).contextDepth, 7);
+});
 
 test("old characters default to 20; independent serialized preferences survive reload", () => {
   assert.equal(readCharacterChatPreferences(undefined).contextDepth, 20);

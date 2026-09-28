@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const characterChatSchema = z.object({
+  remark: z.string().trim().max(80).default(""),
   contextDepth: z.number().int().min(1).max(200).default(20),
   longTermMemory: z.boolean().default(false),
   userBubbleCss: z.string().max(4000).default(""),
@@ -12,6 +13,11 @@ export type CharacterChatPreferences = z.infer<typeof characterChatSchema>;
 export function readCharacterChatPreferences(value: unknown): CharacterChatPreferences {
   const result = characterChatSchema.safeParse(value ?? {});
   return result.success ? result.data : characterChatSchema.parse({});
+}
+
+/** A private chat label, never a replacement for the character's actual name in prompts. */
+export function characterChatName(character: { name: string; chat_preferences?: unknown }): string {
+  return readCharacterChatPreferences(character.chat_preferences).remark || character.name;
 }
 
 /** Count messages, not turns. Keep text and media attached to their original row. */
