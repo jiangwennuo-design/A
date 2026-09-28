@@ -23,6 +23,7 @@ import { Route as AuthenticatedPersonaRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedWallpaperRouteImport } from './routes/_authenticated/wallpaper'
+import { Route as AuthenticatedWorldBooksRouteImport } from './routes/_authenticated/world-books'
 import { Route as AuthenticatedDiaryIndexRouteImport } from './routes/_authenticated/diary.index'
 import { Route as AuthenticatedDiaryMeRouteImport } from './routes/_authenticated/diary.me'
 import { Route as AuthenticatedDiaryNewRouteImport } from './routes/_authenticated/diary.new'
@@ -99,6 +100,11 @@ const AuthenticatedWallpaperRoute = AuthenticatedWallpaperRouteImport.update({
   path: '/wallpaper',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWorldBooksRoute = AuthenticatedWorldBooksRouteImport.update({
+  id: '/world-books',
+  path: '/world-books',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDiaryIndexRoute = AuthenticatedDiaryIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wallpaper': typeof AuthenticatedWallpaperRoute
+  '/world-books': typeof AuthenticatedWorldBooksRoute
   '/diary/me': typeof AuthenticatedDiaryMeRoute
   '/diary/new': typeof AuthenticatedDiaryNewRoute
   '/diary/profile-edit': typeof AuthenticatedDiaryProfileEditRoute
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AuthenticatedProfileRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wallpaper': typeof AuthenticatedWallpaperRoute
+  '/world-books': typeof AuthenticatedWorldBooksRoute
   '/': typeof AuthenticatedIndexRoute
   '/diary/me': typeof AuthenticatedDiaryMeRoute
   '/diary/new': typeof AuthenticatedDiaryNewRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/wallpaper': typeof AuthenticatedWallpaperRoute
+  '/_authenticated/world-books': typeof AuthenticatedWorldBooksRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/diary/me': typeof AuthenticatedDiaryMeRoute
   '/_authenticated/diary/new': typeof AuthenticatedDiaryNewRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/wallpaper'
+    | '/world-books'
     | '/diary/me'
     | '/diary/new'
     | '/diary/profile-edit'
@@ -232,6 +242,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/wallpaper'
+    | '/world-books'
     | '/'
     | '/diary/me'
     | '/diary/new'
@@ -254,6 +265,7 @@ export interface FileRouteTypes {
     | '/_authenticated/profile'
     | '/_authenticated/settings'
     | '/_authenticated/wallpaper'
+    | '/_authenticated/world-books'
     | '/_authenticated/'
     | '/_authenticated/diary/me'
     | '/_authenticated/diary/new'
@@ -368,6 +380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWallpaperRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/world-books': {
+      id: '/_authenticated/world-books'
+      path: '/world-books'
+      fullPath: '/world-books'
+      preLoaderRoute: typeof AuthenticatedWorldBooksRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/diary/': {
       id: '/_authenticated/diary/'
       path: '/'
@@ -446,6 +465,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedWallpaperRoute: typeof AuthenticatedWallpaperRoute
+  AuthenticatedWorldBooksRoute: typeof AuthenticatedWorldBooksRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
@@ -461,6 +481,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedWallpaperRoute: AuthenticatedWallpaperRoute,
+  AuthenticatedWorldBooksRoute: AuthenticatedWorldBooksRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 

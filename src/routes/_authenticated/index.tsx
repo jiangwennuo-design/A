@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   BookHeart,
+  BookOpen,
   ContactRound,
   Image,
   Headphones,
@@ -110,6 +111,15 @@ function PhoneHomePage() {
             icon={UtensilsCrossed}
             tone="food"
             onClick={(event) => openApp("food", event, () => navigate({ to: "/food" }))}
+          />
+          <AppIcon
+            label="世界书"
+            subtitle="设定与规则"
+            icon={BookOpen}
+            tone="world"
+            onClick={(event) =>
+              openApp("world-books", event, () => navigate({ to: "/world-books" }))
+            }
           />
         </section>
 

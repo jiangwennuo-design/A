@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { useServerFn } from "@tanstack/react-start";
 import { Brain, ChevronRight, ImagePlus, Palette, Pencil, Plus, Trash2 } from "lucide-react";
 import { SystemSheet } from "@/components/system-ui";
+import { CharacterWorldBooks } from "./CharacterWorldBooks";
 import { bubbleStyles, safeBubbleDeclarations } from "@/lib/bubble-css";
 import type { CharacterChatPreferences, CharacterMemory } from "@/lib/character-chat";
 import {
@@ -365,6 +366,7 @@ export function CharacterChatExtras({
           </section>
         </div>
       </details>
+      <CharacterWorldBooks value={value} onChange={onChange} />
       {error && (
         <p className="character-extras__error" role="alert">
           {error}

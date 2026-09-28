@@ -711,6 +711,11 @@ textarea {
   background: linear-gradient(145deg, #f1d9bd, #d6a77e);
 }
 
+.phone-app__icon--world {
+  color: #ffffff;
+  background: #6c9ed9;
+}
+
 .phone-app__label {
   max-width: 100%;
   margin-top: var(--space-2);

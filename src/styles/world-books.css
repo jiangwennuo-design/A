@@ -1,0 +1,256 @@
+.world-books-app {
+  --world-blue: #007aff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: var(--keyboard-height, 100dvh);
+  min-height: 0;
+  overflow: hidden;
+  background: #f2f2f7;
+  color: #1c1c1e;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.world-books-app * {
+  box-sizing: border-box;
+}
+.world-books-app button {
+  color: var(--world-blue);
+  background: transparent;
+  border: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+.world-books-app button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.world-books-app .is-danger {
+  color: #ff3b30;
+}
+.world-books-app .is-blue {
+  color: var(--world-blue);
+}
+.world-books-app__header {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 56px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8ed;
+}
+.world-books-app__header h1 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+.world-books-app__header button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  padding: 8px;
+}
+.world-books-app__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-width: 760px;
+  align-self: center;
+}
+.world-books-app__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #e7e7ec;
+  color: #8e8e93;
+  border-radius: 12px;
+  padding: 6px 12px;
+}
+.world-books-app input:not([type="checkbox"]),
+.world-books-app textarea {
+  font: inherit;
+  font-size: 16px;
+  color: #1c1c1e;
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e9e9ee;
+  border-radius: 10px;
+  background: #fafafa;
+  outline-color: var(--world-blue);
+}
+.world-books-app__search input {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 6px !important;
+}
+.world-books-app__hint {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #8e8e93;
+  padding: 0 4px;
+  overflow-wrap: anywhere;
+}
+.world-books-app__group {
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  margin-top: 16px;
+}
+.world-books-app__book + .world-books-app__book,
+.world-books-app__entry + .world-books-app__entry {
+  border-top: 1px solid #eeeef2;
+}
+.world-books-app__open,
+.world-books-app__entry {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 12px;
+  width: 100%;
+  padding: 16px !important;
+}
+.world-books-app__open > span,
+.world-books-app__entry > span {
+  flex: 1;
+  min-width: 0;
+}
+.world-books-app__open strong,
+.world-books-app__entry strong {
+  display: block;
+  color: #1c1c1e;
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.world-books-app__open small,
+.world-books-app__entry small {
+  display: block;
+  color: #8e8e93;
+  font-size: 12px;
+  line-height: 1.65;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.world-books-app__open > svg,
+.world-books-app__entry > svg {
+  flex-shrink: 0;
+}
+.world-books-app__entry > svg:not(.is-blue) {
+  color: #b0b0b6;
+}
+.world-books-app__preview {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+.world-books-app__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 8px 6px;
+}
+.world-books-app__tools button {
+  font-size: 12px;
+}
+.world-books-app__empty {
+  text-align: center;
+  padding: 60px 16px;
+  color: #8e8e93;
+}
+.world-books-app__empty button,
+.world-books-app__more {
+  background: #fff !important;
+  border-radius: 12px;
+}
+.world-books-app__more {
+  width: 100%;
+  margin-top: 12px;
+}
+.world-books-app__fields {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+}
+.world-books-app__fields label,
+.world-books-app__dialog label {
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+  color: #3a3a3c;
+}
+.world-books-app textarea {
+  resize: vertical;
+  line-height: 1.7;
+}
+.world-books-app__fields .world-books-app__toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.world-books-app input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--world-blue);
+  flex-shrink: 0;
+}
+.world-books-app__advanced {
+  background: #fff;
+  border-radius: 18px;
+  margin-top: 16px;
+}
+.world-books-app__advanced summary {
+  padding: 18px;
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+  font-size: 15px;
+}
+.world-books-app__advanced summary::-webkit-details-marker {
+  display: none;
+}
+.world-books-app__advanced[open] summary > svg {
+  transform: rotate(90deg);
+}
+.world-books-app__error {
+  color: #c9342d;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.world-books-app__dialog {
+  display: grid;
+  gap: 16px;
+}
+.world-books-app__dialog > button {
+  background: #f0f5ff;
+  border-radius: 12px;
+}
+.world-books-app .system-modal {
+  background: #fff;
+  color: #1c1c1e;
+  border: 1px solid #eeeef2;
+  max-height: 85dvh;
+  overflow-y: auto;
+}
+.world-books-app .system-modal__header h2 {
+  color: #1c1c1e;
+}
+.world-books-app .system-icon-button {
+  color: #8e8e93;
+  background: #f2f2f7;
+}

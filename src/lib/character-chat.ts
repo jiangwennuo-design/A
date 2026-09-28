@@ -4,6 +4,7 @@ export const characterChatSchema = z.object({
   remark: z.string().trim().max(80).default(""),
   contextDepth: z.number().int().min(1).max(200).default(20),
   longTermMemory: z.boolean().default(false),
+  worldBookIds: z.array(z.string().uuid()).max(100).default([]),
   userBubbleCss: z.string().max(4000).default(""),
   charBubbleCss: z.string().max(4000).default(""),
   wallpaperPath: z.string().max(500).nullable().default(null),

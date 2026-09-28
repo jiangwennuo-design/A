@@ -41,6 +41,7 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
       { id: sb, user_id: owner, char_id: b },
     ],
     chat_stickers: [],
+    world_books: [],
     character_memories: [],
     chat_messages: Array.from({ length: 31 }, (_, i) => ({
       id: crypto.randomUUID(),
@@ -90,6 +91,12 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
         },
         in: (k, v) => {
           filters.push((r) => v.includes(r[k]));
+          return q;
+        },
+        contains: (k, v) => {
+          filters.push((r) =>
+            Object.entries(v).every(([key, ids]) => ids.every((id) => r[k]?.[key]?.includes(id))),
+          );
           return q;
         },
         order: (k, o = { ascending: true }) => {
@@ -255,6 +262,54 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
   assert.equal((await invoke("listCharacterMemories", { char_id: a })).length, 1);
   assert.equal((await invoke("listCharacterMemories", { char_id: b }))[0].content, "B独有记忆");
   // Exercise the actual reply handler with both prompts and display disabled.
+  const world = await load("./world-books.functions", resolve(root, "entry.ts"));
+  if (world.status === "unlinked") await world.link((s, r) => load(s, r.identifier));
+  await world.evaluate();
+  const worldData = await load("./world-books", resolve(root, "entry.ts"));
+  const worldInvoke = (name, data, userId = owner) =>
+    world.namespace[name]({ data, context: { supabase: db, userId } });
+  const draft = worldData.namespace.parseWorldBook(
+    JSON.stringify({
+      tavo_spec: "lorebook",
+      tavo_spec_version: 2,
+      entries: {
+        0: { uid: 0, content: "当前角色常驻规则", constant: true, future: { preserve: 1 } },
+        1: { uid: 1, content: "禁止注入的关闭规则", disable: true },
+      },
+    }),
+  );
+  const imported = await worldInvoke("importWorldBook", draft);
+  // Mock DB defaults normally supplied by PostgreSQL.
+  const storedBook = records.world_books.find((row) => row.id === imported.id);
+  storedBook.enabled = true;
+  storedBook.entry_count = storedBook.entries.length;
+  assert.equal((await worldInvoke("listWorldBooks"))[0].id, imported.id);
+  await assert.rejects(() => worldInvoke("getWorldBook", { id: imported.id }, b));
+  await worldInvoke("updateWorldBook", { id: imported.id, name: "已改名世界书" });
+  const beforeEdit = await worldInvoke("getWorldBook", { id: imported.id });
+  await worldInvoke("saveWorldEntry", {
+    id: imported.id,
+    index: 0,
+    updated_at: beforeEdit.updated_at,
+    entry: { ...beforeEdit.entries[0], name: "规则", content: "当前角色常驻规则已编辑" },
+  });
+  assert.equal(storedBook.entries[0].raw.future.preserve, 1);
+  assert.equal(storedBook.entries[0].raw.content, "当前角色常驻规则已编辑");
+  await assert.rejects(() =>
+    worldInvoke("saveWorldEntry", {
+      id: imported.id,
+      index: 0,
+      updated_at: "stale",
+      entry: beforeEdit.entries[0],
+    }),
+  );
+  records.ai_personas[0].chat_preferences.worldBookIds = [imported.id];
+  assert.equal((await worldInvoke("worldBookBindings", { id: imported.id }))[0].id, a);
+  await assert.rejects(() => worldInvoke("deleteWorldBook", { id: imported.id }));
+  calls.length = 0;
+  output = JSON.stringify({ messages: [{ type: "text", content: "收到" }] });
+  await reply(b, sb);
+  assert.doesNotMatch(calls.at(-1).systemPrompt, /当前角色常驻规则/);
   records.profiles[0].persona_text = "User Persona 必须保留";
   records.ai_personas[0].minimum_messages = 2;
   output = JSON.stringify({
@@ -292,6 +347,10 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
     const result = await reply(a, sa);
     assert.equal(calls.length, mode === "off" ? 1 : 2);
     const final = calls.at(-1);
+    for (const call of calls) {
+      assert.match(call.systemPrompt, /当前角色常驻规则已编辑/);
+      assert.doesNotMatch(call.systemPrompt, /禁止注入的关闭规则/);
+    }
     assert.equal(final.messages[0].content[1].type, "image");
     assert.equal(final.messages[1].content, "你觉得呢？");
     assert.match(final.systemPrompt, /User Persona 必须保留/);
@@ -319,4 +378,10 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
       assert.doesNotMatch(final.systemPrompt, /PRIVATE CHAT — INNER LIFE|\[THINK\]/);
     }
   }
+  await worldInvoke("updateWorldBook", { id: imported.id, enabled: false });
+  calls.length = 0;
+  await reply(a, sa);
+  assert.doesNotMatch(calls.at(-1).systemPrompt, /当前角色常驻规则/);
+  await worldInvoke("deleteWorldBook", { id: imported.id, confirmedBindings: true });
+  assert.equal(records.world_books.length, 0);
 });

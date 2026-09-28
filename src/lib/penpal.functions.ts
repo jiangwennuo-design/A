@@ -6,6 +6,7 @@ import type { AiMessage } from "./ai/multimodal";
 import { IMAGE_UNAVAILABLE } from "./ai/multimodal";
 import type { ChatThinkingMode } from "./ai/inner-life.server";
 import { memoryContext, readCharacterChatPreferences, recentChatContext } from "./character-chat";
+import { buildPromptContext } from "./world-books";
 
 const uuid = z.string().uuid();
 const queuedMessageInput = z.object({
@@ -254,7 +255,10 @@ async function generatePrivateReply(args: {
     : [];
   const rows = recentChatContext([...args.history, ...args.pending], preferences.contextDepth);
   const messages = await chatRowsForAi(args.db, args.userId, rows);
-  const sharedContext = contextPrompt + memoryContext(preferences.longTermMemory, memories);
+  const { loadBoundWorldBooks } = await import("./world-books.server");
+  const books = await loadBoundWorldBooks(args.db, args.userId, preferences.worldBookIds);
+  const sharedContext =
+    contextPrompt + buildPromptContext(books) + memoryContext(preferences.longTermMemory, memories);
   let thinking = "";
   if (innerLifePrompt) {
     const preparation = await generate({
