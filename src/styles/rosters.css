@@ -1,0 +1,295 @@
+/* Only the User and character rosters. Shared in-chat editors are unaffected. */
+main.roster-scope {
+  --color-primary: #4a9eff;
+  --color-text: #1c1c1e;
+  --color-text-secondary: #8e8e93;
+  --color-border: #e9ebef;
+  background: #f7f8fa;
+  color: #1c1c1e;
+  overflow-x: hidden;
+  padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right));
+  scroll-padding-block: 76px 32px;
+}
+main.roster-scope > .contacts-header {
+  position: sticky;
+  top: env(safe-area-inset-top);
+  z-index: 3;
+  margin-bottom: 14px;
+  min-height: 52px;
+  background: #f7f8fa;
+}
+.roster-scope .contacts-header button {
+  min-height: 44px;
+}
+.roster-scope .contacts-title-row h1 {
+  font-size: 26px;
+}
+.roster-scope .contacts-add {
+  background: #eaf3ff;
+}
+.roster-scope .contacts-search {
+  background: #fff;
+  border: 1px solid #e9ebef;
+  color: #8e8e93;
+}
+.roster-scope .contacts-list,
+.roster-scope .roster-menu,
+.roster-scope .user-profile-info,
+.roster-scope .contact-details {
+  max-width: 580px;
+  margin: 0 auto 16px;
+  background: #fff;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.roster-scope .contact-row {
+  padding: 14px;
+  gap: 12px;
+}
+.roster-scope .contact-row::after {
+  left: 78px;
+  right: 16px;
+  background: #e9ebef;
+}
+.roster-scope .contact-row__copy strong {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.roster-scope :is(.contact-profile__hero h1, .user-profile-hero h1) {
+  max-width: 100%;
+  padding-inline: 16px;
+  overflow-wrap: anywhere;
+}
+.roster-scope .contact-row:last-child::after {
+  display: none;
+}
+.roster-scope .contact-avatar {
+  background: #eaf3ff;
+  color: #4a9eff;
+}
+.roster-scope .contact-avatar.is-large,
+.roster-scope .user-profile-hero > :is(img, span) {
+  box-shadow: 0 2px 8px rgb(0 0 0 / 4%);
+}
+.roster-scope .user-profile-hero > span {
+  background: #eaf3ff;
+  color: #4a9eff;
+}
+.roster-scope .contact-profile__hero,
+.roster-scope .user-profile-hero {
+  padding: 18px 0 24px;
+}
+.roster-scope .user-profile-hero p {
+  max-width: 100%;
+  padding-inline: 16px;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.roster-scope .roster-username {
+  color: #8e8e93;
+  font-size: 13px;
+}
+.roster-scope .contact-message-button {
+  max-width: 580px;
+  margin-bottom: 18px;
+  background: #4a9eff;
+}
+.roster-scope .user-profile-info > div,
+.roster-scope .contact-details > div {
+  padding: 16px;
+  border-bottom: 1px solid #e9ebef;
+}
+.roster-scope .user-profile-info > div:last-child,
+.roster-scope .contact-details > div:last-child {
+  border-bottom: 0;
+}
+.roster-scope .user-profile-info p {
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.roster-scope .roster-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 62px;
+  padding: 15px 16px;
+  text-align: left;
+  background: #fff;
+  border-bottom: 1px solid #e9ebef;
+  color: #1c1c1e;
+}
+.roster-scope .roster-menu-row:last-child {
+  border-bottom: 0;
+}
+.roster-scope .roster-menu-row > svg {
+  flex-shrink: 0;
+  color: #8e8e93;
+}
+.roster-scope .roster-menu-row > span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+.roster-scope .roster-menu-row small {
+  display: block;
+  margin-top: 5px;
+  color: #8e8e93;
+  font-size: 12px;
+}
+.roster-scope .roster-card,
+.roster-scope .contact-editor__field,
+.roster-scope .contact-editor__group,
+.roster-scope .roster-disclosure,
+.roster-scope .character-extras__section {
+  min-width: 0;
+  padding: 16px;
+  margin: 14px 0;
+  background: #fff;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  box-shadow: none;
+}
+.roster-scope .contact-editor {
+  max-width: 580px;
+}
+.roster-scope .contact-editor section.mb-5 > .flex {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.roster-scope .contact-editor section.mb-5 > .flex > .flex-1 {
+  min-width: 0;
+  flex-basis: 100%;
+}
+.roster-scope .contact-editor > section:first-child:not(.contact-editor__group) {
+  padding: 16px;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  background: #fff;
+}
+.roster-scope .contact-editor :is(input, textarea, select) {
+  min-width: 0;
+  max-width: 100%;
+  color: #1c1c1e;
+  background: #fff;
+  border-color: #e9ebef;
+  font-size: 16px;
+  scroll-margin-block: 84px;
+}
+.roster-scope .contact-editor textarea {
+  min-height: 108px;
+  max-height: 240px;
+  overflow: auto;
+}
+.roster-scope .contact-editor :is(input, textarea, select):focus {
+  border-color: #4a9eff;
+}
+.roster-scope .roster-disclosure summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.roster-scope .roster-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.roster-scope .roster-disclosure[open] > summary {
+  margin-bottom: 14px;
+}
+.roster-scope .roster-disclosure[open] > summary :is(svg, span) {
+  transform: rotate(90deg);
+}
+.roster-scope .roster-disclosure .contact-editor__field {
+  padding: 0;
+  margin: 16px 0;
+  border: 0;
+  border-radius: 0;
+}
+.roster-scope .contact-editor__pair {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.roster-scope .contact-editor__pair .contact-editor__field {
+  padding: 0;
+  border: 0;
+}
+.roster-scope .btn-primary {
+  min-height: 46px;
+  border-radius: 16px;
+  background: #4a9eff;
+  color: #fff;
+  box-shadow: none;
+}
+.roster-scope .btn-secondary {
+  background: #fff;
+  border-color: #e9ebef;
+  color: #4a9eff;
+}
+.roster-scope .roster-link,
+.roster-scope .roster-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  color: #4a9eff;
+  font-size: 14px;
+}
+.roster-scope .roster-full-text {
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.roster-scope .roster-full-text h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.roster-scope .roster-full-text > p {
+  margin-top: 14px;
+  line-height: 1.7;
+}
+.roster-scope .roster-full-text > div {
+  padding-inline: 0;
+}
+.roster-scope .roster-identity__preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px;
+}
+.roster-scope :is(.roster-identity__preview p, .roster-hint, .contact-editor__field small) {
+  font-size: 12px;
+  color: #8e8e93;
+}
+.roster-scope .roster-identity fieldset {
+  min-width: 0;
+}
+.roster-scope .character-extras__section summary {
+  min-width: 0;
+}
+.roster-scope .chat-nav {
+  background: #fff;
+}
+.roster-scope .chat-nav__item.is-active {
+  color: #4a9eff;
+}
+@media (min-width: 640px) {
+  main.roster-scope {
+    padding-inline: max(24px, calc((100% - 620px) / 2));
+  }
+}

@@ -3,12 +3,45 @@ import { test } from "node:test";
 import {
   readCharacterChatPreferences,
   characterChatName,
+  characterUserIdentity,
   recentChatContext,
   memoryContext,
   newMemoryContents,
 } from "../src/lib/character-chat.ts";
 import { safeBubbleDeclarations, bubbleStyles } from "../src/lib/bubble-css.ts";
 import { loadCharacterMemories, ownedMemoryCharacter } from "../src/lib/character-memory.server.ts";
+
+test("per-character User identity is display-only, independent, persistent and restores global fallback", () => {
+  const global = { avatar_url: "u/avatars/global.webp", display_name: "全局昵称" };
+  const a = { userAvatarOverride: "u/avatars/a.webp", userNicknameOverride: "甲的昵称" };
+  const b = { userAvatarOverride: "u/avatars/b.webp", userNicknameOverride: "乙的昵称" };
+  assert.deepEqual(characterUserIdentity(JSON.parse(JSON.stringify(a)), global), {
+    avatar: a.userAvatarOverride,
+    nickname: a.userNicknameOverride,
+  });
+  assert.deepEqual(characterUserIdentity(b, global), {
+    avatar: b.userAvatarOverride,
+    nickname: b.userNicknameOverride,
+  });
+  assert.deepEqual(characterUserIdentity({}, global), {
+    avatar: global.avatar_url,
+    nickname: global.display_name,
+  });
+  assert.deepEqual(
+    characterUserIdentity({ ...a, userAvatarOverride: "", userNicknameOverride: "" }, global),
+    { avatar: global.avatar_url, nickname: global.display_name },
+  );
+  assert.equal(
+    characterUserIdentity({ userNicknameOverride: "专属名" }, global).avatar,
+    global.avatar_url,
+  );
+  assert.equal(
+    characterUserIdentity({ userAvatarOverride: a.userAvatarOverride }, global).nickname,
+    global.display_name,
+  );
+  assert.deepEqual(characterUserIdentity({}, null), { avatar: "", nickname: "我" });
+  assert.deepEqual(global, { avatar_url: "u/avatars/global.webp", display_name: "全局昵称" });
+});
 
 test("private chat remarks survive reload, stay character-specific and preserve original names", () => {
   const a = { name: "角色甲", chat_preferences: { remark: "  小太阳  ", contextDepth: 7 } };

@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const characterChatSchema = z.object({
   remark: z.string().trim().max(80).default(""),
+  userAvatarOverride: z.string().trim().max(2000).default(""),
+  userNicknameOverride: z.string().trim().max(80).default(""),
   contextDepth: z.number().int().min(1).max(200).default(20),
   longTermMemory: z.boolean().default(false),
   worldBookIds: z.array(z.string().uuid()).max(100).default([]),
@@ -19,6 +21,18 @@ export function readCharacterChatPreferences(value: unknown): CharacterChatPrefe
 /** A private chat label, never a replacement for the character's actual name in prompts. */
 export function characterChatName(character: { name: string; chat_preferences?: unknown }): string {
   return readCharacterChatPreferences(character.chat_preferences).remark || character.name;
+}
+
+/** Display-only identity: never mutates the global profile or the AI prompt. */
+export function characterUserIdentity(
+  preferences: unknown,
+  profile: { avatar_url?: string | null; display_name?: string | null } | null,
+) {
+  const value = readCharacterChatPreferences(preferences);
+  return {
+    avatar: value.userAvatarOverride || profile?.avatar_url || "",
+    nickname: value.userNicknameOverride || profile?.display_name?.trim() || "我",
+  };
 }
 
 /** Count messages, not turns. Keep text and media attached to their original row. */

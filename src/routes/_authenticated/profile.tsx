@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Pencil, Upload } from "lucide-react";
+import { ArrowLeft, ChevronRight, Pencil, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { ErrorBanner, LoadingSpinner } from "@/components/ui-kit";
@@ -9,6 +9,8 @@ import { importPersonaFile } from "@/lib/persona-file";
 import { ChatNav } from "@/components/ChatNav";
 import { popSystemPage } from "@/lib/app-transition";
 import { resolveAvatarUrl } from "@/lib/avatar";
+import { readUserRoster } from "@/lib/user-roster";
+import "@/styles/rosters.css";
 
 export const Route = createFileRoute("/_authenticated/profile")({ component: ProfilePage });
 interface ProfileForm {
@@ -17,6 +19,8 @@ interface ProfileForm {
   gender: string;
   persona_text: string;
   signature: string;
+  username: string;
+  bio: string;
 }
 
 function ProfilePage() {
@@ -29,6 +33,7 @@ function ProfilePage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [personaView, setPersonaView] = useState(false);
   useEffect(() => {
     if (profile)
       setForm({
@@ -37,8 +42,9 @@ function ProfilePage() {
         gender: profile.gender ?? "",
         persona_text: profile.persona_text ?? "",
         signature: profile.signature ?? "",
+        ...readUserRoster(user?.user_metadata, user?.id ?? ""),
       });
-  }, [profile]);
+  }, [profile, user?.id, user?.user_metadata]);
   useEffect(() => {
     let alive = true;
     void resolveAvatarUrl(profile?.avatar_url).then((url) => {
@@ -62,10 +68,11 @@ function ProfilePage() {
     setSaving(true);
     setError("");
     try {
+      const { username, bio, ...profileFields } = current;
       const { error: saveError } = await supabase
         .from("profiles")
         .update({
-          ...current,
+          ...profileFields,
           display_name: current.display_name.trim(),
           avatar_url: current.avatar_url || null,
           gender: current.gender || null,
@@ -74,8 +81,20 @@ function ProfilePage() {
         .select("id")
         .single();
       if (saveError) return setError("保存失败，请稍后重试。");
+      const previousMetadata = user.user_metadata?.["chat_profile"];
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          chat_profile: {
+            ...(previousMetadata && typeof previousMetadata === "object" ? previousMetadata : {}),
+            username: username.trim().replace(/^@/, ""),
+            bio,
+          },
+        },
+      });
+      if (metadataError) return setError("基础资料已保存，用户名/简介保存失败，请重试。");
       await refreshProfile();
       setEditing(false);
+      setPersonaView(false);
     } catch {
       setError("保存失败，请稍后重试。");
     } finally {
@@ -90,15 +109,23 @@ function ProfilePage() {
       setError(reason instanceof Error ? reason.message : "文件读取失败。");
     }
   }
-  const back = () =>
-    editing ? setEditing(false) : void popSystemPage(() => navigate({ to: "/chat", search: {} }));
+  const back = () => {
+    if (saving) return;
+    if (editing) {
+      setAvatarBusy(false);
+      return setEditing(false);
+    }
+    if (personaView) return setPersonaView(false);
+    void popSystemPage(() => navigate({ to: "/chat", search: {} }));
+  };
+  const roster = readUserRoster(user?.user_metadata, user?.id ?? "");
   return (
-    <main className="user-profile-page">
+    <main className="user-profile-page roster-scope">
       <header className="contacts-header">
         <button type="button" aria-label="返回" onClick={back}>
           <ArrowLeft size={21} />
         </button>
-        <span>{editing ? "编辑资料" : "我的资料"}</span>
+        <span>{editing ? "编辑资料" : personaView ? "用户人设" : "我的资料"}</span>
         {editing ? (
           <button
             key="save-profile"
@@ -121,7 +148,15 @@ function ProfilePage() {
         )}
       </header>
       {error && <ErrorBanner message={error} />}
-      {!editing ? (
+      {!editing && personaView ? (
+        <section className="roster-card roster-full-text">
+          <h2>用户人设</h2>
+          <p>{profile?.persona_text || "未填写"}</p>
+          <button type="button" className="roster-link" onClick={() => setEditing(true)}>
+            编辑人设
+          </button>
+        </section>
+      ) : !editing ? (
         <section className="user-profile-view fade-in">
           <div className="user-profile-hero">
             {avatar ? (
@@ -130,7 +165,8 @@ function ProfilePage() {
               <span>{(profile?.display_name || "我").charAt(0)}</span>
             )}
             <h1>{profile?.display_name || "我"}</h1>
-            <p>{profile?.signature || user?.email || "还没有填写简介"}</p>
+            <p className="roster-username">@{roster.username}</p>
+            <p>{profile?.signature || "还没有填写个性签名"}</p>
           </div>
           <div className="user-profile-info">
             <div>
@@ -138,7 +174,7 @@ function ProfilePage() {
               <p>{profile?.display_name || "未填写"}</p>
             </div>
             <div>
-              <small>简介</small>
+              <small>个性签名</small>
               <p>{profile?.signature || "未填写"}</p>
             </div>
             <div>
@@ -154,9 +190,13 @@ function ProfilePage() {
               </p>
             </div>
             <div>
-              <small>Persona / 用户设定</small>
-              <p>{profile?.persona_text || "未填写"}</p>
+              <small>简介</small>
+              <p>{roster.bio || "未填写"}</p>
             </div>
+            <button type="button" className="roster-menu-row" onClick={() => setPersonaView(true)}>
+              <span>用户人设</span>
+              <ChevronRight size={18} />
+            </button>
           </div>
           <button type="button" className="contact-message-button" onClick={() => setEditing(true)}>
             <Pencil size={18} /> 编辑资料
@@ -183,10 +223,21 @@ function ProfilePage() {
             onChange={(value) => setForm({ ...current, display_name: value })}
           />
           <ProfileField
-            label="简介"
+            label="用户名"
+            value={current.username}
+            onChange={(value) => setForm({ ...current, username: value })}
+          />
+          <ProfileField
+            label="个性签名"
             value={current.signature}
             multiline
             onChange={(value) => setForm({ ...current, signature: value })}
+          />
+          <ProfileField
+            label="简介"
+            value={current.bio}
+            multiline
+            onChange={(value) => setForm({ ...current, bio: value })}
           />
           <label className="contact-editor__field">
             <span>性别</span>
@@ -200,26 +251,31 @@ function ProfilePage() {
               <option value="non_binary">非二元</option>
             </select>
           </label>
-          <ProfileField
-            label="Persona / 用户设定"
-            value={current.persona_text}
-            multiline
-            onChange={(value) => setForm({ ...current, persona_text: value })}
-          />
-          <input
-            ref={fileInput}
-            hidden
-            type="file"
-            accept=".txt,.docx"
-            onChange={(event) => void importText(event.target.files?.[0])}
-          />
-          <button
-            type="button"
-            className="contact-import"
-            onClick={() => fileInput.current?.click()}
-          >
-            <Upload size={15} /> 导入 TXT 或 DOCX
-          </button>
+          <details className="roster-disclosure">
+            <summary>
+              用户人设 <ChevronRight size={16} />
+            </summary>
+            <ProfileField
+              label="用户人设 / Persona"
+              value={current.persona_text}
+              multiline
+              onChange={(value) => setForm({ ...current, persona_text: value })}
+            />
+            <input
+              ref={fileInput}
+              hidden
+              type="file"
+              accept=".txt,.docx"
+              onChange={(event) => void importText(event.target.files?.[0])}
+            />
+            <button
+              type="button"
+              className="contact-import"
+              onClick={() => fileInput.current?.click()}
+            >
+              <Upload size={15} /> 导入 TXT 或 DOCX
+            </button>
+          </details>
           <button type="submit" className="btn-primary w-full" disabled={saving || avatarBusy}>
             {saving ? "保存中…" : "保存资料"}
           </button>

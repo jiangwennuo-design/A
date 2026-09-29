@@ -51,7 +51,11 @@ import type {
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import { messagePreview, normalizeChatMessage } from "@/lib/chat-message";
 import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
-import { characterChatName, readCharacterChatPreferences } from "@/lib/character-chat";
+import {
+  characterChatName,
+  characterUserIdentity,
+  readCharacterChatPreferences,
+} from "@/lib/character-chat";
 import { bubbleStyles } from "@/lib/bubble-css";
 import { characterWallpaperUrl } from "@/lib/character-wallpaper";
 import { retainWallpaperUrl } from "@/lib/wallpaper-media";
@@ -355,6 +359,7 @@ function ConversationPage({
     [current?.chat_preferences],
   );
   const { wallpaperPath, wallpaperUrl } = chatPreferences;
+  const userIdentity = characterUserIdentity(current?.chat_preferences, profile);
   useEffect(() => {
     let active = true;
     setChatWallpaper("");
@@ -510,13 +515,14 @@ function ConversationPage({
   }, [current?.avatar_url]);
   useEffect(() => {
     let active = true;
-    void resolveAvatarUrl(profile?.avatar_url).then((url) => {
+    setUserAvatar("");
+    void resolveAvatarUrl(userIdentity.avatar).then((url) => {
       if (active) setUserAvatar(url);
     });
     return () => {
       active = false;
     };
-  }, [profile?.avatar_url]);
+  }, [userIdentity.avatar]);
 
   async function revealAssistantMessages(nextMessages: ChatMessage[], insertionIndex?: number) {
     const ordered = [...nextMessages]
@@ -962,7 +968,7 @@ function ConversationPage({
         assistantAvatar={assistantAvatar}
         userAvatar={userAvatar}
         assistantName={characterChatName(current)}
-        userName={profile?.display_name || "我"}
+        userName={userIdentity.nickname}
         onOpenMessageMenu={openMessageMenu}
         onDismissMessageMenu={() => setMessageMenu(null)}
         onOpenImage={(url, alt) => setImageViewer({ url, alt })}

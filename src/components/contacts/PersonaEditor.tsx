@@ -57,6 +57,18 @@ export function PersonaEditor({
   const fileInput = useRef<HTMLInputElement>(null);
   const set = (key: keyof PersonaDraft, value: string | number) =>
     onChange((current) => ({ ...current, [key]: value }));
+  const fold = (title: string, children: ReactNode) =>
+    presentation === "chat" ? (
+      children
+    ) : (
+      <details className="roster-disclosure">
+        <summary>
+          {title}
+          <span aria-hidden="true">›</span>
+        </summary>
+        {children}
+      </details>
+    );
   async function importFile(file?: File) {
     if (!file) return;
     try {
@@ -93,23 +105,32 @@ export function PersonaEditor({
         count={presentation === "chat"}
         onChange={(value) => set("name", value)}
       />
-      <EditorField
-        label="人设描述"
-        value={form.description}
-        multiline
-        count={presentation === "chat"}
-        onChange={(value) => set("description", value)}
-      />
-      <input
-        ref={fileInput}
-        type="file"
-        accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        hidden
-        onChange={(event) => void importFile(event.target.files?.[0])}
-      />
-      <button type="button" className="contact-import" onClick={() => fileInput.current?.click()}>
-        <Upload size={15} /> 导入 TXT 或 DOCX 人设
-      </button>
+      {fold(
+        "详细人设",
+        <>
+          <EditorField
+            label="人设描述"
+            value={form.description}
+            multiline
+            count={presentation === "chat"}
+            onChange={(value) => set("description", value)}
+          />
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            hidden
+            onChange={(event) => void importFile(event.target.files?.[0])}
+          />
+          <button
+            type="button"
+            className="contact-import"
+            onClick={() => fileInput.current?.click()}
+          >
+            <Upload size={15} /> 导入 TXT 或 DOCX 人设
+          </button>
+        </>,
+      )}
       <label className="contact-editor__field">
         <span>性别</span>
         <select value={form.gender} onChange={(event) => set("gender", event.target.value)}>
@@ -119,26 +140,31 @@ export function PersonaEditor({
           <option value="non_binary">非二元</option>
         </select>
       </label>
-      {(
-        [
-          ["personality", "性格"],
-          ["speaking_style", "说话方式"],
-          ["interests", "喜欢"],
-          ["dislikes", "不喜欢"],
-          ["relationship", "与你的关系"],
-          ["background", "背景"],
-          ["additional_prompt", "补充设定"],
-        ] as Array<[keyof PersonaDraft, string]>
-      ).map(([key, label]) => (
-        <EditorField
-          key={key}
-          label={label}
-          value={String(form[key])}
-          multiline
-          count={presentation === "chat"}
-          onChange={(value) => set(key, value)}
-        />
-      ))}
+      {fold(
+        "性格、背景与补充设定",
+        <>
+          {(
+            [
+              ["personality", "性格"],
+              ["speaking_style", "说话方式"],
+              ["interests", "喜欢"],
+              ["dislikes", "不喜欢"],
+              ["relationship", "与你的关系"],
+              ["background", "背景"],
+              ["additional_prompt", "补充设定"],
+            ] as Array<[keyof PersonaDraft, string]>
+          ).map(([key, label]) => (
+            <EditorField
+              key={key}
+              label={label}
+              value={String(form[key])}
+              multiline
+              count={presentation === "chat"}
+              onChange={(value) => set(key, value)}
+            />
+          ))}
+        </>,
+      )}
       <section className="contact-editor__group">
         <h2>限制回复句子数</h2>
         <p>限制角色每次回复的句子数量。</p>

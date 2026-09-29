@@ -4,6 +4,7 @@ import { test } from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import * as jsx from "react/jsx-runtime";
+import { readUserRoster } from "../src/lib/user-roster.ts";
 
 const draft = {
   display_name: " 新昵称 ",
@@ -11,6 +12,8 @@ const draft = {
   signature: "新的个性签名",
   gender: "non_binary",
   persona_text: "新的 User Persona",
+  username: "new_user",
+  bio: "简介不是个性签名，也不是人设",
 };
 
 async function editor({ resultError = null, throws = false, avatarBusy = false } = {}) {
@@ -19,7 +22,11 @@ async function editor({ resultError = null, throws = false, avatarBusy = false }
   let writes = 0;
   let record = { id: "owner", email: "unchanged@example.invalid", ...draft };
   let profile = { ...record };
-  const states = [{ ...draft }, "", true, "", false, avatarBusy];
+  let metadata = {
+    diary_profile: { displayName: "日记身份" },
+    chat_profile: { username: draft.username, bio: draft.bio, retained: true },
+  };
+  const states = [{ ...draft }, "", true, "", false, avatarBusy, false];
   const effects = [];
   const dependencies = {
     "react/jsx-runtime": jsx,
@@ -41,10 +48,15 @@ async function editor({ resultError = null, throws = false, avatarBusy = false }
       createFileRoute: () => (options) => options,
       useNavigate: () => () => {},
     },
-    "lucide-react": { ArrowLeft: () => null, Pencil: () => null, Upload: () => null },
+    "lucide-react": {
+      ArrowLeft: () => null,
+      ChevronRight: () => null,
+      Pencil: () => null,
+      Upload: () => null,
+    },
     "@/context/AuthContext": {
       useAuth: () => ({
-        user: { id: "owner" },
+        user: { id: "owner", user_metadata: metadata },
         profile,
         refreshProfile: async () => {
           refreshes++;
@@ -54,6 +66,12 @@ async function editor({ resultError = null, throws = false, avatarBusy = false }
     },
     "@/integrations/supabase/client": {
       supabase: {
+        auth: {
+          updateUser: async ({ data }) => {
+            metadata = { ...metadata, ...data };
+            return { error: null };
+          },
+        },
         from: (table) => {
           assert.equal(table, "profiles");
           return {
@@ -66,6 +84,8 @@ async function editor({ resultError = null, throws = false, avatarBusy = false }
                     assert.equal(columns, "id");
                     return {
                       single: async () => {
+                        assert.ok(!("username" in payload));
+                        assert.ok(!("bio" in payload));
                         writes++;
                         if (throws) throw new Error("network");
                         if (resultError) return { error: resultError };
@@ -87,6 +107,8 @@ async function editor({ resultError = null, throws = false, avatarBusy = false }
     "@/components/ChatNav": { ChatNav: () => null },
     "@/lib/app-transition": { popSystemPage: (callback) => callback() },
     "@/lib/avatar": { resolveAvatarUrl: async (value) => value },
+    "@/lib/user-roster": { readUserRoster },
+    "@/styles/rosters.css": {},
   };
   const source = await readFile(
     new URL("../src/routes/_authenticated/profile.tsx", import.meta.url),
@@ -142,19 +164,26 @@ async function editor({ resultError = null, throws = false, avatarBusy = false }
     save: () => form.props.onSubmit({ preventDefault() {} }),
     record: () => record,
     profile: () => profile,
+    metadata: () => metadata,
     refreshes: () => refreshes,
     writes: () => writes,
   };
 }
 
-test("both save entries use the existing profile form; all five fields persist and survive remount", async () => {
+test("both save entries persist separate signature/bio/Persona and username, surviving remount", async () => {
   const page = await editor();
   await page.save();
   for (const [key, value] of Object.entries(draft)) {
+    if (key === "username" || key === "bio") {
+      assert.equal(page.metadata().chat_profile[key], value);
+      continue;
+    }
     assert.equal(page.record()[key], key === "display_name" ? value.trim() : value);
     assert.equal(page.profile()[key], page.record()[key]);
   }
   assert.equal(page.record().email, "unchanged@example.invalid");
+  assert.equal(page.metadata().chat_profile.retained, true);
+  assert.equal(page.metadata().diary_profile.displayName, "日记身份");
   assert.equal(page.refreshes(), 1);
   assert.equal(page.states[2], false);
   assert.equal(page.states[4], false);
@@ -162,7 +191,11 @@ test("both save entries use the existing profile form; all five fields persist a
   page.states[0] = null;
   page.render();
   page.effects[0]();
-  for (const key of Object.keys(draft)) assert.equal(page.states[0][key], page.record()[key]);
+  for (const key of Object.keys(draft))
+    assert.equal(
+      page.states[0][key],
+      key === "username" || key === "bio" ? page.metadata().chat_profile[key] : page.record()[key],
+    );
 });
 
 test("server rejection or thrown network failure preserves the draft and permits retry", async () => {

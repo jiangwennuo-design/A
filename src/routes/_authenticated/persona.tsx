@@ -7,8 +7,16 @@ import { ErrorBanner, LoadingSpinner } from "@/components/ui-kit";
 import { closeSystemApp, pushSystemPage } from "@/lib/app-transition";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { ContactList } from "@/components/contacts/ContactList";
-import { ContactProfile } from "@/components/contacts/ContactProfile";
+import {
+  ContactProfile,
+  contactSections,
+  type ContactSection,
+} from "@/components/contacts/ContactProfile";
 import { PersonaEditor, type PersonaDraft } from "@/components/contacts/PersonaEditor";
+import { CharacterUserIdentity } from "@/components/contacts/CharacterUserIdentity";
+import { CharacterWorldBooks } from "@/components/chat/CharacterWorldBooks";
+import { readCharacterChatPreferences } from "@/lib/character-chat";
+import "@/styles/rosters.css";
 import type { AiPersona } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
 
@@ -28,11 +36,11 @@ const blank: PersonaDraft = {
   minimum_messages: 1,
   maximum_messages: 1,
 };
-type View = "list" | "profile" | "edit";
+type View = "list" | "profile" | "edit" | "details" | "identity";
 
 function PersonaPage() {
   const db = supabase as any;
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const router = useRouter();
   const [items, setItems] = useState<AiPersona[]>([]);
@@ -44,6 +52,9 @@ function PersonaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [section, setSection] = useState<ContactSection>("basic");
+  const [preferences, setPreferences] = useState(() => readCharacterChatPreferences({}));
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -81,15 +92,18 @@ function PersonaPage() {
       gender: persona.gender ?? "",
     });
     localStorage.setItem("current-char-id", persona.id);
+    setPreferences(readCharacterChatPreferences(persona.chat_preferences));
     setView("profile");
   }
   function create() {
     setActive(null);
     setForm(blank);
+    setPreferences(readCharacterChatPreferences({}));
     setView("edit");
   }
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (saving || avatarBusy) return;
     if (!form.name.trim()) return setError("请填写名字。");
     const min = Number(form.minimum_messages);
     const max = Number(form.maximum_messages);
@@ -97,35 +111,62 @@ function PersonaPage() {
       return setError("请检查回复气泡数量。");
     setSaving(true);
     setError("");
-    const values = {
-      name: form.name.trim(),
-      description: form.description,
-      personality: form.personality,
-      speaking_style: form.speaking_style,
-      interests: form.interests,
-      dislikes: form.dislikes,
-      relationship: form.relationship,
-      background: form.background,
-      additional_prompt: form.additional_prompt,
-      avatar_url: form.avatar_url || null,
-      gender: form.gender || null,
-      minimum_messages: min,
-      maximum_messages: max,
-    };
-    const result = active
-      ? await db.from("ai_personas").update(values).eq("id", active.id).select("*").single()
-      : await db.from("ai_personas").insert(values).select("*").single();
-    setSaving(false);
-    if (result.error || !result.data) return setError("保存失败，请稍后重试。");
-    const saved = result.data as AiPersona;
-    setItems((current) =>
-      active
-        ? current.map((item) => (item.id === saved.id ? saved : item))
-        : [...current, saved].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")),
-    );
-    const resolved = await resolveAvatarUrl(saved.avatar_url);
-    setAvatars((current) => ({ ...current, [saved.id]: resolved }));
-    select(saved);
+    try {
+      let chatPreferences = { ...preferences };
+      if (active) {
+        const { data: latest, error: loadError } = await db
+          .from("ai_personas")
+          .select("chat_preferences")
+          .eq("id", active.id)
+          .eq("user_id", user?.id)
+          .single();
+        if (loadError || !latest) throw new Error("读取角色资料失败。");
+        chatPreferences = { ...latest.chat_preferences, worldBookIds: preferences.worldBookIds };
+      }
+      const values = {
+        name: form.name.trim(),
+        description: form.description,
+        personality: form.personality,
+        speaking_style: form.speaking_style,
+        interests: form.interests,
+        dislikes: form.dislikes,
+        relationship: form.relationship,
+        background: form.background,
+        additional_prompt: form.additional_prompt,
+        avatar_url: form.avatar_url || null,
+        gender: form.gender || null,
+        minimum_messages: min,
+        maximum_messages: max,
+        chat_preferences: chatPreferences,
+      };
+      const result = active
+        ? await db
+            .from("ai_personas")
+            .update(values)
+            .eq("id", active.id)
+            .eq("user_id", user?.id)
+            .select("*")
+            .single()
+        : await db
+            .from("ai_personas")
+            .insert({ ...values, user_id: user?.id })
+            .select("*")
+            .single();
+      if (result.error || !result.data) return setError("保存失败，请稍后重试。");
+      const saved = result.data as AiPersona;
+      setItems((current) =>
+        active
+          ? current.map((item) => (item.id === saved.id ? saved : item))
+          : [...current, saved].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")),
+      );
+      const resolved = await resolveAvatarUrl(saved.avatar_url);
+      setAvatars((current) => ({ ...current, [saved.id]: resolved }));
+      select(saved);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "保存失败，请稍后重试。");
+    } finally {
+      setSaving(false);
+    }
   }
   async function remove() {
     if (!active || !confirm(`确定删除角色“${active.name}”吗？相关会话将不再可用。`)) return;
@@ -142,7 +183,12 @@ function PersonaPage() {
     setView("list");
   }
   function goBack() {
-    if (view === "edit" && active) return setView("profile");
+    if (saving) return;
+    if (view === "details" || view === "identity") return setView("profile");
+    if (view === "edit") {
+      setAvatarBusy(false);
+      return setView(active ? "profile" : "list");
+    }
     if (view !== "list") return setView("list");
     void closeSystemApp("persona", () => router.history.back());
   }
@@ -154,13 +200,33 @@ function PersonaPage() {
       </div>
     );
   return (
-    <main className="contacts-page">
+    <main className="contacts-page roster-scope">
       <header className="contacts-header">
         <button type="button" aria-label="返回" onClick={goBack}>
           <ArrowLeft size={21} />
         </button>
-        {view !== "list" && (
-          <span>{view === "edit" ? (active ? "编辑资料" : "新建角色") : "资料"}</span>
+        <span>
+          {view === "edit"
+            ? active
+              ? "编辑资料"
+              : "新建角色"
+            : view === "details"
+              ? contactSections[section]
+              : view === "identity"
+                ? "我的专属资料"
+                : view === "profile"
+                  ? "角色资料"
+                  : "名册"}
+        </span>
+        {view === "edit" && (
+          <button
+            type="submit"
+            form="roster-character-form"
+            className="user-profile-edit"
+            disabled={saving || avatarBusy}
+          >
+            {saving ? "保存中…" : "完成"}
+          </button>
         )}
       </header>
       {error && <ErrorBanner message={error} />}
@@ -174,18 +240,37 @@ function PersonaPage() {
           onCreate={create}
         />
       )}
-      {view === "profile" && active && (
+      {(view === "profile" || view === "details") && active && (
         <ContactProfile
           contact={active}
           avatar={avatars[active.id] ?? ""}
           onEdit={() => setView("edit")}
+          section={view === "details" ? section : undefined}
+          onSection={(value) => {
+            setSection(value);
+            setView("details");
+          }}
+          onIdentity={() => setView("identity")}
           onMessage={() =>
             void pushSystemPage(() => navigate({ to: "/chat", search: { char: active.id } }))
           }
         />
       )}
+      {view === "identity" && active && user && (
+        <CharacterUserIdentity
+          key={active.id}
+          character={active}
+          profile={profile}
+          userId={user.id}
+          onSaved={(saved) => {
+            setItems((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+            select(saved);
+          }}
+        />
+      )}
       {view === "edit" && user && (
         <PersonaEditor
+          formId="roster-character-form"
           form={form}
           userId={user.id}
           existing={Boolean(active)}
@@ -194,6 +279,8 @@ function PersonaPage() {
           onSubmit={save}
           onDelete={() => void remove()}
           onError={setError}
+          onAvatarBusy={setAvatarBusy}
+          extraSettings={<CharacterWorldBooks value={preferences} onChange={setPreferences} />}
         />
       )}
     </main>

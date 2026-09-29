@@ -50,7 +50,9 @@ export function ContactList({
             <ContactAvatar url={avatars[contact.id]} name={contact.name} />
             <span className="contact-row__copy">
               <strong>{contact.name}</strong>
-              <small>{contact.relationship || contact.description || "还没有填写简介"}</small>
+              <small>
+                {contact.relationship ? contact.relationship.slice(0, 60) : "查看角色资料"}
+              </small>
             </span>
             <span aria-hidden="true" className="contact-row__arrow">
               ›
