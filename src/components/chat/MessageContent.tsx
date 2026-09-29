@@ -3,13 +3,16 @@ import { ArrowDownLeft, ImageOff, Phone } from "lucide-react";
 import { resolveSignedMediaUrl } from "@/lib/signed-media";
 import { formatCallDuration } from "@/lib/chat-message";
 import type { ChatMessage } from "@/lib/types";
+import { readTransfer, transferStatusLabel } from "@/lib/chat-transfer";
 
 export const MessageContent = memo(function MessageContent({
   message,
   onOpenImage,
+  onOpenTransfer,
 }: {
   message: ChatMessage;
   onOpenImage: (url: string, alt: string) => void;
+  onOpenTransfer?: ((message: ChatMessage) => void) | undefined;
 }) {
   const [url, setUrl] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -73,19 +76,26 @@ export const MessageContent = memo(function MessageContent({
       </button>
     );
   }
-  if (type === "transfer")
+  if (type === "transfer") {
+    const transfer = readTransfer(message);
     return (
-      <div className={`transfer-message is-${String(payload["status"] ?? "pending")}`}>
+      <button
+        type="button"
+        className={`transfer-message is-${transfer.status}`}
+        onClick={() => onOpenTransfer?.(message)}
+        aria-label={`转账 ¥${transfer.amount.toFixed(2)} ${transferStatusLabel(transfer.status)}`}
+      >
         <span className="transfer-message__icon">
           <ArrowDownLeft size={23} />
         </span>
         <div>
-          <strong>¥ {Number(payload["amount"] ?? 0).toFixed(2)}</strong>
-          <p>{String(payload["note"] || "转账")}</p>
-          <small>{transferStatus(String(payload["status"] ?? "pending"))}</small>
+          <strong>¥ {transfer.amount.toFixed(2)}</strong>
+          <p>{transfer.remark || "转账"}</p>
+          <small>{transferStatusLabel(transfer.status)}</small>
         </div>
-      </div>
+      </button>
     );
+  }
   const duration = Number(payload["duration"] ?? 0);
   return (
     <div className="call-message">
@@ -98,9 +108,6 @@ export const MessageContent = memo(function MessageContent({
   );
 });
 
-function transferStatus(status: string) {
-  return status === "accepted" ? "已接收" : status === "returned" ? "已退回" : "待接收";
-}
 function callLabel(status: string, duration: number) {
   if (status === "missed") return "未接听";
   if (status === "cancelled") return "已取消";

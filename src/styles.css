@@ -2108,10 +2108,22 @@ textarea {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  border: 1px solid rgb(95 123 108 / 14%);
-  border-radius: 18px;
-  background: #edf2ee;
-  color: #31473b;
+  border: 0;
+  border-radius: 12px;
+  background: #f5a33b;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.transfer-message.is-received {
+  background: #edc994;
+}
+.transfer-message.is-refunded {
+  background: #cbbba6;
+}
+.transfer-message > div {
+  min-width: 0;
+  flex: 1;
 }
 
 .transfer-message__icon {
@@ -2121,7 +2133,7 @@ textarea {
   place-items: center;
   flex: 0 0 42px;
   border-radius: 50%;
-  background: rgb(95 123 108 / 13%);
+  background: rgb(255 255 255 / 18%);
 }
 
 .transfer-message strong {
@@ -2130,12 +2142,103 @@ textarea {
 .transfer-message p {
   margin-top: 2px;
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 .transfer-message small {
   display: block;
   margin-top: 5px;
-  color: #78877f;
+  color: rgb(255 255 255 / 88%);
   font-size: 11px;
+  padding-top: 7px;
+  border-top: 1px solid rgb(255 255 255 / 22%);
+}
+
+.transfer-detail {
+  text-align: center;
+  color: #35302a;
+  padding: 12px 0;
+}
+.transfer-detail__icon {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #f5a33b;
+  color: #fff;
+}
+.transfer-detail.is-received .transfer-detail__icon {
+  background: #edc994;
+}
+.transfer-detail.is-refunded .transfer-detail__icon {
+  background: #cbbba6;
+}
+.transfer-detail > strong {
+  display: block;
+  font-size: 32px;
+}
+.transfer-detail > p {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+.transfer-detail__status {
+  display: block;
+  color: #8a8075;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.transfer-detail dl {
+  border-top: 1px solid #ece9e5;
+  margin-top: 24px;
+  padding-top: 14px;
+  font-size: 13px;
+}
+.transfer-detail dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 10px 0;
+  text-align: left;
+}
+.transfer-detail dt {
+  color: #96918a;
+  flex-shrink: 0;
+}
+.transfer-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.transfer-detail__actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+.transfer-detail__actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: #f5a33b;
+  color: white;
+}
+.transfer-detail__actions button + button {
+  background: #f3efea;
+  color: #8c6b43;
+}
+.transfer-detail__actions button:disabled {
+  opacity: 0.5;
+}
+.transfer-detail .transfer-detail__hint {
+  font-size: 13px;
+  color: #96918a;
+}
+.transfer-detail .transfer-detail__error {
+  color: #b34030;
+  font-size: 13px;
 }
 
 .call-message {
@@ -2236,6 +2339,10 @@ textarea {
 .transfer-form {
   display: grid;
   gap: 20px;
+}
+.transfer-form > button {
+  background: #f5a33b;
+  color: #fff;
 }
 .transfer-form label {
   display: grid;

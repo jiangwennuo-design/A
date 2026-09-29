@@ -21,7 +21,7 @@ export function TransferSheet({
     setNote("");
   }
   return (
-    <SystemSheet open={open} title="转账" onClose={onClose}>
+    <SystemSheet open={open} title="转账" onClose={onClose} scrollable>
       <form onSubmit={submit} className="transfer-form">
         <label>
           <span>转账金额</span>

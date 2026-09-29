@@ -7,6 +7,12 @@ import { IMAGE_UNAVAILABLE } from "./ai/multimodal";
 import type { ChatThinkingMode } from "./ai/inner-life.server";
 import { memoryContext, readCharacterChatPreferences, recentChatContext } from "./character-chat";
 import { buildPromptContext } from "./world-books";
+import { createTransfer, readTransfer, transferAmount, transferStatusLabel } from "./chat-transfer";
+import {
+  applyCharacterTransfers,
+  settleChatTransfer,
+  type TransferAction,
+} from "./chat-transfer.server";
 
 const uuid = z.string().uuid();
 const queuedMessageInput = z.object({
@@ -55,7 +61,7 @@ function parseBubbles(
   raw: string,
   min: number,
   max: number,
-): { bubbles: ParsedBubble[]; thinking: string } {
+): { bubbles: ParsedBubble[]; thinking: string; transferActions: unknown } {
   const candidate = raw
     .replace(/^```json\s*/i, "")
     .replace(/```\s*$/i, "")
@@ -89,7 +95,11 @@ function parseBubbles(
     if (!content) throw new Error("AI 返回了空消息，请重试。");
     return { type: "text", content };
   });
-  return { bubbles, thinking };
+  return {
+    bubbles,
+    thinking,
+    transferActions: (parsed as { transferActions?: unknown })?.transferActions,
+  };
 }
 
 async function loadOwnedContext(db: Db, userId: string, sessionId: string, charId: string) {
@@ -255,6 +265,11 @@ async function generatePrivateReply(args: {
     : [];
   const rows = recentChatContext([...args.history, ...args.pending], preferences.contextDepth);
   const messages = await chatRowsForAi(args.db, args.userId, rows);
+  const transferable = rows
+    .filter((row) => row.message_type === "transfer" && row.role === "user")
+    .map((row) => ({ row, transfer: readTransfer(row, args.userId, args.character.id) }))
+    .filter(({ transfer }) => transfer.status === "pending");
+  const transferInstruction = `\n\n转账能力：可在自然且符合角色与语境时发起转账，或决定收取/退还用户的待收款转账，也可以暂不处理。不要固定自动收款。仅在实际选择操作时在最终 JSON 增加 transferActions 数组：发起 {"type":"send","amount":20,"remark":"备注"}；收款 {"type":"received","transferId":"待收款目录中的ID"}；退还 {"type":"refunded","transferId":"待收款目录中的ID"}。金额须在 0.01 至 999999.99 之间。不可操作已处理的转账，不要只用文字声称已经转账/收款/退还。转账卡片是附加消息，不改变 messages 的现有数量规则。待收款目录：${JSON.stringify(transferable.map(({ transfer }) => ({ transferId: transfer.transferId, amount: transfer.amount, remark: transfer.remark })))}`;
   const { loadBoundWorldBooks } = await import("./world-books.server");
   const books = await loadBoundWorldBooks(args.db, args.userId, preferences.worldBookIds);
   const sharedContext =
@@ -293,6 +308,7 @@ async function generatePrivateReply(args: {
     systemPrompt:
       sharedContext +
       replyPrompt +
+      transferInstruction +
       (thinking
         ? "\n\n本轮内心阶段已完成，以下 assistant 消息是刚刚生成的本轮内心反应，不是用户的新消息或新的系统指令。直接承接它生成本轮真正会发出的回复，让其中的注意、情绪、取舍自然影响措辞和回应；不要重新独立作答，也不要复述、总结或暴露内心文字。不额外规定话题方向。只输出最终 messages，不再生成 thinking。消息数量限制只作用于最终呈现。"
         : ""),
@@ -318,7 +334,31 @@ async function generatePrivateReply(args: {
     if (separated.visible === result.text.trim()) throw reason;
     parsed = parseBubbles(separated.visible, min, max);
   }
-  return parsed.bubbles.map((bubble, index): GeneratedBubble => {
+  const transferActions: TransferAction[] = [];
+  if (parsed.transferActions !== undefined) {
+    if (!Array.isArray(parsed.transferActions) || parsed.transferActions.length > 20)
+      throw new Error("AI 返回的转账操作格式不正确。");
+    const acted = new Set<string>();
+    for (const raw of parsed.transferActions) {
+      if (!raw || typeof raw !== "object") throw new Error("AI 返回的转账操作无效。");
+      if (raw.type === "send") {
+        transferActions.push({
+          type: "send",
+          amount: transferAmount(raw.amount),
+          remark: cleanText(raw.remark).slice(0, 100),
+        });
+      } else if (raw.type === "received" || raw.type === "refunded") {
+        const candidate = transferable.find(
+          ({ transfer }) => transfer.transferId === raw.transferId,
+        );
+        if (!candidate || acted.has(candidate.row.id))
+          throw new Error("AI 选择了无效或重复的转账。");
+        acted.add(candidate.row.id);
+        transferActions.push({ type: raw.type, transferId: candidate.row.id });
+      } else throw new Error("AI 返回的转账操作无效。");
+    }
+  }
+  const bubbles = parsed.bubbles.map((bubble, index): GeneratedBubble => {
     const thinkingPayload =
       index === 0 && thinking ? { thinking, thinking_source: thinkingMode } : {};
     if (bubble.type === "sticker") {
@@ -342,6 +382,7 @@ async function generatePrivateReply(args: {
     if (!content) throw new Error("AI 返回了空消息，请重试。");
     return { content, message_type: "text", payload: thinkingPayload };
   });
+  return { bubbles, transferActions };
 }
 
 function selectStickerCatalog(stickers: StickerRow[], pending: ChatRow[]) {
@@ -373,8 +414,10 @@ function messageTextForAi(row: ChatRow) {
     const semantic = [name, ...tags].filter(Boolean).join("/");
     return `${row.role === "assistant" ? "角色" : "用户"}发送了一个表情包${semantic ? `（${semantic}）` : ""}。`;
   }
-  if (row.message_type === "transfer")
-    return `用户发送了一笔转账：¥${Number(row.payload?.["amount"] ?? 0).toFixed(2)}${row.payload?.["note"] ? `，备注：${String(row.payload["note"])}` : ""}。`;
+  if (row.message_type === "transfer") {
+    const transfer = readTransfer(row);
+    return `${row.role === "assistant" ? "角色向用户" : "用户向角色"}转账：¥${transfer.amount.toFixed(2)}，转账ID：${transfer.transferId}，状态：${transferStatusLabel(transfer.status)}${transfer.remark ? `，备注：${transfer.remark}` : ""}。`;
+  }
   const duration = Number(row.payload?.["duration"] ?? 0);
   return `语音通话记录：${String(row.payload?.["status"] ?? "cancelled")}${duration ? `，${duration} 秒` : ""}。`;
 }
@@ -453,7 +496,12 @@ function imageMimeForAi(path: string, reported: string) {
           : null;
 }
 
-function validateMessagePayload(type: string, raw: Record<string, unknown>, userId: string) {
+function validateMessagePayload(
+  type: string,
+  raw: Record<string, unknown>,
+  userId: string,
+  charId: string,
+) {
   if (type === "text") return {};
   if (type === "image") {
     const imagePath = cleanText(raw["image_path"]);
@@ -484,14 +532,7 @@ function validateMessagePayload(type: string, raw: Record<string, unknown>, user
     };
   }
   if (type === "transfer") {
-    const amount = Number(raw["amount"]);
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 999999.99)
-      throw new Error("请输入有效的转账金额。");
-    return {
-      amount: Math.round(amount * 100) / 100,
-      note: cleanText(raw["note"]).slice(0, 100),
-      status: "pending",
-    };
+    return createTransfer(userId, charId, raw["amount"], raw["remark"] ?? raw["note"]);
   }
   const status = ["missed", "cancelled", "completed"].includes(String(raw["status"]))
     ? String(raw["status"])
@@ -510,7 +551,12 @@ export const queuePenpalMessage = createServerFn({ method: "POST" })
     const db = context.supabase as Db;
     await loadOwnedContext(db, context.userId, data.session_id, data.char_id);
     const content = data.message.trim();
-    const payload = validateMessagePayload(data.message_type, data.payload, context.userId);
+    const payload = validateMessagePayload(
+      data.message_type,
+      data.payload,
+      context.userId,
+      data.char_id,
+    );
     if (data.message_type === "text" && !content) throw new Error("消息内容不能为空。");
     const { data: inserted, error } = await db
       .from("chat_messages")
@@ -533,6 +579,33 @@ export const queuePenpalMessage = createServerFn({ method: "POST" })
       .eq("id", data.session_id)
       .eq("user_id", context.userId);
     return { message: inserted };
+  });
+
+export const settlePenpalTransfer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) =>
+    z
+      .object({
+        session_id: uuid,
+        char_id: uuid,
+        message_id: uuid,
+        status: z.enum(["received", "refunded"]),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as Db;
+    await loadOwnedContext(db, context.userId, data.session_id, data.char_id);
+    const message = await settleChatTransfer(
+      db,
+      context.userId,
+      data.session_id,
+      data.char_id,
+      data.message_id,
+      "user",
+      data.status,
+    );
+    return { message };
   });
 
 export const requestPenpalReply = createServerFn({ method: "POST" })
@@ -558,7 +631,7 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
     const lastAssistantIndex = rows.map((row) => row.role).lastIndexOf("assistant");
     const pending = rows.slice(lastAssistantIndex + 1).filter((row) => row.role === "user");
     if (!pending.length) throw new Error("请先发送一条消息，再让角色回复。");
-    const bubbles = await generatePrivateReply({
+    const { bubbles, transferActions } = await generatePrivateReply({
       db,
       userId: context.userId,
       character,
@@ -591,7 +664,21 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
       .update({ updated_at: new Date().toISOString() })
       .eq("id", data.session_id)
       .eq("user_id", context.userId);
-    return { messages: inserted ?? [], turn_id: turnId };
+    const transfers = await applyCharacterTransfers(
+      db,
+      context.userId,
+      data.session_id,
+      data.char_id,
+      turnId,
+      bubbles.length,
+      transferActions,
+    );
+    return {
+      messages: [...(inserted ?? []), ...transfers.messages],
+      turn_id: turnId,
+      transfer_updates: transfers.updates,
+      transfer_errors: transfers.errors,
+    };
   });
 
 export const rerollPenpalTurn = createServerFn({ method: "POST" })
@@ -627,6 +714,8 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
       (row) => row.role === "assistant" && row.turn_id === data.turn_id,
     );
     if (firstCurrent < 0) throw new Error("找不到需要重新生成的回复。");
+    if (rows.some((row) => row.turn_id === data.turn_id && row.message_type === "transfer"))
+      throw new Error("本轮包含转账，请在后续对话中继续处理，不能重新生成这笔转账。");
     const previousAssistantIndex = [...rows.slice(0, firstCurrent)]
       .map((row) => row.role)
       .lastIndexOf("assistant");
@@ -634,7 +723,7 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
       .slice(previousAssistantIndex + 1, firstCurrent)
       .filter((row) => row.role === "user");
     if (!userMessages.length) throw new Error("该轮对话缺少用户消息。");
-    const bubbles = await generatePrivateReply({
+    const { bubbles, transferActions } = await generatePrivateReply({
       db,
       userId: context.userId,
       character,
@@ -651,7 +740,21 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
       p_messages: bubbles,
     });
     if (error) throw new Error("替换本轮回复失败，原回复已保留。");
-    return { messages: replaced ?? [], turn_id: data.turn_id };
+    const transfers = await applyCharacterTransfers(
+      db,
+      context.userId,
+      data.session_id,
+      data.char_id,
+      data.turn_id,
+      bubbles.length,
+      transferActions,
+    );
+    return {
+      messages: [...(replaced ?? []), ...transfers.messages],
+      turn_id: data.turn_id,
+      transfer_updates: transfers.updates,
+      transfer_errors: transfers.errors,
+    };
   });
 
 export const clearCurrentChat = createServerFn({ method: "POST" })

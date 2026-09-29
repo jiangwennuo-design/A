@@ -23,6 +23,7 @@ import {
   queuePenpalMessage,
   requestPenpalReply,
   rerollPenpalTurn,
+  settlePenpalTransfer,
 } from "@/lib/penpal.functions";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
@@ -31,6 +32,8 @@ import { ChatMessages, type MessageAnchor } from "@/components/ChatMessages";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { AttachmentSheet } from "@/components/chat/AttachmentSheet";
 import { TransferSheet } from "@/components/chat/TransferSheet";
+import { TransferDetailSheet } from "@/components/chat/TransferDetailSheet";
+import type { TransferStatus } from "@/lib/chat-transfer";
 import { StickerPicker } from "@/components/chat/StickerPicker";
 import { ImageViewer } from "@/components/chat/ImageViewer";
 import { VoiceCallScreen, type CallState } from "@/components/chat/VoiceCallScreen";
@@ -351,6 +354,7 @@ function ConversationPage({
   const requestReply = useServerFn(requestPenpalReply);
   const reroll = useServerFn(rerollPenpalTurn);
   const clear = useServerFn(clearCurrentChat);
+  const settleTransfer = useServerFn(settlePenpalTransfer);
   const [current, setCurrent] = useState<AiPersona | null>(null);
   const [chatWallpaper, setChatWallpaper] = useState("");
   useEffect(() => retainWallpaperUrl(chatWallpaper), [chatWallpaper]);
@@ -380,6 +384,10 @@ function ConversationPage({
   const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [stickersOpen, setStickersOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
+  const [settlingTransfer, setSettlingTransfer] = useState(false);
+  const [transferError, setTransferError] = useState("");
+  const transferBusy = useRef(false);
   const [imageViewer, setImageViewer] = useState<{ url: string; alt: string } | null>(null);
   const [callState, setCallState] = useState<CallState>("idle");
   const [callStartedAt, setCallStartedAt] = useState(0);
@@ -773,6 +781,32 @@ function ConversationPage({
     await sendMessage(message.message_type, message.content, message.payload, message.id);
   }
 
+  function applyTransferUpdates(updates: ChatMessage[], errors: string[]) {
+    if (updates.length) {
+      const byId = new Map(updates.map((row) => [row.id, normalizeChatMessage(row)]));
+      setMessages((previous) => previous.map((row) => byId.get(row.id) ?? row));
+    }
+    if (errors.length) setError(errors.join(" "));
+  }
+
+  async function handleTransfer(status: Exclude<TransferStatus, "pending">) {
+    if (!selectedTransferId || transferBusy.current) return;
+    transferBusy.current = true;
+    setSettlingTransfer(true);
+    setTransferError("");
+    try {
+      const result = await settleTransfer({
+        data: { session_id: sessionId, char_id: charId, message_id: selectedTransferId, status },
+      });
+      applyTransferUpdates([result.message as ChatMessage], []);
+    } catch (reason) {
+      setTransferError(reason instanceof Error ? reason.message : "转账保存失败，请重试。");
+    } finally {
+      transferBusy.current = false;
+      setSettlingTransfer(false);
+    }
+  }
+
   async function triggerReply() {
     if (!sessionId || !charId || sending || savingMessage || !hasPendingMessages) return;
     setSending(true);
@@ -788,6 +822,7 @@ function ConversationPage({
           context_diary_id: initialDiaryId ?? null,
         },
       });
+      applyTransferUpdates(result.transfer_updates as ChatMessage[], result.transfer_errors);
       await revealAssistantMessages((result.messages as ChatMessage[]).map(normalizeChatMessage));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "回复失败，请稍后重试。");
@@ -815,6 +850,7 @@ function ConversationPage({
           context_diary_id: initialDiaryId ?? null,
         },
       });
+      applyTransferUpdates(result.transfer_updates as ChatMessage[], result.transfer_errors);
       await revealAssistantMessages(
         (result.messages as ChatMessage[]).map(normalizeChatMessage),
         Math.max(insertionIndex, 0),
@@ -972,6 +1008,11 @@ function ConversationPage({
         onOpenMessageMenu={openMessageMenu}
         onDismissMessageMenu={() => setMessageMenu(null)}
         onOpenImage={(url, alt) => setImageViewer({ url, alt })}
+        onOpenTransfer={(message) => {
+          setMessageMenu(null);
+          setTransferError("");
+          setSelectedTransferId(message.id);
+        }}
         onRetry={(message) => void retryMessage(message)}
       />
 
@@ -1054,6 +1095,17 @@ function ConversationPage({
         open={transferOpen}
         onClose={() => setTransferOpen(false)}
         onSend={(amount, note) => void sendTransfer(amount, note)}
+      />
+      <TransferDetailSheet
+        message={messages.find((message) => message.id === selectedTransferId) ?? null}
+        userName={userIdentity.nickname}
+        charName={characterChatName(current)}
+        saving={settlingTransfer}
+        error={transferError}
+        onClose={() => {
+          if (!transferBusy.current) setSelectedTransferId(null);
+        }}
+        onSettle={(status) => void handleTransfer(status)}
       />
       {user && (
         <StickerPicker

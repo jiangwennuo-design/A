@@ -99,7 +99,12 @@ export type ChatMessagePayload =
   | {
       amount: number;
       note?: string;
-      status: "pending" | "accepted" | "returned";
+      status: "pending" | "received" | "refunded" | "accepted" | "returned";
+      transferId?: string;
+      sender?: string;
+      receiver?: string;
+      remark?: string;
+      createdAt?: string;
     }
   | {
       call_type: "voice";

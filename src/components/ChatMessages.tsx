@@ -24,6 +24,7 @@ interface Props {
   onOpenMessageMenu: (messageId: string, anchor: MessageAnchor) => void;
   onDismissMessageMenu: () => void;
   onOpenImage: (url: string, alt: string) => void;
+  onOpenTransfer?: (message: ChatMessage) => void;
   onRetry: (message: ChatMessage) => void;
 }
 
@@ -47,6 +48,7 @@ export const ChatMessages = memo(function ChatMessages({
   onOpenMessageMenu,
   onDismissMessageMenu,
   onOpenImage,
+  onOpenTransfer,
   onRetry,
 }: Props) {
   const viewport = useRef<HTMLElement>(null);
@@ -202,7 +204,11 @@ export const ChatMessages = memo(function ChatMessages({
                       </div>
                     </details>
                   )}
-                <MessageContent message={message} onOpenImage={onOpenImage} />
+                <MessageContent
+                  message={message}
+                  onOpenImage={onOpenImage}
+                  onOpenTransfer={onOpenTransfer}
+                />
               </div>
               {message.delivery_status === "failed" && (
                 <button
