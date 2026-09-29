@@ -5107,7 +5107,7 @@ textarea {
 }
 .diary-list--home .diary-card__author {
   margin-inline: -20px;
-  padding: 19px 20px 14px;
+  padding: 8px 20px;
   border-bottom: 1px solid #eceff3;
   background: #f6f7f9;
 }
