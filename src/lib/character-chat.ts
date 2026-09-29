@@ -4,6 +4,8 @@ export const characterChatSchema = z.object({
   remark: z.string().trim().max(80).default(""),
   userAvatarOverride: z.string().trim().max(2000).default(""),
   userNicknameOverride: z.string().trim().max(80).default(""),
+  // Independent letter expression style, stored in the existing per-character JSON.
+  letterWritingStyle: z.string().default(""),
   contextDepth: z.number().int().min(1).max(200).default(20),
   longTermMemory: z.boolean().default(false),
   worldBookIds: z.array(z.string().uuid()).max(100).default([]),

@@ -15,6 +15,7 @@ export interface PersonaDraft {
   description: string;
   personality: string;
   speaking_style: string;
+  letterWritingStyle?: string;
   interests: string;
   dislikes: string;
   relationship: string;
@@ -147,6 +148,7 @@ export function PersonaEditor({
             [
               ["personality", "性格"],
               ["speaking_style", "说话方式"],
+              ...(presentation === "chat" ? [] : [["letterWritingStyle", "写信方式"]]),
               ["interests", "喜欢"],
               ["dislikes", "不喜欢"],
               ["relationship", "与你的关系"],
@@ -157,7 +159,9 @@ export function PersonaEditor({
             <EditorField
               key={key}
               label={label}
-              value={String(form[key])}
+              value={
+                key === "letterWritingStyle" ? (form.letterWritingStyle ?? "") : String(form[key])
+              }
               multiline
               count={presentation === "chat"}
               onChange={(value) => set(key, value)}

@@ -137,19 +137,23 @@ async function loadOwnedContext(db: Db, userId: string, sessionId: string, charI
   return { character, profile };
 }
 
-function profilePrompt(profile: any, character: any) {
+function profilePrompt(profile: any, character: any, scene: "chat" | "letter") {
   const user = [
     `昵称：${profile?.display_name || "未设置"}`,
     profile?.gender ? `性别：${profile.gender}` : "",
     profile?.persona_text ? `自我人设：${profile.persona_text}` : "",
     profile?.signature ? `个性签名：${profile.signature}` : "",
   ].filter(Boolean);
+  const expressionStyle =
+    scene === "letter"
+      ? readCharacterChatPreferences(character.chat_preferences).letterWritingStyle
+      : character.speaking_style;
   const char = [
     `名字：${character.name}`,
     character.gender ? `性别：${character.gender}` : "",
     character.description ? `描述：${character.description}` : "",
     character.personality ? `性格：${character.personality}` : "",
-    character.speaking_style ? `说话方式：${character.speaking_style}` : "",
+    expressionStyle ? `${scene === "letter" ? "写信方式" : "说话方式"}：${expressionStyle}` : "",
     character.interests ? `喜欢：${character.interests}` : "",
     character.dislikes ? `不喜欢：${character.dislikes}` : "",
     character.relationship ? `关系：${character.relationship}` : "",
@@ -254,7 +258,7 @@ async function generatePrivateReply(args: {
   const stickerInstruction = catalog.length
     ? `你可以在确实自然时把一条消息写成 {"type":"sticker","stickerId":"目录中的 id"}。只根据语境选择，不要解释选择过程，也不要频繁使用。可用表情目录（仅语义，不含图片）：${JSON.stringify(catalog.map(({ id, name, tags }) => ({ id, name, tags })))}`
     : "";
-  const contextPrompt = `${profilePrompt(args.profile, args.character)}${timeContext(args.profile, args.history)}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
+  const contextPrompt = `${profilePrompt(args.profile, args.character, "chat")}${timeContext(args.profile, args.history)}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
   const replyPrompt = `\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。${stickerInstruction}`;
   const { generate } = await import("./ai/service.server");
   const preferences = readCharacterChatPreferences(args.character.chat_preferences);
@@ -803,7 +807,7 @@ export const createDiaryReply = createServerFn({ method: "POST" })
       userId: context.userId,
       supabase: db,
       charId: data.char_id,
-      systemPrompt: `${profilePrompt(profile, character)}\n\n请以笔友身份写一封完整、连贯、有回应感的中文回信。不要输出 JSON，不要使用即时私聊的多气泡格式。${mindsetPrompt ? `\n\n${mindsetPrompt}` : ""}`,
+      systemPrompt: `${profilePrompt(profile, character, "letter")}\n\n请以笔友身份写一封完整、连贯、有回应感的中文回信。不要输出 JSON，不要使用即时私聊的多气泡格式。${mindsetPrompt ? `\n\n${mindsetPrompt}` : ""}`,
       messages: [
         {
           role: "user",

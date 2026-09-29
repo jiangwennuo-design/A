@@ -67,6 +67,19 @@ test("old characters default to 20; independent serialized preferences survive r
   assert.equal(b.wallpaperPath, null);
   assert.equal(b.longTermMemory, false);
 });
+
+test("independent letter style survives preference saves/reload; legacy remains empty", () => {
+  const original = "称呼、语气和长段落\n".repeat(2000);
+  const saved = readCharacterChatPreferences({ letterWritingStyle: original, contextDepth: 9 });
+  const reloaded = readCharacterChatPreferences(JSON.parse(JSON.stringify(saved)));
+  assert.equal(reloaded.letterWritingStyle, original);
+  assert.equal(
+    readCharacterChatPreferences({ ...reloaded, remark: "新的备注" }).letterWritingStyle,
+    original,
+  );
+  assert.equal(readCharacterChatPreferences({}).letterWritingStyle, "");
+  assert.equal(readCharacterChatPreferences(undefined).letterWritingStyle, "");
+});
 test("20 messages, preserving order and exact media-to-message attachment", () => {
   const rows = Array.from({ length: 35 }, (_, id) => ({
     id,

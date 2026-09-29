@@ -26,6 +26,7 @@ const blank: PersonaDraft = {
   description: "",
   personality: "",
   speaking_style: "",
+  letterWritingStyle: "",
   interests: "",
   dislikes: "",
   relationship: "",
@@ -90,6 +91,7 @@ function PersonaPage() {
       ...persona,
       avatar_url: persona.avatar_url ?? "",
       gender: persona.gender ?? "",
+      letterWritingStyle: readCharacterChatPreferences(persona.chat_preferences).letterWritingStyle,
     });
     localStorage.setItem("current-char-id", persona.id);
     setPreferences(readCharacterChatPreferences(persona.chat_preferences));
@@ -123,6 +125,7 @@ function PersonaPage() {
         if (loadError || !latest) throw new Error("读取角色资料失败。");
         chatPreferences = { ...latest.chat_preferences, worldBookIds: preferences.worldBookIds };
       }
+      chatPreferences = { ...chatPreferences, letterWritingStyle: form.letterWritingStyle ?? "" };
       const values = {
         name: form.name.trim(),
         description: form.description,

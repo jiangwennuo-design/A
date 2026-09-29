@@ -384,4 +384,70 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
   assert.doesNotMatch(calls.at(-1).systemPrompt, /当前角色常驻规则/);
   await worldInvoke("deleteWorldBook", { id: imported.id, confirmedBindings: true });
   assert.equal(records.world_books.length, 0);
+  // Invoke the real private-chat and diary-reply handlers with distinct expression styles.
+  const diaryId = crypto.randomUUID();
+  records.diaries = [
+    { id: diaryId, user_id: owner, title: "今天", content: "想说的话", diary_date: "2026-09-29" },
+  ];
+  records.diary_replies = [];
+  const character = records.ai_personas[0];
+  character.minimum_messages = 1;
+  character.chat_thinking_mode = "off";
+  character.speaking_style = "CHAT_STYLE_ONLY_1";
+  character.chat_preferences = {
+    letterWritingStyle: "LETTER_STYLE_ONLY_1\n称呼和行文保持独立",
+    contextDepth: 20,
+  };
+  character.personality = "COMMON_PERSONALITY";
+  character.background = "COMMON_BACKGROUND";
+  async function checkPrivate() {
+    records.chat_messages = [
+      {
+        id: crypto.randomUUID(),
+        user_id: owner,
+        session_id: sa,
+        role: "user",
+        content: "你好",
+        message_type: "text",
+        payload: {},
+        created_at: new Date().toISOString(),
+        message_order: 0,
+      },
+    ];
+    output = JSON.stringify({ messages: [{ type: "text", content: "你好" }] });
+    await reply(a, sa);
+    return calls.at(-1).systemPrompt;
+  }
+  async function checkLetter() {
+    output = "一封完整的回信";
+    await chat.namespace.createDiaryReply({
+      data: { diary_id: diaryId, char_id: a },
+      context: { userId: owner, supabase: db },
+    });
+    return calls.at(-1).systemPrompt;
+  }
+  const chatBefore = await checkPrivate();
+  const letterBefore = await checkLetter();
+  assert.match(chatBefore, /CHAT_STYLE_ONLY_1/);
+  assert.doesNotMatch(chatBefore, /LETTER_STYLE_ONLY|写信方式/);
+  assert.match(letterBefore, /LETTER_STYLE_ONLY_1/);
+  assert.doesNotMatch(letterBefore, /CHAT_STYLE_ONLY|说话方式/);
+  for (const prompt of [chatBefore, letterBefore]) {
+    assert.match(prompt, /COMMON_PERSONALITY/);
+    assert.match(prompt, /COMMON_BACKGROUND/);
+    assert.match(prompt, /User Persona 必须保留/);
+  }
+  character.speaking_style = "CHAT_STYLE_ONLY_2";
+  assert.equal(await checkLetter(), letterBefore, "chat style edit does not change letter prompt");
+  const chatAfter = await checkPrivate();
+  assert.match(chatAfter, /CHAT_STYLE_ONLY_2/);
+  character.chat_preferences = JSON.parse(
+    JSON.stringify({ ...character.chat_preferences, letterWritingStyle: "LETTER_STYLE_ONLY_2" }),
+  );
+  assert.equal(await checkPrivate(), chatAfter, "letter edit does not change chat prompt");
+  assert.match(await checkLetter(), /LETTER_STYLE_ONLY_2/);
+  delete character.chat_preferences.letterWritingStyle;
+  const legacyLetter = await checkLetter();
+  assert.doesNotMatch(legacyLetter, /CHAT_STYLE_ONLY|LETTER_STYLE_ONLY|说话方式|写信方式/);
+  assert.match(legacyLetter, /COMMON_PERSONALITY/);
 });
