@@ -13,6 +13,7 @@ export function MessageQuote({
     <button
       type="button"
       className="chat-quote-block"
+      data-ui="message-quote"
       disabled={!canJump}
       aria-label={`引用 ${quote.sender}：${quote.content}${canJump ? "，定位原消息" : "，原消息已删除"}`}
       onPointerDown={(event) => event.stopPropagation()}
