@@ -3050,6 +3050,177 @@ textarea {
   opacity: 0.6;
 }
 
+/* Scoped settings and listen-entry surfaces; no shared app palette changes. */
+.settings-app,
+.listen-maintenance {
+  --color-primary: #4a9eff;
+  --color-primary-light: #dcecff;
+  --color-text: #1c1c1e;
+  --color-text-secondary: #8e8e93;
+  --color-border: #e9ebef;
+  --color-error: #e05258;
+  background: #f5f7fa;
+  color: var(--color-text);
+}
+.settings-app .system-page-header__back:active,
+.listen-maintenance .system-page-header__back:active {
+  background: #e7f1ff;
+}
+.settings-app .system-page-header {
+  margin-bottom: 18px;
+}
+.settings-app .settings-group {
+  overflow: hidden;
+  margin-bottom: 24px;
+  padding-inline: 16px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(20 35 55 / 2%);
+}
+.settings-app .settings-account {
+  padding-block: 20px;
+}
+.settings-account__avatar {
+  display: flex;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #eaf3ff;
+  color: #4a9eff;
+  font-size: 22px;
+  font-weight: 600;
+}
+.settings-account__info {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.settings-account__info > p:first-child {
+  margin-bottom: 3px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.settings-section-title {
+  margin: 0 16px 8px;
+  color: #8e8e93;
+  font-size: 12px;
+  font-weight: 500;
+}
+.settings-row {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 14px;
+  text-align: left;
+}
+.settings-row + .settings-row {
+  border-top: 1px solid #e9ebef;
+}
+.settings-row__label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+.settings-row__label > svg {
+  flex: none;
+  color: #4a9eff;
+}
+.settings-row__label > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.settings-row__value {
+  min-width: 0;
+  color: #8e8e93;
+  font-size: 13px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.settings-row:not(.settings-row--switch) .settings-row__label {
+  flex: none;
+}
+.settings-row--switch .settings-row__label {
+  align-items: flex-start;
+}
+.settings-row--link:active {
+  background: #f3f7fc;
+}
+.settings-app .settings-switch {
+  width: 46px;
+  height: 28px;
+  padding: 3px;
+  background: #e3e6ec;
+}
+.settings-app .settings-switch span {
+  width: 22px;
+  height: 22px;
+  box-shadow: 0 1px 3px rgb(20 35 55 / 12%);
+}
+.settings-app .settings-switch.is-on {
+  background: #75b5ff;
+}
+.settings-app .settings-switch.is-on span {
+  transform: translateX(18px);
+}
+.settings-sign-out {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 16px;
+  background: #fff;
+  color: #e05258;
+  font-size: 14px;
+  font-weight: 500;
+}
+.settings-version {
+  margin-top: 28px;
+  color: #a2a6ae;
+  font-size: 12px;
+  text-align: center;
+}
+.page-container.listen-maintenance {
+  display: flex;
+  flex-direction: column;
+}
+.listen-maintenance__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 12px 72px;
+  text-align: center;
+}
+.listen-maintenance__icon {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 8px;
+  place-items: center;
+  border-radius: 18px;
+  background: #eaf3ff;
+  color: #4a9eff;
+}
+.listen-maintenance__content h2 {
+  font-size: 21px;
+  font-weight: 600;
+}
+.listen-maintenance__content p {
+  color: #8e8e93;
+  font-size: 14px;
+}
+
 /* Moments */
 .moments-page {
   min-height: 100%;

@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { closeSystemApp } from "@/lib/app-transition";
 import { SystemSheet } from "@/components/system-ui";
+import { Header } from "@/components/ui-kit";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { resolveSignedMediaUrl } from "@/lib/signed-media";
@@ -26,8 +27,31 @@ import type { AiPersona, MusicMessage, MusicTrack } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/listen")({
   head: () => ({ meta: [{ title: "一起听 · K得机" }] }),
-  component: ListenPage,
+  component: ListenEntryPage,
 });
+
+// Keep the existing app intact, without mounting its data/audio effects during maintenance.
+const LISTEN_AVAILABLE = false;
+
+function ListenEntryPage() {
+  const navigate = useNavigate();
+  if (LISTEN_AVAILABLE) return <ListenPage />;
+  return (
+    <div className="page-container listen-maintenance">
+      <Header
+        title="一起听"
+        onBack={() => void closeSystemApp("listen", () => navigate({ to: "/" }))}
+      />
+      <main className="listen-maintenance__content" role="status">
+        <div className="listen-maintenance__icon" aria-hidden="true">
+          <Music2 size={30} strokeWidth={1.6} />
+        </div>
+        <h2>检修中</h2>
+        <p>暂未开放，敬请期待</p>
+      </main>
+    </div>
+  );
+}
 
 type PlayableTrack = MusicTrack & { url: string };
 

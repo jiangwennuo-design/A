@@ -51,23 +51,23 @@ function SettingsPage() {
   const provider = user?.app_metadata?.provider || "email";
 
   return (
-    <div className="page-container">
+    <div className="page-container settings-app">
       <div className="fade-in">
         <Header
           title="设置"
           onBack={() => void closeSystemApp("settings", () => navigate({ to: "/" }))}
         />
 
-        <div className="card mb-6">
+        <div className="settings-group settings-account">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full overflow-hidden bg-[var(--color-primary)] flex items-center justify-center text-white text-xl font-medium">
+            <div className="settings-account__avatar">
               {avatar ? (
                 <img src={avatar} alt="我的头像" className="w-full h-full object-cover" />
               ) : (
                 (profile?.display_name || user?.email || "?").charAt(0).toUpperCase()
               )}
             </div>
-            <div>
+            <div className="settings-account__info">
               <p className="font-medium text-[var(--color-text)]">
                 {profile?.display_name || "未设置昵称"}
               </p>
@@ -77,7 +77,7 @@ function SettingsPage() {
         </div>
 
         <SectionTitle>账户</SectionTitle>
-        <div className="card divide-y divide-[var(--color-border)] mb-6">
+        <div className="settings-group">
           <SettingRow icon={Mail} label="邮箱" value={user?.email || ""} />
           <SettingRow
             icon={KeyRound}
@@ -87,7 +87,7 @@ function SettingsPage() {
         </div>
 
         <SectionTitle>AI 服务</SectionTitle>
-        <div className="card divide-y divide-[var(--color-border)] mb-6">
+        <div className="settings-group">
           <SettingRowLink
             icon={Cpu}
             label="AI 配置"
@@ -96,15 +96,15 @@ function SettingsPage() {
         </div>
 
         <SectionTitle>隐私</SectionTitle>
-        <div className="card divide-y divide-[var(--color-border)] mb-6">
+        <div className="settings-group">
           <SettingRow icon={Shield} label="日记隐私" value="仅你自己可见" />
           <SettingRow icon={Shield} label="AI 读取" value="需你主动授权" />
         </div>
 
         <SectionTitle>聊天体验</SectionTitle>
-        <div className="card divide-y divide-[var(--color-border)] mb-6">
-          <div className="flex items-center justify-between gap-4 py-1">
-            <div className="flex items-start gap-3">
+        <div className="settings-group">
+          <div className="settings-row settings-row--switch">
+            <div className="settings-row__label">
               <Clock3 size={18} className="mt-0.5 shrink-0 text-[var(--color-text-secondary)]" />
               <div>
                 <p className="text-sm text-[var(--color-text)]">真实时间感知</p>
@@ -141,8 +141,8 @@ function SettingsPage() {
               <span />
             </button>
           </div>
-          <div className="flex items-center justify-between gap-4 py-4 pb-1">
-            <div className="flex items-start gap-3">
+          <div className="settings-row settings-row--switch">
+            <div className="settings-row__label">
               <BrainCircuit
                 size={18}
                 className="mt-0.5 shrink-0 text-[var(--color-text-secondary)]"
@@ -184,22 +184,20 @@ function SettingsPage() {
             await signOut();
             void navigate({ to: "/auth" });
           }}
-          className="w-full p-4 rounded-2xl bg-white border border-[var(--color-border)] flex items-center justify-center gap-2 text-[var(--color-error)] font-medium"
+          className="settings-sign-out"
         >
           <LogOut size={18} />
           <span>退出登录</span>
         </button>
 
-        <p className="text-center text-xs text-[var(--color-text-secondary)] mt-8">K得机 v1.0</p>
+        <p className="settings-version">K得机 v1.0</p>
       </div>
     </div>
   );
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <p className="text-sm font-medium text-[var(--color-text-secondary)] mb-2 px-1">{children}</p>
-  );
+  return <p className="settings-section-title">{children}</p>;
 }
 
 function SettingRow({
@@ -212,12 +210,12 @@ function SettingRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-3.5">
-      <div className="flex items-center gap-3">
+    <div className="settings-row">
+      <div className="settings-row__label">
         <Icon size={18} className="text-[var(--color-text-secondary)]" />
         <span className="text-sm text-[var(--color-text)]">{label}</span>
       </div>
-      <span className="text-sm text-[var(--color-text-secondary)]">{value}</span>
+      <span className="settings-row__value">{value}</span>
     </div>
   );
 }
@@ -232,8 +230,8 @@ function SettingRowLink({
   onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} className="flex items-center justify-between w-full py-3.5">
-      <div className="flex items-center gap-3">
+    <button onClick={onClick} className="settings-row settings-row--link">
+      <div className="settings-row__label">
         <Icon size={18} className="text-[var(--color-text-secondary)]" />
         <span className="text-sm text-[var(--color-text)]">{label}</span>
       </div>
