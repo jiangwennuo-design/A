@@ -5104,8 +5104,8 @@ textarea {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 8px;
-  background: #f0f0f3;
+  border-radius: 4px;
+  background: rgb(128 128 136 / 4%);
   color: #73737c;
   font-size: 11px;
   line-height: 1.4;
@@ -5138,10 +5138,11 @@ textarea {
   min-width: 0;
   margin-bottom: 6px;
   padding: 6px 8px;
-  border-left: 2px solid #c7c7ce;
+  border-left: 1px solid rgb(128 128 136 / 35%);
   border-radius: 4px;
-  background: #f0f0f3;
-  color: #73737c;
+  background: rgb(128 128 136 / 5%);
+  color: inherit;
+  opacity: 0.75;
   text-align: left;
   line-height: 1.4;
   font-size: 11px;
