@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { RotateCcw, Sparkles, UtensilsCrossed } from "lucide-react";
+import { RotateCcw, UtensilsCrossed } from "lucide-react";
 import { Header } from "@/components/ui-kit";
 import { useAuth } from "@/context/AuthContext";
 import { foodOptions } from "@/data/foodOptions";
 import { resolveAvatarUrl } from "@/lib/avatar";
 import { closeSystemApp } from "@/lib/app-transition";
-import { generateFoodCompanionMessage } from "@/lib/companion.functions";
 import { buildFoodWheelGradient, pickFoodIndex, rotationForFoodIndex } from "@/lib/food-wheel";
 import type { AiPersona } from "@/lib/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,13 +23,11 @@ interface PendingSpin {
   id: number;
   index: number;
   food: string;
-  charId: string;
 }
 
 function FoodWheelPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const companion = useServerFn(generateFoodCompanionMessage);
   const [personas, setPersonas] = useState<AiPersona[]>([]);
   const [charId, setCharId] = useState(() =>
     typeof window === "undefined" ? "" : localStorage.getItem(CHAR_STORAGE_KEY) || "",
@@ -41,12 +37,7 @@ function FoodWheelPage() {
   const [duration, setDuration] = useState(DEFAULT_DURATION);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState("");
-  const [resultCharId, setResultCharId] = useState("");
-  const [resultAvatar, setResultAvatar] = useState("");
-  const [message, setMessage] = useState("");
-  const [replying, setReplying] = useState(false);
   const [error, setError] = useState("");
-  const [replyError, setReplyError] = useState("");
   const lastIndex = useRef<number | null>(null);
   const spinSequence = useRef(0);
   const settledSequence = useRef(0);
@@ -54,7 +45,6 @@ function FoodWheelPage() {
   const settleTimer = useRef<number | null>(null);
 
   const selectedChar = personas.find((persona) => persona.id === charId);
-  const resultChar = personas.find((persona) => persona.id === resultCharId);
   const wheelGradient = useMemo(() => buildFoodWheelGradient(foodOptions.length), []);
   const segmentAngle = foodOptions.length ? 360 / foodOptions.length : 0;
 
@@ -100,30 +90,15 @@ function FoodWheelPage() {
     [],
   );
 
-  const settle = useCallback(
-    async (spin: PendingSpin) => {
-      if (spin.id !== spinSequence.current || settledSequence.current === spin.id) return;
-      settledSequence.current = spin.id;
-      pendingSpin.current = null;
-      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
-      settleTimer.current = null;
-      setSpinning(false);
-      setResult(spin.food);
-      setResultCharId(spin.charId);
-      if (!spin.charId) return;
-      setReplying(true);
-      try {
-        const response = await companion({ data: { char_id: spin.charId, food: spin.food } });
-        if (spin.id === spinSequence.current) setMessage(response.message);
-      } catch (caught) {
-        if (spin.id === spinSequence.current)
-          setReplyError(caught instanceof Error ? caught.message : "角色暂时没有回应。");
-      } finally {
-        if (spin.id === spinSequence.current) setReplying(false);
-      }
-    },
-    [companion],
-  );
+  const settle = useCallback((spin: PendingSpin) => {
+    if (spin.id !== spinSequence.current || settledSequence.current === spin.id) return;
+    settledSequence.current = spin.id;
+    pendingSpin.current = null;
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+    setSpinning(false);
+    setResult(spin.food);
+  }, []);
 
   function startSpin() {
     if (spinning) return;
@@ -143,18 +118,12 @@ function FoodWheelPage() {
       id: ++spinSequence.current,
       index,
       food: foodOptions[index]!,
-      charId,
     };
     lastIndex.current = index;
     settledSequence.current = 0;
     pendingSpin.current = spin;
     setError("");
-    setReplyError("");
-    setMessage("");
     setResult("");
-    setResultCharId(charId);
-    setResultAvatar(avatar);
-    setReplying(false);
     setDuration(nextDuration);
     setSpinning(true);
     setRotation((current) => rotationForFoodIndex(current, index, foodOptions.length, extraTurns));
@@ -235,29 +204,6 @@ function FoodWheelPage() {
           <>
             <small>今天吃</small>
             <h2>「{result}」</h2>
-            {resultChar && (
-              <div className="food-result__reply">
-                <span className="food-result__avatar">
-                  {resultAvatar ? (
-                    <img src={resultAvatar} alt={resultChar.name} />
-                  ) : (
-                    resultChar.name.charAt(0)
-                  )}
-                </span>
-                <div>
-                  <b>{resultChar.name}</b>
-                  {replying ? (
-                    <p className="food-result__thinking">
-                      <Sparkles size={13} /> 正在想怎么说…
-                    </p>
-                  ) : message ? (
-                    <p>{message}</p>
-                  ) : replyError ? (
-                    <p className="food-result__error">{replyError}</p>
-                  ) : null}
-                </div>
-              </div>
-            )}
           </>
         ) : (
           <p>

@@ -1,13 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Pause, Play, RotateCcw, Sparkles, TimerReset } from "lucide-react";
+import { ArrowLeft, Pause, Play, RotateCcw, TimerReset } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { closeSystemApp } from "@/lib/app-transition";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAvatarUrl } from "@/lib/avatar";
-import { generateFocusCompanionMessage } from "@/lib/companion.functions";
 import { randomFocusQuote } from "@/data/focusQuotes";
 import { FocusTimer } from "@/components/focus/FocusTimer";
 import { FocusHistory } from "@/components/focus/FocusHistory";
@@ -25,7 +23,6 @@ const defaults: Record<Mode, number> = { focus: 25, short_break: 5, long_break: 
 function FocusPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const companion = useServerFn(generateFocusCompanionMessage);
   const [mode, setMode] = useState<Mode>("focus");
   const [durations, setDurations] = useState<Record<Mode, number>>(() => {
     if (typeof window === "undefined") return defaults;
@@ -44,7 +41,6 @@ function FocusPage() {
   const [personas, setPersonas] = useState<AiPersona[]>([]);
   const [charId, setCharId] = useState("");
   const [avatar, setAvatar] = useState("");
-  const [message, setMessage] = useState("");
   const [history, setHistory] = useState<FocusSession[]>([]);
   const [error, setError] = useState("");
   const completing = useRef(false);
@@ -114,30 +110,14 @@ function FocusPage() {
     } catch {
       /* notification remains */
     }
-    if (charId) {
-      try {
-        const result = await companion({
-          data: { char_id: charId, mode, event: "finish", minutes: durations[mode] },
-        });
-        setMessage(result.message);
-        if (sessionId)
-          await (supabase as any)
-            .from("focus_sessions")
-            .update({ end_message: result.message })
-            .eq("id", sessionId);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "角色暂时没有回应。");
-      }
-    }
     await load();
     setSessionId("");
     completing.current = false;
-  }, [charId, companion, durations, load, mode, sessionId, state, title, totalSeconds, user]);
+  }, [load, mode, sessionId, state, title, totalSeconds, user]);
 
   async function start() {
     if (!user) return;
     setError("");
-    setMessage("");
     const seconds = durations[mode] * 60;
     const nextQuote = randomFocusQuote(quote);
     const nextTitle = title.trim() || labels[mode];
@@ -164,20 +144,6 @@ function FocusPage() {
     setState("running");
     if ("Notification" in window && Notification.permission === "default")
       void Notification.requestPermission();
-    if (charId) {
-      try {
-        const result = await companion({
-          data: { char_id: charId, mode, event: "start", minutes: durations[mode] },
-        });
-        setMessage(result.message);
-        await (supabase as any)
-          .from("focus_sessions")
-          .update({ start_message: result.message })
-          .eq("id", data.id);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "计时已开始，但角色暂时没有回应。");
-      }
-    }
   }
   async function pause() {
     const next = Math.max(0, Math.ceil((endAt - Date.now()) / 1_000));
@@ -215,7 +181,6 @@ function FocusPage() {
         .eq("user_id", user.id);
     setState("idle");
     setSessionId("");
-    setMessage("");
     setPausedSeconds(totalSeconds);
     await load();
   }
@@ -273,15 +238,9 @@ function FocusPage() {
             </select>
           </div>
         </div>
-        {message && (
-          <p>
-            <Sparkles size={14} />
-            <span className="focus-companion__message">{message}</span>
-          </p>
-        )}
       </section>
     ),
-    [avatar, charId, message, personas, selectedChar?.name, state],
+    [avatar, charId, personas, selectedChar?.name, state],
   );
   return (
     <main className="focus-page focus-app fade-in">
