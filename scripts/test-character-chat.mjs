@@ -83,6 +83,62 @@ test("reject global CSS, hidden controls, external URLs and viewport-sized shado
   ])
     assert.throws(() => safeBubbleDeclarations(css), css);
 });
+test("both bubble sides accept the same common visual CSS, including clip-path", () => {
+  const style = `background:linear-gradient(135deg,#fff,#ddd);
+    background-color:#fff;background-image:linear-gradient(#fff,#ddd);
+    color:#333;border:1px solid #ccc;border-radius:50% 999px / 24px 50%;
+    box-shadow:0 2px 8px rgba(0,0,0,.1);opacity:.95;
+    padding:0.5rem 12px;margin:4px 0;font-size:1rem;font-weight:200;
+    line-height:24px;letter-spacing:.02em;
+    clip-path:polygon(0 0,100% 0,100% 100%,10px 100%);
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.2)) saturate(110%);
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+    transform:translateY(2px) scale(.98);`;
+  const safe = safeBubbleDeclarations(style);
+  assert.match(safe, /clip-path:polygon/);
+  const output = bubbleStyles("shared-scope", style, style);
+  assert.equal(output.split(safe).length - 1, 2);
+  assert.match(output, /is-user/);
+  assert.match(output, /is-char/);
+  for (const clip of [
+    "inset(0 round 20px)",
+    "polygon(0 0,calc(100% - 8px) 0,100% 100%,0 100%)",
+    "circle(50% at 50% 50%)",
+    "ellipse(50% 40% at center)",
+    'path("M 0 0 L 100 0 L 100 100 Z")',
+    "none",
+  ])
+    assert.match(safeBubbleDeclarations(`clip-path:${clip}`), /clip-path:/);
+});
+test("unsafe new visual values cannot escape the bubble or exhaust visual effects", () => {
+  for (const style of [
+    "opacity:0",
+    "margin:-999px",
+    "margin:100%",
+    "transform:translateX(1000px)",
+    "transform:scale(100)",
+    "transform:scale(1.2) scale(1.2)",
+    "transform:translateX(24px) translateX(24px)",
+    "transform:matrix(1,0,0,1,9999,9999)",
+    "filter:blur(40px)",
+    "filter:blur(12px) blur(12px)",
+    "filter:opacity(.1) opacity(.1)",
+    "filter:url(https://example.invalid/a.svg)",
+    "clip-path:url(javascript:evil)",
+    "background-image:url(data:image/svg+xml,bad)",
+    "transform:expression(evil)",
+    "box-shadow:0 0 0 calc(40px + 40px) red",
+    "backdrop-filter:blur(1rem)",
+    "clip-path:polygon(0 0,100% 100%); } body {display:none",
+  ])
+    assert.throws(() => safeBubbleDeclarations(style), style);
+});
+test("invalid CSS falls back only for its own side without throwing during render", () => {
+  const output = bubbleStyles("valid-scope", "clip-path:url(bad)", "background:#eee");
+  assert.doesNotMatch(output, /is-user/);
+  assert.match(output, /is-char.*background:#eee/);
+  assert.equal(bubbleStyles("valid-scope", "position:fixed", "display:none"), "\n");
+});
 test("memory injection switch and character isolation", () => {
   const a = [{ id: "a", char_id: "a", content: "用户喜欢茶", updated_at: "2026-09-28T00:00:00Z" }];
   const b = [
