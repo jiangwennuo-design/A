@@ -79,38 +79,52 @@ export interface ChatMessage {
 
 export type MessageType = "text" | "image" | "sticker" | "transfer" | "call";
 
-export type ChatMessagePayload =
-  | Record<string, never>
-  | {
-      image_path: string;
-      local_preview_url?: string;
-      width?: number;
-      height?: number;
-      caption?: string;
-    }
-  | {
-      sticker_path: string;
-      sticker_id?: string;
-      sticker_name?: string;
-      sticker_tags?: string[];
-      width?: number;
-      height?: number;
-    }
-  | {
-      amount: number;
-      note?: string;
-      status: "pending" | "received" | "refunded" | "accepted" | "returned";
-      transferId?: string;
-      sender?: string;
-      receiver?: string;
-      remark?: string;
-      createdAt?: string;
-    }
-  | {
-      call_type: "voice";
-      duration?: number;
-      status: "missed" | "cancelled" | "completed";
-    };
+export interface QuotedMessage {
+  messageId: string;
+  sender: string;
+  role: "user" | "assistant";
+  content: string;
+  messageType: MessageType;
+}
+export interface ChatQuoteMetadata {
+  replyToMessageId?: string;
+  quotedMessage?: QuotedMessage;
+}
+
+export type ChatMessagePayload = ChatQuoteMetadata &
+  (
+    | ChatQuoteMetadata
+    | {
+        image_path: string;
+        local_preview_url?: string;
+        width?: number;
+        height?: number;
+        caption?: string;
+      }
+    | {
+        sticker_path: string;
+        sticker_id?: string;
+        sticker_name?: string;
+        sticker_tags?: string[];
+        width?: number;
+        height?: number;
+      }
+    | {
+        amount: number;
+        note?: string;
+        status: "pending" | "received" | "refunded" | "accepted" | "returned";
+        transferId?: string;
+        sender?: string;
+        receiver?: string;
+        remark?: string;
+        createdAt?: string;
+      }
+    | {
+        call_type: "voice";
+        duration?: number;
+        status: "missed" | "cancelled" | "completed";
+      }
+  );
 
 export interface ChatSticker {
   id: string;

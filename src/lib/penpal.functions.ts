@@ -4,8 +4,15 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AiMessage } from "./ai/multimodal";
 import { IMAGE_UNAVAILABLE } from "./ai/multimodal";
+import { quoteMessage, quotedContextForAi } from "./chat-quote";
 import type { ChatThinkingMode } from "./ai/inner-life.server";
-import { memoryContext, readCharacterChatPreferences, recentChatContext } from "./character-chat";
+import {
+  characterChatName,
+  characterUserIdentity,
+  memoryContext,
+  readCharacterChatPreferences,
+  recentChatContext,
+} from "./character-chat";
 import { buildPromptContext } from "./world-books";
 import { createTransfer, readTransfer, transferAmount, transferStatusLabel } from "./chat-transfer";
 import {
@@ -408,6 +415,10 @@ function selectStickerCatalog(stickers: StickerRow[], pending: ChatRow[]) {
 }
 
 function messageTextForAi(row: ChatRow) {
+  return quotedContextForAi(row.payload) + messageBodyForAi(row);
+}
+
+function messageBodyForAi(row: ChatRow) {
   if (!row.message_type || row.message_type === "text") return row.content;
   if (row.message_type === "image") return cleanText(row.payload?.["caption"]) || IMAGE_UNAVAILABLE;
   if (row.message_type === "sticker") {
@@ -435,10 +446,11 @@ export async function chatRowsForAi(db: Db, userId: string, rows: ChatRow[]): Pr
         if (row.message_type !== "image") return { role: row.role, content: messageTextForAi(row) };
         const path = cleanText(row.payload?.["image_path"]);
         if (!path.startsWith(`${userId}/messages/`))
-          return { role: row.role, content: IMAGE_UNAVAILABLE };
+          return { role: row.role, content: quotedContextForAi(row.payload) + IMAGE_UNAVAILABLE };
         const { data, error } = await db.storage.from("chat-media").createSignedUrl(path, 600);
-        if (error || !data?.signedUrl) return { role: row.role, content: IMAGE_UNAVAILABLE };
-        const caption = cleanText(row.payload?.["caption"]);
+        if (error || !data?.signedUrl)
+          return { role: row.role, content: quotedContextForAi(row.payload) + IMAGE_UNAVAILABLE };
+        const caption = quotedContextForAi(row.payload) + cleanText(row.payload?.["caption"]);
         return {
           role: row.role,
           content: [
@@ -470,7 +482,7 @@ export async function chatRowsForAi(db: Db, userId: string, rows: ChatRow[]): Pr
       let binary = "";
       for (let offset = 0; offset < bytes.length; offset += 8192)
         binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
-      const caption = cleanText(row.payload?.["caption"]);
+      const caption = quotedContextForAi(row.payload) + cleanText(row.payload?.["caption"]);
       messages[index] = {
         role: row.role,
         content: [
@@ -553,14 +565,35 @@ export const queuePenpalMessage = createServerFn({ method: "POST" })
   .validator((data: unknown) => queuedMessageInput.parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
-    await loadOwnedContext(db, context.userId, data.session_id, data.char_id);
+    const { character, profile } = await loadOwnedContext(
+      db,
+      context.userId,
+      data.session_id,
+      data.char_id,
+    );
     const content = data.message.trim();
-    const payload = validateMessagePayload(
+    let payload = validateMessagePayload(
       data.message_type,
       data.payload,
       context.userId,
       data.char_id,
     );
+    if (data.payload["replyToMessageId"] !== undefined) {
+      const originalId = uuid.parse(data.payload["replyToMessageId"]);
+      const { data: original, error: quoteError } = await db
+        .from("chat_messages")
+        .select("id, role, content, message_type, payload")
+        .eq("id", originalId)
+        .eq("session_id", data.session_id)
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (quoteError || !original) throw new Error("被引用消息不存在，请取消引用或重新选择。");
+      const sender =
+        original.role === "assistant"
+          ? characterChatName(character)
+          : characterUserIdentity(character.chat_preferences, profile).nickname;
+      payload = { ...payload, ...quoteMessage(original, sender) };
+    }
     if (data.message_type === "text" && !content) throw new Error("消息内容不能为空。");
     const { data: inserted, error } = await db
       .from("chat_messages")

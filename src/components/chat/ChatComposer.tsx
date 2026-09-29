@@ -1,5 +1,6 @@
 import { useEffect, useRef, type FormEvent } from "react";
-import { ArrowUp, Plus, Reply } from "lucide-react";
+import { ArrowUp, Plus, Reply, X } from "lucide-react";
+import type { QuotedMessage } from "@/lib/types";
 
 export function ChatComposer({
   value,
@@ -10,6 +11,8 @@ export function ChatComposer({
   onSubmit,
   onAttachments,
   onReply,
+  quote,
+  onCancelQuote,
 }: {
   value: string;
   disabled: boolean;
@@ -19,6 +22,8 @@ export function ChatComposer({
   onSubmit: (event: FormEvent) => void;
   onAttachments: () => void;
   onReply: () => void;
+  quote?: QuotedMessage | null;
+  onCancelQuote?: () => void;
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -29,6 +34,17 @@ export function ChatComposer({
   }, [value]);
   return (
     <form onSubmit={onSubmit} className="chat-composer chat-composer--system">
+      {quote && (
+        <div className="chat-quote-preview" role="status">
+          <div>
+            <strong>引用 {quote.sender}</strong>
+            <span>{quote.content}</span>
+          </div>
+          <button type="button" aria-label="取消引用" onClick={onCancelQuote}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
       <button
         type="button"
         aria-label="附件"

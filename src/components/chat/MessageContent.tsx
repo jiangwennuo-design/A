@@ -4,19 +4,26 @@ import { resolveSignedMediaUrl } from "@/lib/signed-media";
 import { formatCallDuration } from "@/lib/chat-message";
 import type { ChatMessage } from "@/lib/types";
 import { readTransfer, transferStatusLabel } from "@/lib/chat-transfer";
+import { readQuotedMessage } from "@/lib/chat-quote";
+import { MessageQuote } from "./MessageQuote";
 
 export const MessageContent = memo(function MessageContent({
   message,
   onOpenImage,
   onOpenTransfer,
+  quoteCanJump = false,
+  onJumpToMessage,
 }: {
   message: ChatMessage;
   onOpenImage: (url: string, alt: string) => void;
   onOpenTransfer?: ((message: ChatMessage) => void) | undefined;
+  quoteCanJump?: boolean;
+  onJumpToMessage?: (id: string) => void;
 }) {
   const [url, setUrl] = useState("");
   const [loaded, setLoaded] = useState(false);
   const type = message.message_type ?? "text";
+  const quote = readQuotedMessage(message.payload);
   const payload = message.payload as Record<string, unknown>;
   const localPreview = String(payload["local_preview_url"] ?? "");
   const path =
@@ -46,6 +53,13 @@ export const MessageContent = memo(function MessageContent({
   if (type === "text")
     return (
       <div className="message-bubble">
+        {quote && (
+          <MessageQuote
+            quote={quote}
+            canJump={quoteCanJump}
+            onJump={(id) => onJumpToMessage?.(id)}
+          />
+        )}
         <p>{message.content}</p>
       </div>
     );

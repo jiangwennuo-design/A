@@ -11,6 +11,8 @@ import {
 import { EmptyState } from "@/components/ui-kit";
 import type { ChatMessage } from "@/lib/types";
 import { MessageContent } from "@/components/chat/MessageContent";
+import { readQuotedMessage } from "@/lib/chat-quote";
+import { MessageQuote } from "@/components/chat/MessageQuote";
 
 interface Props {
   wallpaperUrl?: string;
@@ -59,6 +61,31 @@ export const ChatMessages = memo(function ChatMessages({
   const nearBottom = useRef(true);
   const pressTimer = useRef<number | null>(null);
   const pressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const [jumpTarget, setJumpTarget] = useState<string | null>(null);
+
+  function jumpToMessage(id: string) {
+    const index = messages.findIndex((message) => message.id === id);
+    if (index < 0) return;
+    preserveScroll.current = null;
+    setVisibleCount((count) => Math.max(count, messages.length - index));
+    setJumpTarget(id);
+  }
+
+  useLayoutEffect(() => {
+    if (!jumpTarget) return;
+    const target = Array.from(
+      viewport.current?.querySelectorAll<HTMLElement>("[data-message-id]") ?? [],
+    ).find((element) => element.dataset["messageId"] === jumpTarget);
+    if (target) {
+      target.scrollIntoView({
+        block: "center",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+      });
+      setJumpTarget(null);
+    }
+  }, [jumpTarget, visibleCount]);
 
   function cancelLongPress() {
     if (pressTimer.current !== null) window.clearTimeout(pressTimer.current);
@@ -155,6 +182,8 @@ export const ChatMessages = memo(function ChatMessages({
         <EmptyState icon="✉️" title={`和${assistantName}聊聊`} subtitle="慢慢说，我在这里。" />
       )}
       {messages.slice(-visibleCount).map((message, index, shown) => {
+        const quote = readQuotedMessage(message.payload);
+        const quoteCanJump = Boolean(quote && messages.some((item) => item.id === quote.messageId));
         const isUser = message.role === "user";
         const firstShownIndex = messages.length - shown.length;
         const previous = messages[firstShownIndex + index - 1];
@@ -171,6 +200,7 @@ export const ChatMessages = memo(function ChatMessages({
               </time>
             )}
             <div
+              data-message-id={message.id}
               className={`chat-message-row message-enter ${isUser ? "is-user" : "is-char"} ${grouped ? "is-grouped" : ""}`}
             >
               <MessageAvatar
@@ -204,8 +234,13 @@ export const ChatMessages = memo(function ChatMessages({
                       </div>
                     </details>
                   )}
+                {quote && (message.message_type ?? "text") !== "text" && (
+                  <MessageQuote quote={quote} canJump={quoteCanJump} onJump={jumpToMessage} />
+                )}
                 <MessageContent
                   message={message}
+                  quoteCanJump={quoteCanJump}
+                  onJumpToMessage={jumpToMessage}
                   onOpenImage={onOpenImage}
                   onOpenTransfer={onOpenTransfer}
                 />

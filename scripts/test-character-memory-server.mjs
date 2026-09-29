@@ -519,4 +519,82 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
     untouched,
   );
   assert.equal(records.diaries.length, 1, "single letter deletion preserves diary");
+
+  // Real queue handler canonicalizes snapshots and restricts references to the same owned session.
+  const original = {
+    id: crypto.randomUUID(),
+    session_id: sa,
+    user_id: owner,
+    role: "assistant",
+    content: "你想周六还是周日出发？",
+    message_type: "text",
+    payload: {},
+    delivery_status: "sent",
+    created_at: new Date().toISOString(),
+    message_order: 0,
+  };
+  records.chat_messages.push(original);
+  const quoteData = {
+    session_id: sa,
+    char_id: a,
+    message: "周日",
+    message_type: "text",
+    payload: { replyToMessageId: original.id, quotedMessage: { content: "伪造快照" } },
+  };
+  const queued = await chat.namespace.queuePenpalMessage({
+    data: quoteData,
+    context: { userId: owner, supabase: db },
+  });
+  assert.equal(queued.message.payload.replyToMessageId, original.id);
+  assert.equal(queued.message.payload.quotedMessage.content, original.content);
+  assert.equal(queued.message.payload.quotedMessage.role, "assistant");
+  await assert.rejects(
+    () =>
+      chat.namespace.queuePenpalMessage({
+        data: { ...quoteData, session_id: sb, char_id: b },
+        context: { userId: owner, supabase: db },
+      }),
+    /被引用消息不存在/,
+  );
+  const otherOriginal = { ...original, id: crypto.randomUUID(), user_id: crypto.randomUUID() };
+  records.chat_messages.push(otherOriginal);
+  await assert.rejects(
+    () =>
+      chat.namespace.queuePenpalMessage({
+        data: { ...quoteData, payload: { replyToMessageId: otherOriginal.id } },
+        context: { userId: owner, supabase: db },
+      }),
+    /被引用消息不存在/,
+  );
+  // The saved snapshot survives deleting its target and still enters model context.
+  records.chat_messages = records.chat_messages.filter((row) => row.id !== original.id);
+  const restoredQuote = JSON.parse(JSON.stringify(queued.message));
+  const contextRows = await chat.namespace.chatRowsForAi(db, owner, [
+    restoredQuote,
+    {
+      ...restoredQuote,
+      id: crypto.randomUUID(),
+      message_type: "image",
+      payload: {
+        ...restoredQuote.payload,
+        image_path: `${owner}/messages/photo.png`,
+        caption: "看看这里",
+      },
+    },
+  ]);
+  assert.match(contextRows[0].content, /你想周六还是周日出发/);
+  assert.match(contextRows[0].content, /当前消息：\n周日/);
+  assert.equal(contextRows[1].content[1].type, "image");
+  assert.match(contextRows[1].content[0].text, /引用回复.*\n.*你想周六还是周日出发/);
+  character.chat_thinking_mode = "off";
+  records.chat_messages = [restoredQuote];
+  output = JSON.stringify({ messages: [{ type: "text", content: "好，那就周日。" }] });
+  await reply(a, sa);
+  assert.ok(
+    calls
+      .at(-1)
+      .messages.some(
+        (row) => typeof row.content === "string" && row.content.includes("你想周六还是周日出发"),
+      ),
+  );
 });

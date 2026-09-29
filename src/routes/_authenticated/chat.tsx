@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   Phone,
+  Reply,
   Search,
   Settings,
   Trash2,
@@ -46,6 +47,7 @@ import type {
   AiPersona,
   ChatMessage,
   ChatMessagePayload,
+  ChatQuoteMetadata,
   ChatSession,
   ChatSticker,
   DiaryContextMode,
@@ -53,6 +55,7 @@ import type {
 } from "@/lib/types";
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import { messagePreview, normalizeChatMessage } from "@/lib/chat-message";
+import { quoteMessage } from "@/lib/chat-quote";
 import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
 import {
   characterChatName,
@@ -377,6 +380,7 @@ function ConversationPage({
   const [sessionId, setSessionId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [quotedReply, setQuotedReply] = useState<ChatQuoteMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingMessage, setSavingMessage] = useState(false);
   const [sending, setSending] = useState(false);
@@ -452,6 +456,7 @@ function ConversationPage({
     void (async () => {
       setLoading(true);
       setError("");
+      setQuotedReply(null);
       const { data: persona } = await db
         .from("ai_personas")
         .select("*")
@@ -556,7 +561,7 @@ function ConversationPage({
 
   function openMessageMenu(messageId: string, anchor: MessageAnchor) {
     if (messageId.startsWith("pending-")) return;
-    const menuWidth = 196;
+    const menuWidth = 260;
     const menuHeight = 46;
     const margin = 10;
     const shell = conversationRef.current?.getBoundingClientRect();
@@ -622,6 +627,8 @@ function ConversationPage({
     retryId?: string,
   ) {
     if (!sessionId || !charId || savingMessage || sending) return;
+    const messagePayload = retryId ? payload : { ...payload, ...quotedReply };
+    if (!retryId) setQuotedReply(null);
     const now = new Date().toISOString();
     const optimisticId = retryId ?? `pending-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
     const optimisticMessage: ChatMessage = {
@@ -631,7 +638,7 @@ function ConversationPage({
       role: "user",
       content: text,
       message_type: type,
-      payload,
+      payload: messagePayload,
       delivery_status: "sending",
       turn_id: null,
       message_order: 0,
@@ -657,7 +664,7 @@ function ConversationPage({
           session_id: sessionId,
           char_id: charId,
           message_type: type,
-          payload: payload as Record<string, unknown>,
+          payload: messagePayload as Record<string, unknown>,
         },
       });
       const savedUser = normalizeChatMessage(result.message as ChatMessage);
@@ -686,6 +693,7 @@ function ConversationPage({
 
   async function sendImage(file: File) {
     if (!user) return;
+    const imageQuote = quotedReply;
     let prepared: Awaited<ReturnType<typeof prepareChatImage>> | null = null;
     let optimisticId = "";
     try {
@@ -695,6 +703,7 @@ function ConversationPage({
       optimisticId = `pending-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
       const now = new Date().toISOString();
       pendingImageUploads.current.set(optimisticId, image);
+      setQuotedReply((previous) => (previous === imageQuote ? null : previous));
       setMessages((previous) => [
         ...previous,
         {
@@ -705,6 +714,7 @@ function ConversationPage({
           content: "用户发送了一张图片。",
           message_type: "image",
           payload: {
+            ...imageQuote,
             image_path: "",
             local_preview_url: image.previewUrl,
             width: image.width,
@@ -725,7 +735,7 @@ function ConversationPage({
       await sendMessage(
         "image",
         "用户发送了一张图片。",
-        { image_path: path, width: prepared.width, height: prepared.height },
+        { ...imageQuote, image_path: path, width: prepared.width, height: prepared.height },
         optimisticId,
       );
     } catch (reason) {
@@ -762,7 +772,12 @@ function ConversationPage({
         await sendMessage(
           "image",
           message.content,
-          { image_path: path, width: pendingImage.width, height: pendingImage.height },
+          {
+            ...message.payload,
+            image_path: path,
+            width: pendingImage.width,
+            height: pendingImage.height,
+          },
           message.id,
         );
         pendingImageUploads.current.delete(message.id);
@@ -912,6 +927,7 @@ function ConversationPage({
     try {
       await clear({ data: { session_id: sessionId, char_id: charId } });
       setMessages([]);
+      setQuotedReply(null);
       setChatSettingsOpen(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "清空失败。");
@@ -1052,6 +1068,24 @@ function ConversationPage({
                 <button
                   type="button"
                   role="menuitem"
+                  onClick={() => {
+                    setQuotedReply(
+                      quoteMessage(
+                        selected,
+                        selected.role === "user"
+                          ? userIdentity.nickname
+                          : characterChatName(current),
+                      ),
+                    );
+                    setMessageMenu(null);
+                  }}
+                >
+                  <Reply size={15} />
+                  <span>引用</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   className="is-danger"
                   onClick={() => void deleteMessage(selected)}
                 >
@@ -1064,6 +1098,8 @@ function ConversationPage({
         })()}
 
       <ChatComposer
+        quote={quotedReply?.quotedMessage ?? null}
+        onCancelQuote={() => setQuotedReply(null)}
         value={input}
         disabled={savingMessage || sending}
         canReply={hasPendingMessages}
