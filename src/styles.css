@@ -3699,6 +3699,18 @@ textarea {
   margin-top: 3px;
   color: var(--color-primary);
 }
+.focus-companion__message {
+  flex: 1;
+}
+.focus-companion__message,
+.food-result__reply p {
+  min-width: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .focus-controls {
   display: flex;
   justify-content: center;

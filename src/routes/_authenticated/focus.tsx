@@ -275,7 +275,8 @@ function FocusPage() {
         </div>
         {message && (
           <p>
-            <Sparkles size={14} /> {message}
+            <Sparkles size={14} />
+            <span className="focus-companion__message">{message}</span>
           </p>
         )}
       </section>
