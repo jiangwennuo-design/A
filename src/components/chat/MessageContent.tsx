@@ -52,7 +52,7 @@ export const MessageContent = memo(function MessageContent({
   }, [localPreview, path]);
   if (type === "text")
     return (
-      <div className="message-bubble">
+      <div className="message-bubble" data-ui="message-bubble">
         {quote && (
           <MessageQuote
             quote={quote}

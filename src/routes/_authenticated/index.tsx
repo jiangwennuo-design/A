@@ -8,6 +8,7 @@ import {
   Headphones,
   MessageCircle,
   Settings,
+  SwatchBook,
   Timer,
   UtensilsCrossed,
   type LucideIcon,
@@ -16,6 +17,8 @@ import { useAuth } from "@/context/AuthContext";
 import { DesktopWallpaper } from "@/components/DesktopWallpaper";
 import { SystemModal } from "@/components/system-ui";
 import { openSystemApp } from "@/lib/app-transition";
+import { safeScopedAppearanceCss } from "@/lib/appearance";
+import { useDesktopAppearance } from "@/lib/desktop-appearance";
 
 const QUOTE_STORAGE_KEY = "cxyj-daily-quote";
 const DEFAULT_QUOTE = "把想说的话，慢慢写进今天。";
@@ -29,7 +32,9 @@ export const Route = createFileRoute("/_authenticated/")({
 
 function PhoneHomePage() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const appearance = useDesktopAppearance(user?.id ?? "guest");
+  const desktop = appearance.config;
   const [now, setNow] = useState(() => new Date());
   const [quote, setQuote] = useState(
     () => localStorage.getItem(QUOTE_STORAGE_KEY) || DEFAULT_QUOTE,
@@ -67,16 +72,40 @@ function PhoneHomePage() {
 
   return (
     <DesktopWallpaper>
-      <main className="phone-home fade-in">
-        <section className="phone-home__hero" aria-label="日期与问候">
-          <p className="phone-home__time">{time}</p>
-          <p className="phone-home__date">{date.replace("星期", " · 星期")}</p>
-          <p className="phone-home__hello">
-            {greeting()}，{profile?.display_name || "朋友"}
-          </p>
+      <main
+        className="phone-home fade-in"
+        data-ui="desktop"
+        style={
+          {
+            "--desktop-grid-gap": `${desktop.gridGap}px`,
+            "--desktop-grid-columns": String(desktop.gridColumns),
+            "--desktop-dock-size": `${desktop.dockSize}px`,
+            "--desktop-dock-x": `${desktop.dockX}px`,
+            "--desktop-dock-y": `${desktop.dockY}px`,
+            "--desktop-dock-opacity": String(desktop.dockOpacity),
+          } as React.CSSProperties
+        }
+      >
+        <style>{safeScopedAppearanceCss(appearance.customCss, "desktop")}</style>
+        <section className="phone-home__hero" data-ui="desktop-widgets" aria-label="日期与问候">
+          {desktop.showTime && (
+            <p className="phone-home__time" data-ui="desktop-time">
+              {time}
+            </p>
+          )}
+          {desktop.showDate && (
+            <p className="phone-home__date" data-ui="desktop-date">
+              {date.replace("星期", " · 星期")}
+            </p>
+          )}
+          {desktop.showGreeting && (
+            <p className="phone-home__hello" data-ui="desktop-greeting">
+              {greeting()}，{profile?.display_name || "朋友"}
+            </p>
+          )}
         </section>
 
-        <section className="phone-app-grid" aria-label="应用列表">
+        <section className="phone-app-grid" data-ui="app-grid" aria-label="应用列表">
           <AppIcon
             label="此心一笺"
             subtitle="日记"
@@ -121,22 +150,32 @@ function PhoneHomePage() {
               openApp("world-books", event, () => navigate({ to: "/world-books" }))
             }
           />
+          <AppIcon
+            label="美化"
+            subtitle="桌面主题"
+            icon={SwatchBook}
+            tone="appearance"
+            onClick={(event) => openApp("appearance", event, () => navigate({ to: "/appearance" }))}
+          />
         </section>
 
-        <button
-          type="button"
-          className="phone-home__quote"
-          onClick={() => {
-            setQuoteDraft(quote);
-            setQuoteEditorOpen(true);
-          }}
-          aria-label="编辑桌面寄语"
-        >
-          <span aria-hidden>“</span>
-          <p>{quote}</p>
-        </button>
+        {desktop.showQuote && (
+          <button
+            type="button"
+            className="phone-home__quote"
+            data-ui="desktop-quote"
+            onClick={() => {
+              setQuoteDraft(quote);
+              setQuoteEditorOpen(true);
+            }}
+            aria-label="编辑桌面寄语"
+          >
+            <span aria-hidden>“</span>
+            <p>{quote}</p>
+          </button>
+        )}
 
-        <nav className="phone-dock" aria-label="系统应用">
+        <nav className="phone-dock" data-ui="dock" aria-label="系统应用">
           <DockIcon
             label="名册"
             icon={ContactRound}
@@ -204,17 +243,44 @@ function AppIcon({
   tone: string;
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
+  const { user } = useAuth();
+  const appearance = useDesktopAppearance(user?.id ?? "guest");
+  const appId = tone === "paper" ? "diary" : tone;
+  const visual = appearance.config.apps[appId] ?? {};
+  const size = visual.size ?? appearance.config.iconSize;
   return (
     <button
       type="button"
       onClick={onClick}
       className="phone-app"
+      data-ui="app"
+      data-app-id={appId}
       aria-label={`${label}，${subtitle}`}
+      style={{
+        transform: `translate(${visual.x ?? 0}px, ${visual.y ?? 0}px) scale(${visual.scale ?? 1}) rotate(${visual.rotate ?? 0}deg)`,
+        opacity: visual.opacity ?? 1,
+      }}
     >
-      <span className={`phone-app__icon phone-app__icon--${tone}`}>
-        <Icon size={31} strokeWidth={1.8} />
+      <span
+        className={`phone-app__icon phone-app__icon--${tone}`}
+        data-ui="app-icon"
+        style={{ width: size, height: size, borderRadius: `${visual.radius ?? 17}px` }}
+      >
+        {visual.iconUrl ? (
+          <img src={visual.iconUrl} alt="" />
+        ) : (
+          <Icon size={Math.round(size * 0.54)} strokeWidth={1.8} />
+        )}
       </span>
-      <span className="phone-app__label">{label}</span>
+      {(visual.labelVisible ?? true) && (
+        <span
+          className="phone-app__label"
+          data-ui="app-label"
+          style={{ fontSize: `${visual.labelSize ?? 12}px` }}
+        >
+          {label}
+        </span>
+      )}
       <span className="phone-app__subtitle">{subtitle}</span>
     </button>
   );
@@ -231,10 +297,28 @@ function DockIcon({
   tone: string;
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
+  const { user } = useAuth();
+  const appearance = useDesktopAppearance(user?.id ?? "guest");
+  const visual = appearance.config.apps[tone] ?? {};
   return (
-    <button type="button" className="phone-dock__app" onClick={onClick} aria-label={label}>
-      <span className={`phone-app__icon phone-app__icon--${tone}`}>
-        <Icon size={27} strokeWidth={1.8} />
+    <button
+      type="button"
+      className="phone-dock__app"
+      data-ui="dock-app"
+      data-app-id={tone}
+      onClick={onClick}
+      aria-label={label}
+    >
+      <span
+        className={`phone-app__icon phone-app__icon--${tone}`}
+        data-ui="app-icon"
+        style={{ borderRadius: `${visual.radius ?? 17}px`, opacity: visual.opacity ?? 1 }}
+      >
+        {visual.iconUrl ? (
+          <img src={visual.iconUrl} alt="" />
+        ) : (
+          <Icon size={27} strokeWidth={1.8} />
+        )}
       </span>
     </button>
   );
