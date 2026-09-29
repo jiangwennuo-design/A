@@ -151,7 +151,6 @@ export const ChatMessages = memo(function ChatMessages({
     <main
       ref={viewport}
       className="chat-message-list"
-      data-ui="chat-messages"
       style={
         wallpaperUrl
           ? {
@@ -205,8 +204,6 @@ export const ChatMessages = memo(function ChatMessages({
             )}
             <div
               data-message-id={message.id}
-              data-ui="message"
-              data-role={isUser ? "user" : "char"}
               className={`chat-message-row message-enter ${isUser ? "is-user" : "is-char"} ${grouped ? "is-grouped" : ""}`}
             >
               <MessageAvatar
@@ -271,8 +268,6 @@ export const ChatMessages = memo(function ChatMessages({
       {sending && (
         <div
           className="chat-message-row is-char message-enter"
-          data-ui="message"
-          data-role="char"
           role="status"
           aria-label="角色正在回复"
         >
@@ -300,7 +295,6 @@ export function MessageAvatar({
   return (
     <div
       className="chat-avatar"
-      data-ui="message-avatar"
       title={name}
       style={alwaysVisible ? { visibility: "visible" } : undefined}
     >

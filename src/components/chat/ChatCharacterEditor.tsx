@@ -10,7 +10,6 @@ import type { ChatThinkingMode } from "@/lib/ai/inner-life.server";
 import { CharacterChatExtras } from "./CharacterChatExtras";
 import { characterChatSchema, readCharacterChatPreferences } from "@/lib/character-chat";
 import { safeBubbleDeclarations } from "@/lib/bubble-css";
-import { scopeAppearanceCss } from "@/lib/appearance";
 
 const db = supabase as any;
 
@@ -90,8 +89,6 @@ export function ChatCharacterEditor({
       characterChatSchema.parse(preferences);
       safeBubbleDeclarations(preferences.userBubbleCss);
       safeBubbleDeclarations(preferences.charBubbleCss);
-      scopeAppearanceCss(preferences.appearance.chatBubble.customCss, "chatBubble");
-      scopeAppearanceCss(preferences.appearance.chatChrome.customCss, "chatChrome");
     } catch (reason) {
       return setError(reason instanceof Error ? reason.message : "请检查美化和记忆配置。");
     }

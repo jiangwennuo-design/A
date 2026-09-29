@@ -65,11 +65,6 @@ import {
 import { bubbleStyles } from "@/lib/bubble-css";
 import { characterWallpaperUrl } from "@/lib/character-wallpaper";
 import { retainWallpaperUrl } from "@/lib/wallpaper-media";
-import {
-  chatChromeElementCss,
-  chatChromeVariables,
-  safeScopedAppearanceCss,
-} from "@/lib/appearance";
 
 // The live schema includes multi-penpal migration fields not present in the generated client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -965,36 +960,22 @@ function ConversationPage({
     );
 
   return (
-    <div
-      ref={conversationRef}
-      className="chat-app chat-conversation"
-      data-chat-scope={charId}
-      data-ui="chat-page"
-      style={chatChromeVariables(chatPreferences.appearance.chatChrome.config)}
-    >
+    <div ref={conversationRef} className="chat-app chat-conversation" data-chat-scope={charId}>
       <style>
         {bubbleStyles(charId, chatPreferences.userBubbleCss, chatPreferences.charBubbleCss)}
       </style>
-      <style>
-        {safeScopedAppearanceCss(chatPreferences.appearance.chatChrome.customCss, "chatChrome")}
-      </style>
-      <style>{chatChromeElementCss(chatPreferences.appearance.chatChrome.config)}</style>
-      <style>
-        {safeScopedAppearanceCss(chatPreferences.appearance.chatBubble.customCss, "chatBubble")}
-      </style>
-      <header className="chat-conversation__header" data-ui="chat-header">
+      <header className="chat-conversation__header">
         <button
           type="button"
           aria-label="返回聊天列表"
           onClick={() => void popSystemPage(() => navigate({ to: "/chat", search: {} }))}
           className="chat-header-back"
-          data-ui="chat-back"
         >
           <ChevronLeft size={26} strokeWidth={1.8} />
           <span>消息</span>
         </button>
         <div className="chat-conversation__contact">
-          <div className="chat-header-avatar" data-ui="chat-header-avatar">
+          <div className="chat-header-avatar">
             {assistantAvatar ? (
               <img
                 src={assistantAvatar}
@@ -1006,7 +987,7 @@ function ConversationPage({
             )}
           </div>
           <div className="chat-conversation__identity">
-            <h1 data-ui="chat-title">{characterChatName(current)}</h1>
+            <h1>{characterChatName(current)}</h1>
             {sending && <p>正在回复…</p>}
           </div>
         </div>
@@ -1016,7 +997,6 @@ function ConversationPage({
             aria-label="语音通话"
             onClick={startCall}
             className="chat-icon-button"
-            data-ui="chat-call"
           >
             <Phone size={19} />
           </button>
@@ -1025,7 +1005,6 @@ function ConversationPage({
             aria-label="聊天设置"
             onClick={() => setChatSettingsOpen(true)}
             className="chat-icon-button"
-            data-ui="chat-settings"
           >
             <Settings size={19} />
           </button>

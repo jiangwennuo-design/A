@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Brain, ChevronRight, ImagePlus, Palette, Pencil, Plus, Trash2 } from "lucide-react";
-import { AppearancePresetManager } from "@/components/appearance/AppearancePresetManager";
 import { SystemSheet } from "@/components/system-ui";
 import { MessageAvatar } from "@/components/ChatMessages";
 import { CharacterWorldBooks } from "./CharacterWorldBooks";
@@ -17,16 +16,6 @@ import { characterWallpaperUrl, uploadCharacterWallpaper } from "@/lib/character
 import { retainWallpaperUrl } from "@/lib/wallpaper-media";
 import { assertSafeRemoteUrl } from "@/lib/stickers/resolve-resource";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  chatChromeVariables,
-  chatChromeElementCss,
-  defaultAppearanceModule,
-  readAppearanceModule,
-  safeScopedAppearanceCss,
-  type AppearanceModule,
-  type ChatBubbleConfig,
-  type ChatChromeConfig,
-} from "@/lib/appearance";
 import "@/styles/character-chat.css";
 
 export function CharacterChatExtras({
@@ -66,24 +55,6 @@ export function CharacterChatExtras({
   const summarize = useServerFn(summarizeCharacterMemory);
   const update = (patch: Partial<CharacterChatPreferences>) =>
     onChange((current) => ({ ...current, ...patch }));
-  const bubbleAppearance = readAppearanceModule("chatBubble", value.appearance.chatBubble);
-  const chromeAppearance = readAppearanceModule("chatChrome", value.appearance.chatChrome);
-  const setBubbleAppearance = (next: AppearanceModule<ChatBubbleConfig>) =>
-    update({
-      userBubbleCss: next.config.userCss,
-      charBubbleCss: next.config.charCss,
-      appearance: {
-        ...value.appearance,
-        chatBubble: next as unknown as CharacterChatPreferences["appearance"]["chatBubble"],
-      },
-    });
-  const setChromeAppearance = (next: AppearanceModule<ChatChromeConfig>) =>
-    update({
-      appearance: {
-        ...value.appearance,
-        chatChrome: next as unknown as CharacterChatPreferences["appearance"]["chatChrome"],
-      },
-    });
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -231,147 +202,26 @@ export function CharacterChatExtras({
         </summary>
         <div className="character-extras__body">
           <p className="character-extras__hint">仅作用于当前角色。修改后点击顶部“完成”保存。</p>
-          <section className="character-extras__card">
-            <label className="contact-editor__field">
-              <span>头像显示模式</span>
-              <select
-                aria-label="头像显示模式"
-                value={value.avatarDisplayMode}
-                onChange={(event) =>
-                  update({ avatarDisplayMode: event.target.value === "qq" ? "qq" : "simple" })
-                }
-              >
-                <option value="simple">简洁模式（默认）</option>
-                <option value="qq">QQ模式</option>
-              </select>
-            </label>
-            <p className="character-extras__hint">
-              {value.avatarDisplayMode === "qq"
-                ? "每条消息旁均显示头像，仅对此角色生效。"
-                : "连续消息只显示一个头像，保持现有显示方式。"}
-            </p>
-          </section>
-          <details className="appearance-subsection">
-            <summary>
-              <span>
-                <strong>聊天气泡</strong>
-                <small>User / Char CSS 与预设</small>
-              </span>
-              <ChevronRight size={16} />
-            </summary>
-            <div className="appearance-subsection__body">
-              {(["userBubbleCss", "charBubbleCss"] as const).map((key, index) => (
-                <section className="character-extras__card" key={key}>
-                  <div className="character-extras__row">
-                    <h3>{index === 0 ? "User 气泡 CSS" : "Char 气泡 CSS"}</h3>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setBubbleAppearance({
-                          ...bubbleAppearance,
-                          currentPresetId: null,
-                          config: {
-                            ...bubbleAppearance.config,
-                            [index === 0 ? "userCss" : "charCss"]: "",
-                          },
-                        })
-                      }
-                    >
-                      恢复默认
-                    </button>
-                  </div>
-                  <textarea
-                    aria-label={index === 0 ? "User 气泡 CSS" : "Char 气泡 CSS"}
-                    className="character-extras__css"
-                    rows={4}
-                    maxLength={4000}
-                    placeholder="background-color: #1886f7;\ncolor: #fff;\nborder-radius: 18px;"
-                    value={value[key]}
-                    onChange={(event) => {
-                      const css = event.target.value;
-                      setBubbleAppearance({
-                        ...bubbleAppearance,
-                        currentPresetId: null,
-                        config: {
-                          ...bubbleAppearance.config,
-                          [index === 0 ? "userCss" : "charCss"]: css,
-                        },
-                      });
-                    }}
-                  />
-                  {cssErrors[index] && (
-                    <p className="character-extras__error">{cssErrors[index]}</p>
-                  )}
-                </section>
-              ))}
-              <div
-                className="character-extras__preview"
-                data-ui="chat-messages"
-                data-chat-scope={scope}
-                style={
-                  wallpaper ? { backgroundImage: `url(${JSON.stringify(wallpaper)})` } : undefined
-                }
-              >
-                <style>{bubbleStyles(scope, value.userBubbleCss, value.charBubbleCss, true)}</style>
-                <style>{safeScopedAppearanceCss(bubbleAppearance.customCss, "chatBubble")}</style>
-                <small>实时预览</small>
-                {[
-                  { side: "char", name: "角色", text: "今天过得怎么样？", grouped: false },
-                  { side: "char", name: "角色", text: "慢慢说，我在听。", grouped: true },
-                  { side: "user", name: "我", text: "想和你分享今天的小事。", grouped: false },
-                  { side: "user", name: "我", text: "还有一件开心的事。", grouped: true },
-                ].map((message, index) => (
-                  <div
-                    key={index}
-                    data-ui="message"
-                    data-role={message.side}
-                    className={`chat-message-row is-${message.side} ${message.grouped ? "is-grouped" : ""}`}
-                  >
-                    <MessageAvatar
-                      url=""
-                      name={message.name}
-                      alwaysVisible={value.avatarDisplayMode === "qq"}
-                    />
-                    <div className="message-content-wrapper">
-                      <div className="message-bubble" data-ui="message-bubble">
-                        <p>{message.text}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+          {(["userBubbleCss", "charBubbleCss"] as const).map((key, index) => (
+            <section className="character-extras__card" key={key}>
+              <div className="character-extras__row">
+                <h3>{index === 0 ? "User 气泡 CSS" : "Char 气泡 CSS"}</h3>
+                <button type="button" onClick={() => update({ [key]: "" })}>
+                  恢复默认
+                </button>
               </div>
-              <label className="character-extras__field">
-                高级气泡 CSS
-                <textarea
-                  rows={8}
-                  maxLength={40000}
-                  spellCheck={false}
-                  value={bubbleAppearance.customCss}
-                  onChange={(event) =>
-                    setBubbleAppearance({
-                      ...bubbleAppearance,
-                      currentPresetId: null,
-                      customCss: event.target.value,
-                    })
-                  }
-                  placeholder={
-                    '[data-role="user"] [data-ui="message-bubble"] {\n  filter: saturate(.9);\n}'
-                  }
-                />
-              </label>
-              <AppearancePresetManager
-                type="chatBubble"
-                value={bubbleAppearance}
-                onChange={setBubbleAppearance}
-                onReset={() =>
-                  setBubbleAppearance({
-                    ...defaultAppearanceModule("chatBubble"),
-                    presets: bubbleAppearance.presets,
-                  })
-                }
+              <textarea
+                aria-label={index === 0 ? "User 气泡 CSS" : "Char 气泡 CSS"}
+                className="character-extras__css"
+                rows={4}
+                maxLength={4000}
+                placeholder="background-color: #1886f7;\ncolor: #fff;\nborder-radius: 18px;"
+                value={value[key]}
+                onChange={(event) => update({ [key]: event.target.value })}
               />
-            </div>
-          </details>
+              {cssErrors[index] && <p className="character-extras__error">{cssErrors[index]}</p>}
+            </section>
+          ))}
           <section className="character-extras__card">
             <h3>聊天壁纸</h3>
             <input
@@ -428,261 +278,56 @@ export function CharacterChatExtras({
               </button>
             </div>
           </section>
-          <details className="appearance-subsection">
-            <summary>
-              <span>
-                <strong>聊天界面</strong>
-                <small>顶栏、底栏与高级 CSS</small>
-              </span>
-              <ChevronRight size={16} />
-            </summary>
-            <div className="appearance-subsection__body">
-              <div
-                className="chat-chrome-preview"
-                data-ui="chat-page"
-                style={chatChromeVariables(chromeAppearance.config)}
-              >
-                <style>{safeScopedAppearanceCss(chromeAppearance.customCss, "chatChrome")}</style>
-                <style>{chatChromeElementCss(chromeAppearance.config)}</style>
-                <header data-ui="chat-header">
-                  <button data-ui="chat-back">‹</button>
-                  <span data-ui="chat-header-avatar" />
-                  <strong data-ui="chat-title">角色</strong>
-                  <button data-ui="chat-call">○</button>
-                  <button data-ui="chat-settings">⚙</button>
-                </header>
-                <footer data-ui="chat-footer">
-                  <button data-ui="chat-add">+</button>
-                  <span data-ui="chat-input">说点什么…</span>
-                  <button data-ui="chat-send">↑</button>
-                </footer>
-              </div>
-              <section className="character-extras__card">
-                <h3>顶栏</h3>
-                <label className="character-extras__field">
-                  背景
-                  <input
-                    value={chromeAppearance.config.headerBackground}
-                    placeholder="#ffffff 或 rgba(… )"
-                    onChange={(e) =>
-                      setChromeAppearance({
-                        ...chromeAppearance,
-                        currentPresetId: null,
-                        config: { ...chromeAppearance.config, headerBackground: e.target.value },
-                      })
-                    }
-                  />
-                </label>
-                <label className="character-extras__field">
-                  高度
-                  <input
-                    type="range"
-                    min="54"
-                    max="120"
-                    value={chromeAppearance.config.headerHeight}
-                    onChange={(e) =>
-                      setChromeAppearance({
-                        ...chromeAppearance,
-                        currentPresetId: null,
-                        config: {
-                          ...chromeAppearance.config,
-                          headerHeight: Number(e.target.value),
-                        },
-                      })
-                    }
-                  />
-                </label>
-                <label className="character-extras__field">
-                  模糊
-                  <input
-                    type="range"
-                    min="0"
-                    max="32"
-                    value={chromeAppearance.config.headerBlur}
-                    onChange={(e) =>
-                      setChromeAppearance({
-                        ...chromeAppearance,
-                        currentPresetId: null,
-                        config: { ...chromeAppearance.config, headerBlur: Number(e.target.value) },
-                      })
-                    }
-                  />
-                </label>
-                <label className="character-extras__field">
-                  头像大小
-                  <input
-                    type="range"
-                    min="28"
-                    max="64"
-                    value={chromeAppearance.config.avatarSize}
-                    onChange={(e) =>
-                      setChromeAppearance({
-                        ...chromeAppearance,
-                        currentPresetId: null,
-                        config: { ...chromeAppearance.config, avatarSize: Number(e.target.value) },
-                      })
-                    }
-                  />
-                </label>
-              </section>
-              <section className="character-extras__card">
-                <h3>底栏</h3>
-                <label className="character-extras__field">
-                  背景
-                  <input
-                    value={chromeAppearance.config.footerBackground}
-                    placeholder="#ffffff 或 rgba(… )"
-                    onChange={(e) =>
-                      setChromeAppearance({
-                        ...chromeAppearance,
-                        currentPresetId: null,
-                        config: { ...chromeAppearance.config, footerBackground: e.target.value },
-                      })
-                    }
-                  />
-                </label>
-                <label className="character-extras__field">
-                  高度
-                  <input
-                    type="range"
-                    min="58"
-                    max="140"
-                    value={chromeAppearance.config.footerHeight}
-                    onChange={(e) =>
-                      setChromeAppearance({
-                        ...chromeAppearance,
-                        currentPresetId: null,
-                        config: {
-                          ...chromeAppearance.config,
-                          footerHeight: Number(e.target.value),
-                        },
-                      })
-                    }
-                  />
-                </label>
-                <label className="character-extras__field">
-                  输入框圆角
-                  <input
-                    type="range"
-                    min="0"
-                    max="40"
-                    value={chromeAppearance.config.inputRadius}
-                    onChange={(e) =>
-                      setChromeAppearance({
-                        ...chromeAppearance,
-                        currentPresetId: null,
-                        config: { ...chromeAppearance.config, inputRadius: Number(e.target.value) },
-                      })
-                    }
-                  />
-                </label>
-                <label className="character-extras__field">
-                  输入框背景
-                  <input
-                    value={chromeAppearance.config.inputBackground}
-                    onChange={(e) =>
-                      setChromeAppearance({
-                        ...chromeAppearance,
-                        currentPresetId: null,
-                        config: { ...chromeAppearance.config, inputBackground: e.target.value },
-                      })
-                    }
-                  />
-                </label>
-              </section>
-              <section className="character-extras__card">
-                <h3>元素位置与显示</h3>
-                {(
-                  [
-                    ["back", "返回按钮"],
-                    ["avatar", "角色头像"],
-                    ["title", "角色名称"],
-                    ["call", "电话按钮"],
-                    ["settings", "设置按钮（恢复入口）"],
-                    ["add", "+ 按钮"],
-                    ["input", "输入框"],
-                    ["reply", "回复按钮"],
-                    ["send", "发送按钮"],
-                  ] as const
-                ).map(([key, label]) => {
-                  const visual = chromeAppearance.config.elements[key] ?? {};
-                  const patchElement = (patch: Record<string, number | boolean>) =>
-                    setChromeAppearance({
-                      ...chromeAppearance,
-                      currentPresetId: null,
-                      config: {
-                        ...chromeAppearance.config,
-                        elements: {
-                          ...chromeAppearance.config.elements,
-                          [key]: { ...visual, ...patch },
-                        },
-                      },
-                    });
-                  return (
-                    <div className="chat-chrome-element" key={key}>
-                      <label>
-                        {label}
-                        <input
-                          type="checkbox"
-                          checked={key === "settings" || visual.visible !== false}
-                          disabled={key === "settings"}
-                          onChange={(event) => patchElement({ visible: event.target.checked })}
-                        />
-                      </label>
-                      <label>
-                        X
-                        <input
-                          type="number"
-                          min={-80}
-                          max={80}
-                          value={visual.x ?? 0}
-                          onChange={(event) => patchElement({ x: Number(event.target.value) })}
-                        />
-                      </label>
-                      <label>
-                        Y
-                        <input
-                          type="number"
-                          min={-80}
-                          max={80}
-                          value={visual.y ?? 0}
-                          onChange={(event) => patchElement({ y: Number(event.target.value) })}
-                        />
-                      </label>
-                    </div>
-                  );
-                })}
-              </section>
-              <label className="character-extras__field">
-                聊天界面 CSS
-                <textarea
-                  rows={10}
-                  maxLength={40000}
-                  spellCheck={false}
-                  value={chromeAppearance.customCss}
-                  onChange={(event) =>
-                    setChromeAppearance({
-                      ...chromeAppearance,
-                      currentPresetId: null,
-                      customCss: event.target.value,
-                    })
-                  }
-                  placeholder={'[data-ui="chat-header"] {\n  border-bottom: 1px solid #eee;\n}'}
-                />
-              </label>
-              <AppearancePresetManager
-                type="chatChrome"
-                value={chromeAppearance}
-                onChange={setChromeAppearance}
-                onReset={() =>
-                  setChromeAppearance({
-                    ...defaultAppearanceModule("chatChrome"),
-                    presets: chromeAppearance.presets,
-                  })
+          <section className="character-extras__card">
+            <label className="contact-editor__field">
+              <span>头像显示模式</span>
+              <select
+                aria-label="头像显示模式"
+                value={value.avatarDisplayMode}
+                onChange={(event) =>
+                  update({ avatarDisplayMode: event.target.value === "qq" ? "qq" : "simple" })
                 }
-              />
-            </div>
-          </details>
+              >
+                <option value="simple">简洁模式（默认）</option>
+                <option value="qq">QQ模式</option>
+              </select>
+            </label>
+            <p className="character-extras__hint">
+              {value.avatarDisplayMode === "qq"
+                ? "每条消息旁均显示头像，仅对此角色生效。"
+                : "连续消息只显示一个头像，保持现有显示方式。"}
+            </p>
+          </section>
+          <div
+            className="character-extras__preview"
+            data-chat-scope={scope}
+            style={wallpaper ? { backgroundImage: `url(${JSON.stringify(wallpaper)})` } : undefined}
+          >
+            <style>{bubbleStyles(scope, value.userBubbleCss, value.charBubbleCss, true)}</style>
+            <small>实时预览</small>
+            {[
+              { side: "char", name: "角色", text: "今天过得怎么样？", grouped: false },
+              { side: "char", name: "角色", text: "慢慢说，我在听。", grouped: true },
+              { side: "user", name: "我", text: "想和你分享今天的小事。", grouped: false },
+              { side: "user", name: "我", text: "还有一件开心的事。", grouped: true },
+            ].map((message, index) => (
+              <div
+                key={index}
+                className={`chat-message-row is-${message.side} ${message.grouped ? "is-grouped" : ""}`}
+              >
+                <MessageAvatar
+                  url=""
+                  name={message.name}
+                  alwaysVisible={value.avatarDisplayMode === "qq"}
+                />
+                <div className="message-content-wrapper">
+                  <div className="message-bubble">
+                    <p>{message.text}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </details>
       <details className="character-extras__section">

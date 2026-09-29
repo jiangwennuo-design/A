@@ -1,44 +1,4 @@
 import { z } from "zod";
-import {
-  defaultAppearanceModule,
-  chatBubbleConfigSchema,
-  chatChromeConfigSchema,
-  readAppearanceModule,
-  type AppearanceModule,
-  type ChatBubbleConfig,
-  type ChatChromeConfig,
-} from "./appearance";
-
-function appearanceModuleStorageSchema<T extends z.ZodTypeAny>(
-  type: "chatChrome" | "chatBubble",
-  config: T,
-) {
-  const preset = z.object({
-    id: z.string(),
-    schemaVersion: z.literal(1),
-    themeType: z.literal(type),
-    name: z.string(),
-    config,
-    customCss: z.string(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  });
-  return z.object({
-    currentPresetId: z.string().nullable().default(null),
-    name: z.string().default("当前配置"),
-    config,
-    customCss: z.string().max(40_000).default(""),
-    presets: z.array(preset).max(80).default([]),
-  });
-}
-const chatChromeAppearanceSchema = appearanceModuleStorageSchema(
-  "chatChrome",
-  chatChromeConfigSchema,
-);
-const chatBubbleAppearanceSchema = appearanceModuleStorageSchema(
-  "chatBubble",
-  chatBubbleConfigSchema,
-);
 
 export const characterChatSchema = z.object({
   remark: z.string().trim().max(80).default(""),
@@ -54,47 +14,12 @@ export const characterChatSchema = z.object({
   avatarDisplayMode: z.enum(["simple", "qq"]).default("simple"),
   wallpaperPath: z.string().max(500).nullable().default(null),
   wallpaperUrl: z.string().max(2000).nullable().default(null),
-  appearance: z
-    .object({
-      chatChrome: chatChromeAppearanceSchema.default(
-        () => defaultAppearanceModule("chatChrome") as never,
-      ),
-      chatBubble: chatBubbleAppearanceSchema.default(
-        () => defaultAppearanceModule("chatBubble") as never,
-      ),
-    })
-    .default(
-      () =>
-        ({
-          chatChrome: defaultAppearanceModule("chatChrome"),
-          chatBubble: defaultAppearanceModule("chatBubble"),
-        }) as never,
-    ),
 });
 export type CharacterChatPreferences = z.infer<typeof characterChatSchema>;
 export type AvatarDisplayMode = CharacterChatPreferences["avatarDisplayMode"];
 export function readCharacterChatPreferences(value: unknown): CharacterChatPreferences {
   const result = characterChatSchema.safeParse(value ?? {});
-  const data = result.success ? result.data : characterChatSchema.parse({});
-  const chrome = readAppearanceModule("chatChrome", data.appearance.chatChrome);
-  const bubbles = readAppearanceModule("chatBubble", data.appearance.chatBubble);
-  // Existing bubble CSS remains the compatibility source until a bubble preset is edited.
-  if (!bubbles.config.userCss && data.userBubbleCss) bubbles.config.userCss = data.userBubbleCss;
-  if (!bubbles.config.charCss && data.charBubbleCss) bubbles.config.charCss = data.charBubbleCss;
-  return {
-    ...data,
-    appearance: { chatChrome: chrome, chatBubble: bubbles },
-  } as CharacterChatPreferences;
-}
-
-export function characterChatChromeAppearance(value: unknown): AppearanceModule<ChatChromeConfig> {
-  return readCharacterChatPreferences(value).appearance
-    .chatChrome as AppearanceModule<ChatChromeConfig>;
-}
-
-export function characterChatBubbleAppearance(value: unknown): AppearanceModule<ChatBubbleConfig> {
-  return readCharacterChatPreferences(value).appearance
-    .chatBubble as AppearanceModule<ChatBubbleConfig>;
+  return result.success ? result.data : characterChatSchema.parse({});
 }
 
 /** A private chat label, never a replacement for the character's actual name in prompts. */
