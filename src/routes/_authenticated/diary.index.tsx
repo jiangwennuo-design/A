@@ -83,7 +83,7 @@ function DiaryHomePage() {
         ) : diaries.length === 0 ? (
           <EmptyState icon="📔" title="还没有日记" subtitle="点击上方按钮，写下你的第一篇日记吧" />
         ) : (
-          <DiaryFeed diaries={diaries} />
+          <DiaryFeed diaries={diaries} listPage />
         )}
       </div>
     </div>

@@ -6,7 +6,7 @@ import { useDiaryProfile } from "@/context/DiaryProfileContext";
 import { pushSystemPage } from "@/lib/app-transition";
 import type { Diary } from "@/lib/types";
 
-export function DiaryFeed({ diaries }: { diaries: Diary[] }) {
+export function DiaryFeed({ diaries, listPage = false }: { diaries: Diary[]; listPage?: boolean }) {
   const navigate = useNavigate();
   const { diaryProfile, avatarUrl } = useDiaryProfile();
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
@@ -15,9 +15,10 @@ export function DiaryFeed({ diaries }: { diaries: Diary[] }) {
     void pushSystemPage(() => navigate({ to: "/diary/$id", params: { id } }));
 
   return (
-    <div className="diary-list">
+    <div className={listPage ? "diary-list diary-list--home" : "diary-list"}>
       {diaries.map((diary) => {
-        const isLong = diary.content.length > 260;
+        const characters = Array.from(diary.content);
+        const isLong = listPage ? characters.length > 300 : diary.content.length > 260;
         const expanded = expandedIds.includes(diary.id);
         return (
           <article key={diary.id} className="diary-card" onClick={() => openDiary(diary.id)}>
@@ -31,13 +32,16 @@ export function DiaryFeed({ diaries }: { diaries: Diary[] }) {
             </div>
             <div className="diary-card__article">
               {diary.title && <h3>{diary.title}</h3>}
-              <p className={!expanded && isLong ? "diary-card__excerpt" : undefined}>
-                {diary.content || "（空白）"}
+              <p className={!listPage && !expanded && isLong ? "diary-card__excerpt" : undefined}>
+                {listPage && isLong && !expanded
+                  ? `${characters.slice(0, 300).join("")}…`
+                  : diary.content || "（空白）"}
               </p>
               {isLong && (
                 <button
                   type="button"
                   className="diary-card__expand"
+                  aria-expanded={expanded}
                   onClick={(event) => {
                     event.stopPropagation();
                     setExpandedIds((current) =>
@@ -47,7 +51,15 @@ export function DiaryFeed({ diaries }: { diaries: Diary[] }) {
                     );
                   }}
                 >
-                  {expanded ? "收起" : `点击展开（${Array.from(diary.content).length}字）`}
+                  {expanded ? (
+                    "收起"
+                  ) : listPage ? (
+                    <>
+                      点击展开<span className="diary-card__count">（{characters.length}字）</span>
+                    </>
+                  ) : (
+                    `点击展开（${characters.length}字）`
+                  )}
                 </button>
               )}
             </div>

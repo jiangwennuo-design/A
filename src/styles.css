@@ -5102,6 +5102,21 @@ textarea {
   color: #668091;
   font-size: 13px;
 }
+.diary-list--home .diary-card {
+  padding-top: 0;
+}
+.diary-list--home .diary-card__author {
+  margin-inline: -20px;
+  padding: 19px 20px 14px;
+  border-bottom: 1px solid #eceff3;
+  background: #f6f7f9;
+}
+.diary-list--home .diary-card__expand {
+  color: #6a91b4;
+}
+.diary-list--home .diary-card__count {
+  color: #adb1b8;
+}
 .diary-card__footer {
   display: flex;
   min-height: 49px;
