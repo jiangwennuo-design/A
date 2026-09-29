@@ -67,6 +67,7 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
       },
     ]),
   };
+  let replyWriteFailure = false;
   const db = {
     storage: {
       from: () => ({
@@ -126,6 +127,8 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
         then: (ok, fail) => run(false).then(ok, fail),
       };
       async function run(single) {
+        if (replyWriteFailure && table === "diary_replies" && op !== "read")
+          return { data: null, error: new Error("save failed") };
         let rows = records[table].filter((r) => filters.every((f) => f(r)));
         if (op === "insert") {
           rows = (Array.isArray(values) ? values : [values]).map((r) => ({
@@ -150,6 +153,7 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
       return q;
     },
   };
+  let modelFailure = false;
   let output = JSON.stringify({ messages: [{ type: "text", content: "收到" }] }),
     calls = [];
   let preparedThinking = "嗯，先缓一下。\n他说的是“今天”，不是要我填表。";
@@ -192,6 +196,7 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
       return synthetic("model", {
         generate: async (request) => {
           calls.push(request);
+          if (modelFailure) throw new Error("model unavailable");
           if (request.systemPrompt.includes("本次请求仅执行本轮内心阶段"))
             return {
               text: JSON.stringify({ thinking: `<thinking>${preparedThinking}</thinking>` }),
@@ -450,4 +455,68 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
   const legacyLetter = await checkLetter();
   assert.doesNotMatch(legacyLetter, /CHAT_STYLE_ONLY|LETTER_STYLE_ONLY|说话方式|写信方式/);
   assert.match(legacyLetter, /COMMON_PERSONALITY/);
+
+  const target = structuredClone(records.diary_replies[0]);
+  const untouched = structuredClone(records.diary_replies[1]);
+  const originalCount = records.diary_replies.length;
+  const rerollData = { diary_id: diaryId, char_id: a, reply_id: target.id };
+  const diaryCall = (name, data, userId = owner) =>
+    chat.namespace[name]({ data, context: { userId, supabase: db } });
+  output = "<thinking>不进入回信正文</thinking>新的回信内容";
+  const replacement = await diaryCall("createDiaryReply", rerollData);
+  assert.equal(replacement.reply.id, target.id);
+  assert.equal(replacement.reply.content, "新的回信内容");
+  assert.equal(
+    records.diary_replies.length,
+    originalCount,
+    "reroll replaces instead of adding a letter",
+  );
+  assert.deepEqual(records.diary_replies[1], untouched);
+  const persisted = JSON.parse(JSON.stringify(records.diary_replies));
+  assert.equal(persisted.find((row) => row.id === target.id).content, "新的回信内容");
+  assert.doesNotMatch(calls.at(-1).systemPrompt, /说话方式|CHAT_STYLE_ONLY/);
+  await assert.rejects(
+    () => diaryCall("createDiaryReply", { ...rerollData, char_id: b }),
+    /不存在或无权访问/,
+  );
+  await assert.rejects(
+    () => diaryCall("createDiaryReply", rerollData, crypto.randomUUID()),
+    /不存在或无权访问/,
+  );
+  modelFailure = true;
+  await assert.rejects(() => diaryCall("createDiaryReply", rerollData), /model unavailable/);
+  modelFailure = false;
+  assert.equal(records.diary_replies[0].content, "新的回信内容");
+  replyWriteFailure = true;
+  output = "这封保存失败";
+  await assert.rejects(() => diaryCall("createDiaryReply", rerollData), /替换回信失败/);
+  await assert.rejects(
+    () => diaryCall("deleteDiaryReply", { diary_id: diaryId, reply_id: target.id }),
+    /删除回信失败/,
+  );
+  replyWriteFailure = false;
+  assert.equal(records.diary_replies[0].content, "新的回信内容");
+  output = "<thinking>只有思考没有回信</thinking>";
+  await assert.rejects(() => diaryCall("createDiaryReply", rerollData), /空回信|没有返回可显示/);
+  assert.equal(records.diary_replies[0].content, "新的回信内容");
+  await diaryCall(
+    "deleteDiaryReply",
+    { diary_id: diaryId, reply_id: target.id },
+    crypto.randomUUID(),
+  );
+  assert.equal(
+    records.diary_replies.length,
+    originalCount,
+    "foreign delete cannot affect a letter",
+  );
+  await diaryCall("deleteDiaryReply", { diary_id: crypto.randomUUID(), reply_id: target.id });
+  assert.equal(records.diary_replies.length, originalCount, "wrong diary cannot delete a letter");
+  await diaryCall("deleteDiaryReply", { diary_id: diaryId, reply_id: target.id });
+  assert.equal(records.diary_replies.length, originalCount - 1);
+  assert.ok(!JSON.parse(JSON.stringify(records.diary_replies)).some((row) => row.id === target.id));
+  assert.deepEqual(
+    records.diary_replies.find((row) => row.id === untouched.id),
+    untouched,
+  );
+  assert.equal(records.diaries.length, 1, "single letter deletion preserves diary");
 });

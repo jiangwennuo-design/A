@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Header, LoadingSpinner, ErrorBanner } from "@/components/ui-kit";
 import { popSystemPage, pushSystemPage } from "@/lib/app-transition";
-import { createDiaryReply } from "@/lib/penpal.functions";
+import { createDiaryReply, deleteDiaryReply } from "@/lib/penpal.functions";
 import type { AiPersona, Diary, DiaryReply } from "@/lib/types";
-import { MessageCircle, Pencil, Trash2 } from "lucide-react";
+import { MessageCircle, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { LockKeyhole } from "lucide-react";
 import { useDiaryProfile } from "@/context/DiaryProfileContext";
 import { DiaryAvatar } from "@/components/DiaryAvatar";
+import { SystemModal } from "@/components/system-ui";
 
 export const Route = createFileRoute("/_authenticated/diary/$id/")({
   head: () => ({
@@ -43,6 +44,10 @@ function DiaryDetailPage() {
   const [replies, setReplies] = useState<DiaryReply[]>([]);
   const [replying, setReplying] = useState(false);
   const makeReply = useServerFn(createDiaryReply);
+  const removeReply = useServerFn(deleteDiaryReply);
+  const [busyReplyId, setBusyReplyId] = useState<string | null>(null);
+  const [replyToDelete, setReplyToDelete] = useState<string | null>(null);
+  const replyActionBusy = useRef(false);
 
   useEffect(() => {
     if (!id) return;
@@ -81,7 +86,7 @@ function DiaryDetailPage() {
   }, [id]);
 
   async function handleDiaryReply() {
-    if (!charId || replying) return;
+    if (!charId || replying || replyActionBusy.current) return;
     setReplying(true);
     setError("");
     try {
@@ -91,6 +96,44 @@ function DiaryDetailPage() {
       setError(reason instanceof Error ? reason.message : "生成回信失败。");
     } finally {
       setReplying(false);
+    }
+  }
+
+  async function rerollReply(reply: DiaryReply) {
+    if (replying || replyActionBusy.current) return;
+    replyActionBusy.current = true;
+    setBusyReplyId(reply.id);
+    setError("");
+    try {
+      const result = await makeReply({
+        data: { diary_id: id, char_id: reply.char_id, reply_id: reply.id },
+      });
+      setReplies((previous) =>
+        previous.map((item) => (item.id === reply.id ? (result.reply as DiaryReply) : item)),
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "重新生成失败，原回信仍保留。");
+    } finally {
+      replyActionBusy.current = false;
+      setBusyReplyId(null);
+    }
+  }
+
+  async function handleReplyDelete() {
+    if (!replyToDelete || replying || replyActionBusy.current) return;
+    const replyId = replyToDelete;
+    replyActionBusy.current = true;
+    setBusyReplyId(replyId);
+    setError("");
+    try {
+      await removeReply({ data: { diary_id: id, reply_id: replyId } });
+      setReplies((previous) => previous.filter((item) => item.id !== replyId));
+      setReplyToDelete(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "删除回信失败。");
+    } finally {
+      replyActionBusy.current = false;
+      setBusyReplyId(null);
     }
   }
 
@@ -113,7 +156,7 @@ function DiaryDetailPage() {
     );
   }
 
-  if (error || !diary) {
+  if (!diary) {
     return (
       <div className="page-container diary-app">
         <Header title="日记" onBack={() => void popSystemPage(() => router.history.back())} />
@@ -154,6 +197,8 @@ function DiaryDetailPage() {
             </div>
           }
         />
+
+        {error && <ErrorBanner message={error} />}
 
         <article className="diary-entry">
           <div className="diary-entry__author">
@@ -208,7 +253,7 @@ function DiaryDetailPage() {
               </select>
               <button
                 onClick={() => void handleDiaryReply()}
-                disabled={!charId || replying}
+                disabled={!charId || replying || Boolean(busyReplyId)}
                 className="btn-primary px-4"
               >
                 {replying ? "生成中…" : "写回信"}
@@ -228,13 +273,62 @@ function DiaryDetailPage() {
               return (
                 <article key={reply.id} className="diary-reply">
                   <p>{character?.name ?? "笔友"}的回信</p>
-                  <div>{reply.content}</div>
+                  <div className="diary-reply__content">{reply.content}</div>
+                  <div className="diary-reply__actions">
+                    <button
+                      type="button"
+                      disabled={replying || Boolean(busyReplyId)}
+                      onClick={() => void rerollReply(reply)}
+                    >
+                      <RotateCcw size={14} />
+                      {busyReplyId === reply.id && replyToDelete !== reply.id
+                        ? "重新生成中…"
+                        : "重新生成"}
+                    </button>
+                    <button
+                      type="button"
+                      className="is-danger"
+                      disabled={replying || Boolean(busyReplyId)}
+                      onClick={() => setReplyToDelete(reply.id)}
+                    >
+                      <Trash2 size={14} />
+                      删除回信
+                    </button>
+                  </div>
                 </article>
               );
             })}
           </div>
         </section>
       </div>
+
+      <SystemModal
+        open={Boolean(replyToDelete)}
+        title="删除这封回信？"
+        description="只删除这封回信，日记和其他回信不会受影响。删除后无法恢复。"
+        onClose={() => {
+          if (!replyActionBusy.current) setReplyToDelete(null);
+        }}
+      >
+        <div className="diary-reply__confirm">
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={Boolean(busyReplyId)}
+            onClick={() => setReplyToDelete(null)}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            className="is-danger"
+            disabled={Boolean(busyReplyId)}
+            onClick={() => void handleReplyDelete()}
+          >
+            {busyReplyId ? "删除中…" : "确认删除回信"}
+          </button>
+        </div>
+      </SystemModal>
 
       {showDeleteConfirm && (
         <div

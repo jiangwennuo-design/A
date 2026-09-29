@@ -5291,15 +5291,15 @@ textarea {
 }
 .diary-entry h1 {
   margin: 26px 0 16px;
-  font-size: clamp(20px, 5.3vw, 26px);
+  font-size: 20px;
   font-weight: 650;
   line-height: 1.5;
 }
 .diary-entry__content {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: clamp(18px, 4.8vw, 21px);
-  line-height: 1.95;
+  font-size: 16px;
+  line-height: 1.85;
 }
 .diary-entry__meta {
   display: flex;
@@ -5367,11 +5367,46 @@ textarea {
   color: var(--diary-muted);
   font-size: 12px;
 }
-.diary-reply > div {
+.diary-reply__content {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 15px;
   line-height: 1.85;
+}
+.diary-reply__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+}
+.diary-reply__actions button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  color: var(--diary-muted);
+  font-size: 12px;
+}
+.diary-reply__actions .is-danger {
+  color: #bc4e54;
+}
+.diary-reply__actions button:disabled,
+.diary-reply__confirm button:disabled {
+  opacity: 0.45;
+}
+.diary-reply__confirm {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+.diary-reply__confirm button {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+}
+.diary-reply__confirm .is-danger {
+  color: #fff;
+  background: #bc4e54;
 }
 .diary-editor__form {
   display: flex;

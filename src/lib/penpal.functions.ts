@@ -776,9 +776,24 @@ export const clearCurrentChat = createServerFn({ method: "POST" })
 
 export const createDiaryReply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: unknown) => z.object({ diary_id: uuid, char_id: uuid }).parse(data))
+  .validator((data: unknown) =>
+    z.object({ diary_id: uuid, char_id: uuid, reply_id: uuid.optional() }).parse(data),
+  )
   .handler(async ({ data, context }) => {
     const db = context.supabase as Db;
+    let original: { id: string; updated_at: string } | null = null;
+    if (data.reply_id) {
+      const { data: saved, error } = await db
+        .from("diary_replies")
+        .select("id, updated_at")
+        .eq("id", data.reply_id)
+        .eq("diary_id", data.diary_id)
+        .eq("char_id", data.char_id)
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (error || !saved) throw new Error("回信不存在或无权访问。");
+      original = saved;
+    }
     const [{ data: character }, { data: profile }, { data: diary }] = await Promise.all([
       db
         .from("ai_personas")
@@ -816,16 +831,44 @@ export const createDiaryReply = createServerFn({ method: "POST" })
       ],
       outputFormat: "text",
     });
-    const { data: reply, error } = await db
-      .from("diary_replies")
-      .insert({
-        user_id: context.userId,
-        diary_id: data.diary_id,
-        char_id: data.char_id,
-        content: stripPrivateThinking(result.text),
-      })
-      .select("*")
-      .single();
-    if (error) throw new Error("保存回信失败。");
+    const content = stripPrivateThinking(result.text);
+    if (!content.trim()) throw new Error("AI 返回了空回信，请重试。原回信没有被修改。");
+    const query = original
+      ? db
+          .from("diary_replies")
+          .update({ content, updated_at: new Date().toISOString() })
+          .eq("id", original.id)
+          .eq("diary_id", data.diary_id)
+          .eq("char_id", data.char_id)
+          .eq("user_id", context.userId)
+          .eq("updated_at", original.updated_at)
+      : db.from("diary_replies").insert({
+          user_id: context.userId,
+          diary_id: data.diary_id,
+          char_id: data.char_id,
+          content,
+        });
+    const { data: reply, error } = await query.select("*").maybeSingle();
+    if (error || !reply)
+      throw new Error(
+        original
+          ? "替换回信失败或回信已变更，原回信未被覆盖，请重新打开后重试。"
+          : "保存回信失败。",
+      );
     return { reply };
+  });
+
+export const deleteDiaryReply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => z.object({ reply_id: uuid, diary_id: uuid }).parse(data))
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as Db;
+    const { error } = await db
+      .from("diary_replies")
+      .delete()
+      .eq("id", data.reply_id)
+      .eq("diary_id", data.diary_id)
+      .eq("user_id", context.userId);
+    if (error) throw new Error("删除回信失败，请重试。");
+    return { deleted_id: data.reply_id };
   });
