@@ -10,11 +10,13 @@ import {
 } from "react";
 import { EmptyState } from "@/components/ui-kit";
 import type { ChatMessage } from "@/lib/types";
+import type { AvatarDisplayMode } from "@/lib/character-chat";
 import { MessageContent } from "@/components/chat/MessageContent";
 import { readQuotedMessage } from "@/lib/chat-quote";
 import { MessageQuote } from "@/components/chat/MessageQuote";
 
 interface Props {
+  avatarDisplayMode?: AvatarDisplayMode;
   wallpaperUrl?: string;
   messages: ChatMessage[];
   showThinking: boolean;
@@ -39,6 +41,7 @@ export interface MessageAnchor {
 }
 
 export const ChatMessages = memo(function ChatMessages({
+  avatarDisplayMode = "simple",
   wallpaperUrl,
   messages,
   showThinking,
@@ -204,6 +207,7 @@ export const ChatMessages = memo(function ChatMessages({
               className={`chat-message-row message-enter ${isUser ? "is-user" : "is-char"} ${grouped ? "is-grouped" : ""}`}
             >
               <MessageAvatar
+                alwaysVisible={avatarDisplayMode === "qq"}
                 url={isUser ? userAvatar : assistantAvatar}
                 name={isUser ? userName : assistantName}
               />
@@ -279,9 +283,21 @@ export const ChatMessages = memo(function ChatMessages({
   );
 });
 
-function MessageAvatar({ url, name }: { url: string; name: string }) {
+export function MessageAvatar({
+  url,
+  name,
+  alwaysVisible = false,
+}: {
+  url: string;
+  name: string;
+  alwaysVisible?: boolean;
+}) {
   return (
-    <div className="chat-avatar" title={name}>
+    <div
+      className="chat-avatar"
+      title={name}
+      style={alwaysVisible ? { visibility: "visible" } : undefined}
+    >
       {url ? (
         <img src={url} alt={name} width={30} height={30} loading="lazy" decoding="async" />
       ) : (

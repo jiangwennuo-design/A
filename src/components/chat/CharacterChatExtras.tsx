@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { useServerFn } from "@tanstack/react-start";
 import { Brain, ChevronRight, ImagePlus, Palette, Pencil, Plus, Trash2 } from "lucide-react";
 import { SystemSheet } from "@/components/system-ui";
+import { MessageAvatar } from "@/components/ChatMessages";
 import { CharacterWorldBooks } from "./CharacterWorldBooks";
 import { bubbleStyles, safeBubbleDeclarations } from "@/lib/bubble-css";
 import type { CharacterChatPreferences, CharacterMemory } from "@/lib/character-chat";
@@ -190,6 +191,7 @@ export function CharacterChatExtras({
             <small>
               {value.userBubbleCss ||
               value.charBubbleCss ||
+              value.avatarDisplayMode === "qq" ||
               value.wallpaperPath ||
               value.wallpaperUrl
                 ? "已自定义"
@@ -276,6 +278,26 @@ export function CharacterChatExtras({
               </button>
             </div>
           </section>
+          <section className="character-extras__card">
+            <label className="contact-editor__field">
+              <span>头像显示模式</span>
+              <select
+                aria-label="头像显示模式"
+                value={value.avatarDisplayMode}
+                onChange={(event) =>
+                  update({ avatarDisplayMode: event.target.value === "qq" ? "qq" : "simple" })
+                }
+              >
+                <option value="simple">简洁模式（默认）</option>
+                <option value="qq">QQ模式</option>
+              </select>
+            </label>
+            <p className="character-extras__hint">
+              {value.avatarDisplayMode === "qq"
+                ? "每条消息旁均显示头像，仅对此角色生效。"
+                : "连续消息只显示一个头像，保持现有显示方式。"}
+            </p>
+          </section>
           <div
             className="character-extras__preview"
             data-chat-scope={scope}
@@ -283,20 +305,28 @@ export function CharacterChatExtras({
           >
             <style>{bubbleStyles(scope, value.userBubbleCss, value.charBubbleCss, true)}</style>
             <small>实时预览</small>
-            <div className="chat-message-row is-char">
-              <div className="message-content-wrapper">
-                <div className="message-bubble">
-                  <p>今天过得怎么样？</p>
+            {[
+              { side: "char", name: "角色", text: "今天过得怎么样？", grouped: false },
+              { side: "char", name: "角色", text: "慢慢说，我在听。", grouped: true },
+              { side: "user", name: "我", text: "想和你分享今天的小事。", grouped: false },
+              { side: "user", name: "我", text: "还有一件开心的事。", grouped: true },
+            ].map((message, index) => (
+              <div
+                key={index}
+                className={`chat-message-row is-${message.side} ${message.grouped ? "is-grouped" : ""}`}
+              >
+                <MessageAvatar
+                  url=""
+                  name={message.name}
+                  alwaysVisible={value.avatarDisplayMode === "qq"}
+                />
+                <div className="message-content-wrapper">
+                  <div className="message-bubble">
+                    <p>{message.text}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="chat-message-row is-user">
-              <div className="message-content-wrapper">
-                <div className="message-bubble">
-                  <p>想和你分享今天的小事。</p>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </details>

@@ -11,6 +11,32 @@ import {
 import { safeBubbleDeclarations, bubbleStyles } from "../src/lib/bubble-css.ts";
 import { loadCharacterMemories, ownedMemoryCharacter } from "../src/lib/character-memory.server.ts";
 
+test("avatar display mode defaults to simple, persists per character without changing other preferences", () => {
+  assert.equal(readCharacterChatPreferences({}).avatarDisplayMode, "simple");
+  assert.equal(readCharacterChatPreferences(null).avatarDisplayMode, "simple");
+  const a = readCharacterChatPreferences({
+    avatarDisplayMode: "qq",
+    userAvatarOverride: "u/avatars/a.webp",
+    userBubbleCss: "color: red;",
+    contextDepth: 7,
+  });
+  const b = readCharacterChatPreferences({
+    avatarDisplayMode: "simple",
+    userAvatarOverride: "u/avatars/b.webp",
+  });
+  assert.equal(readCharacterChatPreferences(JSON.parse(JSON.stringify(a))).avatarDisplayMode, "qq");
+  assert.equal(
+    readCharacterChatPreferences(JSON.parse(JSON.stringify(b))).avatarDisplayMode,
+    "simple",
+  );
+  const reset = readCharacterChatPreferences({ ...a, avatarDisplayMode: "simple" });
+  assert.equal(reset.avatarDisplayMode, "simple");
+  assert.equal(reset.userAvatarOverride, a.userAvatarOverride);
+  assert.equal(reset.userBubbleCss, a.userBubbleCss);
+  assert.equal(reset.contextDepth, a.contextDepth);
+  assert.equal(b.avatarDisplayMode, "simple");
+});
+
 test("per-character User identity is display-only, independent, persistent and restores global fallback", () => {
   const global = { avatar_url: "u/avatars/global.webp", display_name: "全局昵称" };
   const a = { userAvatarOverride: "u/avatars/a.webp", userNicknameOverride: "甲的昵称" };

@@ -1013,6 +1013,7 @@ function ConversationPage({
 
       {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
       <ChatMessages
+        avatarDisplayMode={chatPreferences.avatarDisplayMode}
         wallpaperUrl={chatWallpaper}
         messages={messages}
         showThinking={current.chat_thinking_mode !== "off" && current.show_chat_thinking}

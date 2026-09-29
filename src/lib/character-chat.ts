@@ -11,10 +11,12 @@ export const characterChatSchema = z.object({
   worldBookIds: z.array(z.string().uuid()).max(100).default([]),
   userBubbleCss: z.string().max(4000).default(""),
   charBubbleCss: z.string().max(4000).default(""),
+  avatarDisplayMode: z.enum(["simple", "qq"]).default("simple"),
   wallpaperPath: z.string().max(500).nullable().default(null),
   wallpaperUrl: z.string().max(2000).nullable().default(null),
 });
 export type CharacterChatPreferences = z.infer<typeof characterChatSchema>;
+export type AvatarDisplayMode = CharacterChatPreferences["avatarDisplayMode"];
 export function readCharacterChatPreferences(value: unknown): CharacterChatPreferences {
   const result = characterChatSchema.safeParse(value ?? {});
   return result.success ? result.data : characterChatSchema.parse({});
