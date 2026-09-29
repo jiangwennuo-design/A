@@ -95,6 +95,7 @@ test("both bubble sides accept the same common visual CSS, including clip-path",
     backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
     transform:translateY(2px) scale(.98);`;
   const safe = safeBubbleDeclarations(style);
+  assert.equal(safeBubbleDeclarations("font-weight:650"), "font-weight:650;");
   assert.match(safe, /clip-path:polygon/);
   const output = bubbleStyles("shared-scope", style, style);
   assert.equal(output.split(safe).length - 1, 2);

@@ -173,8 +173,14 @@ export function safeBubbleDeclarations(input: string): string {
       if (/\d(?:vh|vw|vmin|vmax|dvh|svh|lvh|cm|mm|in|pt|pc|ch|ex)/i.test(value))
         throw new Error("不支持视口或物理尺寸单位，请使用 px、em、rem 或百分比。");
       if (/shadow$/.test(property) && /\d%/.test(value)) throw new Error("阴影不支持百分比尺寸。");
-      if (property === "font-weight" && !/^(?:normal|bold|bolder|lighter|[1-9]00)$/i.test(value))
-        throw new Error("字重支持 100–900、normal、bold、bolder 或 lighter。");
+      if (
+        property === "font-weight" &&
+        !(
+          /^(?:normal|bold|bolder|lighter)$/i.test(value) ||
+          (/^\d+(?:\.\d+)?$/.test(value) && +value >= 1 && +value <= 1000)
+        )
+      )
+        throw new Error("字重支持 1–1000、normal、bold、bolder 或 lighter。");
       if (property === "color" && /transparent|rgba\([^)]*,\s*0\s*\)|\/\s*0\s*\)/i.test(value))
         throw new Error("正文颜色不能完全透明。");
       if (
