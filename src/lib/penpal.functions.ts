@@ -475,7 +475,9 @@ export async function chatRowsForAi(db: Db, userId: string, rows: ChatRow[]): Pr
     inlineCount++;
     try {
       const { data, error } = await db.storage.from("chat-media").download(path);
-      if (error || !data || data.size > Math.min(3 * 1024 * 1024, inlineBudget)) continue;
+      // Chat uploads accept up to 8 MB. The old 3 MB threshold silently left
+      // valid uploads as private signed URLs that some providers cannot fetch.
+      if (error || !data || data.size > Math.min(8 * 1024 * 1024, inlineBudget)) continue;
       const mime = imageMimeForAi(path, data.type);
       if (!mime) continue;
       const bytes = new Uint8Array(await data.arrayBuffer());

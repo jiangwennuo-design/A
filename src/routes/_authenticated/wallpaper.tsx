@@ -12,6 +12,7 @@ import {
   optimizeWallpaperUpload,
   resolveWallpaperUrl,
   rollbackWallpaper,
+  syncWallpaperFromProfile,
   type WallpaperSnapshot,
 } from "@/lib/wallpaper";
 import { rememberWallpaper, retainWallpaperUrl } from "@/lib/wallpaper-media";
@@ -38,6 +39,11 @@ function WallpaperPage() {
   const objectPreview = useRef("");
   const alive = useRef(true);
   const dirty = useRef(false);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSave = useRef<WallpaperSnapshot | null>(null);
+  const saveQueue = useRef(Promise.resolve());
+  const lastCommitted = useRef(getWallpaperSnapshot());
+  const flushSave = useRef<() => void>(() => {});
   const [wallpaperUrl, setWallpaperUrl] = useState("");
   const [preview, setPreview] = useState("");
   const [blur, setBlur] = useState(0);
@@ -50,6 +56,8 @@ function WallpaperPage() {
 
   useEffect(() => {
     if (!profile || dirty.current) return;
+    syncWallpaperFromProfile(profile);
+    lastCommitted.current = getWallpaperSnapshot();
     let active = true;
     setWallpaperUrl(profile.wallpaper_url ?? "");
     setBlur(Number(profile.wallpaper_blur ?? 0));
@@ -71,6 +79,8 @@ function WallpaperPage() {
     alive.current = true;
     return () => {
       alive.current = false;
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      flushSave.current();
       if (objectPreview.current) URL.revokeObjectURL(objectPreview.current);
     };
   }, []);
@@ -86,11 +96,22 @@ function WallpaperPage() {
       return;
     }
     setUploading(true);
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    flushSave.current();
+    await saveQueue.current;
     dirty.current = true;
+    const previous = getWallpaperSnapshot();
     const previousPreview = preview;
     if (objectPreview.current) URL.revokeObjectURL(objectPreview.current);
     objectPreview.current = URL.createObjectURL(file);
     setPreview(objectPreview.current);
+    applyWallpaperOptimistically({
+      path: wallpaperUrl,
+      url: objectPreview.current,
+      preset,
+      blur,
+      opacity,
+    });
     try {
       const optimizedFile = await optimizeWallpaperUpload(file);
       const ext = optimizedFile.name.split(".").pop() || "jpg";
@@ -99,16 +120,21 @@ function WallpaperPage() {
         .from("wallpapers")
         .upload(path, optimizedFile, { upsert: false, contentType: optimizedFile.type });
       if (uploadError) throw new Error("壁纸上传失败，请稍后重试。");
-      if (!alive.current) {
-        await db.storage.from("wallpapers").remove([path]);
-        return;
-      }
       const localUrl = rememberWallpaper(path, optimizedFile);
-      setWallpaperUrl(path);
-      setPreview(localUrl);
+      try {
+        await save({ path, url: localUrl, preset, blur, opacity }, previous);
+      } catch (reason) {
+        void db.storage.from("wallpapers").remove([path]);
+        throw reason;
+      }
+      if (alive.current) {
+        setWallpaperUrl(path);
+        setPreview(localUrl);
+      }
       URL.revokeObjectURL(objectPreview.current);
       objectPreview.current = "";
     } catch (reason) {
+      rollbackWallpaper(previous);
       if (alive.current) {
         setError(reason instanceof Error ? reason.message : "壁纸处理失败。");
         setPreview(previousPreview);
@@ -120,44 +146,61 @@ function WallpaperPage() {
     }
   }
 
-  async function save() {
-    if (!user || uploading || saving) return;
-    const previous = getWallpaperSnapshot();
-    const next: WallpaperSnapshot = {
-      path: wallpaperUrl,
-      url: preview,
-      preset,
-      blur,
-      opacity,
-    };
+  async function save(next: WallpaperSnapshot, previous = getWallpaperSnapshot()) {
+    if (!user) return;
     applyWallpaperOptimistically(next);
-    setSaving(true);
-    setError("");
-    const previousPath = profile?.wallpaper_url;
+    if (alive.current) {
+      setSaving(true);
+      setError("");
+    }
+    const previousPath = previous.path;
     const { error: saveError } = await db
       .from("profiles")
       .update({
-        wallpaper_url: wallpaperUrl || null,
-        wallpaper_blur: Math.min(24, Math.max(0, blur)),
-        wallpaper_opacity: Math.min(0.75, Math.max(0, opacity)),
-        wallpaper_preset: preset,
+        wallpaper_url: next.path || null,
+        wallpaper_blur: Math.min(24, Math.max(0, next.blur)),
+        wallpaper_opacity: Math.min(0.75, Math.max(0, next.opacity)),
+        wallpaper_preset: next.preset,
       })
       .eq("id", user.id);
-    setSaving(false);
+    if (alive.current) setSaving(false);
     if (saveError) {
       rollbackWallpaper(previous);
-      setError("壁纸保存失败，请稍后重试。");
-      return;
+      throw new Error("壁纸保存失败，请稍后重试。");
     }
+    await refreshProfile();
     commitWallpaper(next);
-    if (previousPath && previousPath !== wallpaperUrl) {
+    lastCommitted.current = next;
+    if (previousPath && previousPath !== next.path && previousPath.startsWith(`${user.id}/`)) {
       void db.storage.from("wallpapers").remove([previousPath]);
     }
-    void refreshProfile();
   }
+
+  function queueOptions(patch: Partial<WallpaperSnapshot>) {
+    dirty.current = true;
+    const next = { ...getWallpaperSnapshot(), ...patch };
+    applyWallpaperOptimistically(next);
+    pendingSave.current = next;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => flushSave.current(), 250);
+  }
+  flushSave.current = () => {
+    const next = pendingSave.current;
+    pendingSave.current = null;
+    if (!next) return;
+    saveQueue.current = saveQueue.current
+      .then(() => save(next, lastCommitted.current))
+      .catch((reason) => {
+        if (alive.current) setError(reason instanceof Error ? reason.message : "壁纸保存失败。");
+      });
+  };
 
   async function removeCustomWallpaper() {
     if (!user || !wallpaperUrl) return;
+    dirty.current = true;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    flushSave.current();
+    await saveQueue.current;
     const previous = getWallpaperSnapshot();
     const next: WallpaperSnapshot = { path: "", url: "", preset, blur, opacity };
     applyWallpaperOptimistically(next);
@@ -179,6 +222,7 @@ function WallpaperPage() {
       return;
     }
     commitWallpaper(next);
+    lastCommitted.current = next;
     void db.storage.from("wallpapers").remove([path]);
     void refreshProfile();
     setSaving(false);
@@ -229,7 +273,11 @@ function WallpaperPage() {
             type="button"
             role="radio"
             aria-checked={preset === item.id}
-            onClick={() => setPreset(item.id)}
+            disabled={uploading || saving}
+            onClick={() => {
+              setPreset(item.id);
+              queueOptions({ preset: item.id });
+            }}
             className={preset === item.id ? "wallpaper-swatch is-active" : "wallpaper-swatch"}
           >
             <span
@@ -278,7 +326,12 @@ function WallpaperPage() {
           max="24"
           step="1"
           value={blur}
-          onChange={(event) => setBlur(Number(event.target.value))}
+          disabled={uploading || saving}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            setBlur(next);
+            queueOptions({ blur: next });
+          }}
           className="w-full mt-3 accent-[var(--color-primary)]"
         />
       </label>
@@ -291,19 +344,15 @@ function WallpaperPage() {
           max="0.75"
           step="0.05"
           value={opacity}
-          onChange={(event) => setOpacity(Number(event.target.value))}
+          disabled={uploading || saving}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            setOpacity(next);
+            queueOptions({ opacity: next });
+          }}
           className="w-full mt-3 accent-[var(--color-primary)]"
         />
       </label>
-
-      <button
-        type="button"
-        disabled={saving || uploading}
-        onClick={() => void save()}
-        className="btn-primary w-full mt-8"
-      >
-        {saving ? "保存中…" : "应用壁纸"}
-      </button>
     </div>
   );
 }

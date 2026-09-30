@@ -16,6 +16,8 @@ import { readQuotedMessage } from "@/lib/chat-quote";
 import { MessageQuote } from "@/components/chat/MessageQuote";
 
 interface Props {
+  selectedMessageIds?: Set<string> | null;
+  onToggleMessageSelection?: (id: string) => void;
   avatarDisplayMode?: AvatarDisplayMode;
   wallpaperUrl?: string;
   messages: ChatMessage[];
@@ -41,6 +43,8 @@ export interface MessageAnchor {
 }
 
 export const ChatMessages = memo(function ChatMessages({
+  selectedMessageIds = null,
+  onToggleMessageSelection,
   avatarDisplayMode = "simple",
   wallpaperUrl,
   messages,
@@ -108,6 +112,7 @@ export const ChatMessages = memo(function ChatMessages({
   }
 
   function startLongPress(messageId: string, event: ReactPointerEvent<HTMLDivElement>) {
+    if (selectedMessageIds) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     cancelLongPress();
     pressOrigin.current = { x: event.clientX, y: event.clientY };
@@ -127,6 +132,7 @@ export const ChatMessages = memo(function ChatMessages({
 
   function openContextMenu(messageId: string, event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault();
+    if (selectedMessageIds) return;
     cancelLongPress();
     openMessageMenu(messageId, event.currentTarget);
   }
@@ -209,6 +215,16 @@ export const ChatMessages = memo(function ChatMessages({
               data-role={isUser ? "user" : "char"}
               className={`chat-message-row message-enter ${isUser ? "is-user" : "is-char"} ${grouped ? "is-grouped" : ""}`}
             >
+              {selectedMessageIds && (
+                <input
+                  type="checkbox"
+                  className="chat-message-select"
+                  aria-label={`选择${isUser ? userName : assistantName}的消息`}
+                  checked={selectedMessageIds.has(message.id)}
+                  disabled={message.id.startsWith("pending-")}
+                  onChange={() => onToggleMessageSelection?.(message.id)}
+                />
+              )}
               <MessageAvatar
                 alwaysVisible={avatarDisplayMode === "qq"}
                 url={isUser ? userAvatar : assistantAvatar}
@@ -223,6 +239,16 @@ export const ChatMessages = memo(function ChatMessages({
                 onPointerCancel={cancelLongPress}
                 onPointerLeave={cancelLongPress}
                 onContextMenu={(event) => openContextMenu(message.id, event)}
+                onClickCapture={
+                  selectedMessageIds
+                    ? (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!message.id.startsWith("pending-"))
+                          onToggleMessageSelection?.(message.id);
+                      }
+                    : undefined
+                }
               >
                 {!isUser &&
                   showThinking &&

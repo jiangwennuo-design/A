@@ -3,6 +3,42 @@ import { prepareChatImage } from "./chat-media";
 import { cachedWallpaperUrl, rememberWallpaper } from "./wallpaper-media";
 import { assertSafeRemoteUrl } from "./stickers/resolve-resource";
 import type { CharacterChatPreferences } from "./character-chat";
+import { readCharacterChatPreferences } from "./character-chat";
+import type { AiPersona } from "./types";
+
+/** Persist only wallpaper fields, preserving saved appearance, identity and memory settings. */
+export async function saveCharacterWallpaper(
+  userId: string,
+  charId: string,
+  patch: Pick<CharacterChatPreferences, "wallpaperPath" | "wallpaperUrl">,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const { data: current, error: readError } = await db
+    .from("ai_personas")
+    .select("chat_preferences")
+    .eq("id", charId)
+    .eq("user_id", userId)
+    .single();
+  if (readError || !current) throw new Error("角色壁纸读取失败，请重试。");
+  const preferences = readCharacterChatPreferences(current.chat_preferences);
+  const { data, error } = await db
+    .from("ai_personas")
+    .update({ chat_preferences: { ...current.chat_preferences, ...patch } })
+    .eq("id", charId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (error || !data) throw new Error("聊天壁纸保存失败，请重试。");
+  const oldPath = preferences.wallpaperPath;
+  if (
+    oldPath &&
+    oldPath !== patch.wallpaperPath &&
+    oldPath.startsWith(`${userId}/chat-wallpapers/${charId}/`)
+  )
+    void supabase.storage.from("wallpapers").remove([oldPath]);
+  return data as AiPersona;
+}
 
 export function characterWallpaperUrl(
   preferences: Pick<CharacterChatPreferences, "wallpaperPath" | "wallpaperUrl">,

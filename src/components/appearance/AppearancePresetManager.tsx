@@ -19,12 +19,14 @@ export function AppearancePresetManager<C extends object>({
   onChange,
   onPersist,
   onReset,
+  disabled = false,
 }: {
   type: AppearanceThemeType;
   value: AppearanceModule<C>;
   onChange: (value: AppearanceModule<C>) => void;
-  onPersist?: (value: AppearanceModule<C>, mode: "apply" | "library") => void;
+  onPersist?: (value: AppearanceModule<C>, mode: "apply" | "library") => void | Promise<void>;
   onReset: () => void;
+  disabled?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState(value.currentPresetId ?? "");
   const [appliedId, setAppliedId] = useState(value.currentPresetId ?? "");
@@ -38,9 +40,20 @@ export function AppearancePresetManager<C extends object>({
     message: string,
     mode: "apply" | "library" = "apply",
   ) => {
-    onChange(next);
-    onPersist?.(next, mode);
-    setNotice(message);
+    try {
+      const pending = onPersist?.(next, mode);
+      onChange(next);
+      if (pending) {
+        setNotice("正在保存预设…");
+        void pending
+          .then(() => setNotice(message))
+          .catch((reason) =>
+            setNotice(reason instanceof Error ? reason.message : "预设保存失败。"),
+          );
+      } else setNotice(message);
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : "预设保存失败。");
+    }
   };
   const guarded = (action: () => void) => {
     try {
@@ -63,7 +76,12 @@ export function AppearancePresetManager<C extends object>({
   };
 
   return (
-    <section className="appearance-presets" data-system-appearance-editor>
+    <section
+      className="appearance-presets"
+      data-system-appearance-editor
+      inert={disabled}
+      aria-busy={disabled}
+    >
       <h3>我的预设</h3>
       <div className="appearance-presets__list" role="list">
         {value.presets.length === 0 && <p className="appearance-presets__empty">还没有保存预设</p>}
@@ -223,7 +241,7 @@ export function AppearancePresetManager<C extends object>({
           {notice}
         </p>
       )}
-      {type !== "desktop" && (
+      {type !== "desktop" && !onPersist && (
         <p className="appearance-presets__hint">聊天预设请点击页面右上角“完成”后保存。</p>
       )}
     </section>

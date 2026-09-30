@@ -49,8 +49,8 @@ export const characterChatSchema = z.object({
   contextDepth: z.number().int().min(1).max(200).default(20),
   longTermMemory: z.boolean().default(false),
   worldBookIds: z.array(z.string().uuid()).max(100).default([]),
-  userBubbleCss: z.string().max(4000).default(""),
-  charBubbleCss: z.string().max(4000).default(""),
+  userBubbleCss: z.string().max(12000).default(""),
+  charBubbleCss: z.string().max(12000).default(""),
   avatarDisplayMode: z.enum(["simple", "qq"]).default("simple"),
   wallpaperPath: z.string().max(500).nullable().default(null),
   wallpaperUrl: z.string().max(2000).nullable().default(null),
@@ -73,11 +73,17 @@ export const characterChatSchema = z.object({
 });
 export type CharacterChatPreferences = z.infer<typeof characterChatSchema>;
 export type AvatarDisplayMode = CharacterChatPreferences["avatarDisplayMode"];
+const characterChatBaseSchema = characterChatSchema.omit({ appearance: true });
 export function readCharacterChatPreferences(value: unknown): CharacterChatPreferences {
-  const result = characterChatSchema.safeParse(value ?? {});
-  const data = result.success ? result.data : characterChatSchema.parse({});
-  const chrome = readAppearanceModule("chatChrome", data.appearance.chatChrome);
-  const bubbles = readAppearanceModule("chatBubble", data.appearance.chatBubble);
+  // An invalid/newer theme must never reset independent wallpaper and chat settings.
+  const result = characterChatBaseSchema.safeParse(value ?? {});
+  const data = result.success ? result.data : characterChatBaseSchema.parse({});
+  const appearance =
+    value && typeof value === "object"
+      ? (value as { appearance?: { chatChrome?: unknown; chatBubble?: unknown } }).appearance
+      : undefined;
+  const chrome = readAppearanceModule("chatChrome", appearance?.chatChrome);
+  const bubbles = readAppearanceModule("chatBubble", appearance?.chatBubble);
   // Existing bubble CSS remains the compatibility source until a bubble preset is edited.
   if (!bubbles.config.userCss && data.userBubbleCss) bubbles.config.userCss = data.userBubbleCss;
   if (!bubbles.config.charCss && data.charBubbleCss) bubbles.config.charCss = data.charBubbleCss;

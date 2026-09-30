@@ -388,6 +388,7 @@ function ConversationPage({
   const [quotedReply, setQuotedReply] = useState<ChatQuoteMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingMessage, setSavingMessage] = useState(false);
+  const messageWriteBusy = useRef(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [attachmentsOpen, setAttachmentsOpen] = useState(false);
@@ -410,6 +411,8 @@ function ConversationPage({
     left: number;
     top: number;
   } | null>(null);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string> | null>(null);
+  const [deletingMessages, setDeletingMessages] = useState(false);
   const [assistantAvatar, setAssistantAvatar] = useState("");
   const [userAvatar, setUserAvatar] = useState("");
   const [mode, setMode] = useState<DiaryContextMode>(initialDiaryId ? "current" : "none");
@@ -451,10 +454,13 @@ function ConversationPage({
     window.addEventListener("resize", closeMenu);
     return () => window.removeEventListener("resize", closeMenu);
   }, [messageMenu]);
-  useEffect(() => () => {
-    pendingImageUploads.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-    pendingImageUploads.current.clear();
-  });
+  useEffect(
+    () => () => {
+      pendingImageUploads.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      pendingImageUploads.current.clear();
+    },
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -462,6 +468,7 @@ function ConversationPage({
       setLoading(true);
       setError("");
       setQuotedReply(null);
+      setSelectedMessageIds(null);
       const { data: persona } = await db
         .from("ai_personas")
         .select("*")
@@ -565,7 +572,7 @@ function ConversationPage({
   }
 
   function openMessageMenu(messageId: string, anchor: MessageAnchor) {
-    if (messageId.startsWith("pending-")) return;
+    if (selectedMessageIds || messageId.startsWith("pending-")) return;
     const menuWidth = 260;
     const menuHeight = 46;
     const margin = 10;
@@ -610,19 +617,36 @@ function ConversationPage({
     );
   }
 
-  async function deleteMessage(message: ChatMessage) {
+  function selectForDeletion(message: ChatMessage) {
     setMessageMenu(null);
-    if (!window.confirm("确定删除这条消息吗？")) return;
-    const { error: deleteError } = await db
-      .from("chat_messages")
-      .delete()
-      .eq("id", message.id)
-      .eq("session_id", sessionId);
-    if (deleteError) {
+    setSelectedMessageIds(new Set([message.id]));
+  }
+
+  async function deleteSelectedMessages() {
+    if (!selectedMessageIds?.size || deletingMessages || savingMessage || sending) return;
+    const ids = [...selectedMessageIds];
+    if (!window.confirm(`确定删除选中的 ${ids.length} 条消息吗？`)) return;
+    setDeletingMessages(true);
+    try {
+      const { error: deleteError } = await db
+        .from("chat_messages")
+        .delete()
+        .in("id", ids)
+        .eq("session_id", sessionId)
+        .eq("user_id", user?.id);
+      if (deleteError) {
+        setError("删除失败，请稍后重试。");
+        return;
+      }
+      setMessages((previous) => previous.filter((item) => !selectedMessageIds.has(item.id)));
+      if (quotedReply?.replyToMessageId && selectedMessageIds.has(quotedReply.replyToMessageId))
+        setQuotedReply(null);
+      setSelectedMessageIds(null);
+    } catch {
       setError("删除失败，请稍后重试。");
-      return;
+    } finally {
+      setDeletingMessages(false);
     }
-    setMessages((previous) => previous.filter((item) => item.id !== message.id));
   }
 
   async function sendMessage(
@@ -631,7 +655,8 @@ function ConversationPage({
     payload: ChatMessagePayload,
     retryId?: string,
   ) {
-    if (!sessionId || !charId || savingMessage || sending) return;
+    if (!sessionId || !charId || messageWriteBusy.current || sending) return;
+    messageWriteBusy.current = true;
     const messagePayload = retryId ? payload : { ...payload, ...quotedReply };
     if (!retryId) setQuotedReply(null);
     const now = new Date().toISOString();
@@ -684,6 +709,7 @@ function ConversationPage({
       );
       setError(reason instanceof Error ? reason.message : "发送失败。");
     } finally {
+      messageWriteBusy.current = false;
       setSavingMessage(false);
     }
   }
@@ -697,7 +723,8 @@ function ConversationPage({
   }
 
   async function sendImage(file: File) {
-    if (!user) return;
+    if (!user || !sessionId || !charId || messageWriteBusy.current || sending) return;
+    messageWriteBusy.current = true;
     const imageQuote = quotedReply;
     let prepared: Awaited<ReturnType<typeof prepareChatImage>> | null = null;
     let optimisticId = "";
@@ -734,6 +761,7 @@ function ConversationPage({
         },
       ]);
       const path = await uploadChatMedia(user.id, prepared, "messages");
+      messageWriteBusy.current = false;
       setSavingMessage(false);
       pendingImageUploads.current.delete(optimisticId);
       URL.revokeObjectURL(prepared.previewUrl);
@@ -744,6 +772,7 @@ function ConversationPage({
         optimisticId,
       );
     } catch (reason) {
+      messageWriteBusy.current = false;
       setSavingMessage(false);
       if (optimisticId) {
         setMessages((previous) =>
@@ -770,9 +799,12 @@ function ConversationPage({
   async function retryMessage(message: ChatMessage) {
     const pendingImage = pendingImageUploads.current.get(message.id);
     if (message.message_type === "image" && pendingImage && user) {
+      if (messageWriteBusy.current || sending) return;
+      messageWriteBusy.current = true;
       setSavingMessage(true);
       try {
         const path = await uploadChatMedia(user.id, pendingImage, "messages");
+        messageWriteBusy.current = false;
         setSavingMessage(false);
         await sendMessage(
           "image",
@@ -788,6 +820,7 @@ function ConversationPage({
         pendingImageUploads.current.delete(message.id);
         URL.revokeObjectURL(pendingImage.previewUrl);
       } catch (reason) {
+        messageWriteBusy.current = false;
         setSavingMessage(false);
         setMessages((previous) =>
           previous.map((item) =>
@@ -828,7 +861,7 @@ function ConversationPage({
   }
 
   async function triggerReply() {
-    if (!sessionId || !charId || sending || savingMessage || !hasPendingMessages) return;
+    if (!sessionId || !charId || sending || messageWriteBusy.current || !hasPendingMessages) return;
     setSending(true);
     setError("");
     setAttachmentsOpen(false);
@@ -1034,6 +1067,17 @@ function ConversationPage({
 
       {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
       <ChatMessages
+        selectedMessageIds={selectedMessageIds}
+        onToggleMessageSelection={(id) => {
+          if (deletingMessages) return;
+          setSelectedMessageIds((previous) => {
+            if (!previous) return previous;
+            const next = new Set(previous);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          });
+        }}
         avatarDisplayMode={chatPreferences.avatarDisplayMode}
         wallpaperUrl={chatWallpaper}
         messages={messages}
@@ -1109,7 +1153,7 @@ function ConversationPage({
                   type="button"
                   role="menuitem"
                   className="is-danger"
-                  onClick={() => void deleteMessage(selected)}
+                  onClick={() => selectForDeletion(selected)}
                 >
                   <Trash2 size={15} />
                   <span>删除</span>
@@ -1119,18 +1163,43 @@ function ConversationPage({
           );
         })()}
 
-      <ChatComposer
-        quote={quotedReply?.quotedMessage ?? null}
-        onCancelQuote={() => setQuotedReply(null)}
-        value={input}
-        disabled={savingMessage || sending}
-        canReply={hasPendingMessages}
-        replying={sending}
-        onChange={setInput}
-        onSubmit={submit}
-        onAttachments={() => setAttachmentsOpen(true)}
-        onReply={() => void triggerReply()}
-      />
+      {selectedMessageIds ? (
+        <div
+          className="chat-selection-bar"
+          role="toolbar"
+          aria-label="批量删除消息"
+          data-system-appearance-editor
+        >
+          <button
+            type="button"
+            disabled={deletingMessages}
+            onClick={() => setSelectedMessageIds(null)}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            className="is-danger"
+            disabled={!selectedMessageIds.size || deletingMessages || savingMessage || sending}
+            onClick={() => void deleteSelectedMessages()}
+          >
+            删除（{selectedMessageIds.size}）
+          </button>
+        </div>
+      ) : (
+        <ChatComposer
+          quote={quotedReply?.quotedMessage ?? null}
+          onCancelQuote={() => setQuotedReply(null)}
+          value={input}
+          disabled={savingMessage || sending}
+          canReply={hasPendingMessages}
+          replying={sending}
+          onChange={setInput}
+          onSubmit={submit}
+          onAttachments={() => setAttachmentsOpen(true)}
+          onReply={() => void triggerReply()}
+        />
+      )}
 
       <AttachmentSheet
         open={attachmentsOpen}

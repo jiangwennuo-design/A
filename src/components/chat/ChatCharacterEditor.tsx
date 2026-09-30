@@ -11,6 +11,7 @@ import { CharacterChatExtras } from "./CharacterChatExtras";
 import { characterChatSchema, readCharacterChatPreferences } from "@/lib/character-chat";
 import { safeBubbleDeclarations } from "@/lib/bubble-css";
 import { scopeAppearanceCss } from "@/lib/appearance";
+import { saveCharacterWallpaper } from "@/lib/character-wallpaper";
 
 const db = supabase as any;
 
@@ -43,8 +44,6 @@ export function ChatCharacterEditor({
   const [preferences, setPreferences] = useState(() =>
     readCharacterChatPreferences(character.chat_preferences),
   );
-  const uploadedPaths = useRef<string[]>([]);
-  const committedWallpaper = useRef(preferences.wallpaperPath);
   const [saving, setSaving] = useState(false);
   const [wallpaperBusy, setWallpaperBusy] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -70,13 +69,13 @@ export function ChatCharacterEditor({
     return () => previous?.focus({ preventScroll: true });
   }, [open]);
 
-  useEffect(
-    () => () => {
-      const unused = uploadedPaths.current.filter((path) => path !== committedWallpaper.current);
-      if (unused.length) void supabase.storage.from("wallpapers").remove(unused);
-    },
-    [],
-  );
+  async function persistWallpaper(
+    patch: Pick<typeof preferences, "wallpaperPath" | "wallpaperUrl">,
+  ) {
+    const saved = await saveCharacterWallpaper(userId, character.id, patch);
+    setPreferences((previous) => ({ ...previous, ...patch }));
+    onSaved(saved);
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -123,16 +122,6 @@ export function ChatCharacterEditor({
       .single();
     setSaving(false);
     if (saveError || !data) return setError("保存失败，请确认数据库迁移已完成。");
-    const previousWallpaper = readCharacterChatPreferences(
-      character.chat_preferences,
-    ).wallpaperPath;
-    committedWallpaper.current = preferences.wallpaperPath;
-    if (
-      previousWallpaper &&
-      previousWallpaper !== preferences.wallpaperPath &&
-      previousWallpaper.startsWith(`${userId}/chat-wallpapers/${character.id}/`)
-    )
-      void supabase.storage.from("wallpapers").remove([previousWallpaper]);
     onSaved(data as AiPersona);
     onClose();
   }
@@ -215,7 +204,7 @@ export function ChatCharacterEditor({
                 userId={userId}
                 value={preferences}
                 onChange={setPreferences}
-                onUploadedPath={(path) => uploadedPaths.current.push(path)}
+                onWallpaperChange={persistWallpaper}
                 onUploadBusy={setWallpaperBusy}
               />
             </>

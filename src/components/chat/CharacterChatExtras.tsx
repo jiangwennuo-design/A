@@ -28,20 +28,29 @@ import {
   type ChatChromeConfig,
 } from "@/lib/appearance";
 import "@/styles/character-chat.css";
+import {
+  hydrateChatAppearanceLibraries,
+  migrateChatAppearanceLibraries,
+  readChatAppearanceLibrary,
+  saveChatAppearanceLibrary,
+  useChatAppearanceLibrary,
+} from "@/lib/chat-appearance-presets";
 
 export function CharacterChatExtras({
   charId,
   userId,
   value,
   onChange,
-  onUploadedPath,
+  onWallpaperChange,
   onUploadBusy,
 }: {
   charId: string;
   userId: string;
   value: CharacterChatPreferences;
   onChange: Dispatch<SetStateAction<CharacterChatPreferences>>;
-  onUploadedPath: (path: string) => void;
+  onWallpaperChange: (
+    patch: Pick<CharacterChatPreferences, "wallpaperPath" | "wallpaperUrl">,
+  ) => Promise<void>;
   onUploadBusy: (busy: boolean) => void;
 }) {
   const [wallpaper, setWallpaper] = useState("");
@@ -59,6 +68,9 @@ export function CharacterChatExtras({
   const cancelLink = useRef<(() => void) | null>(null);
   const localWallpaper = useRef<{ path: string; url: string } | null>(null);
   const wallpaperVersion = useRef(0);
+  const legacyPreferences = useRef(value);
+  const [librariesReady, setLibrariesReady] = useState(false);
+  const librarySaveQueue = useRef(Promise.resolve());
   const { wallpaperPath, wallpaperUrl } = value;
   const list = useServerFn(listCharacterMemories);
   const saveMemory = useServerFn(saveCharacterMemory);
@@ -66,22 +78,88 @@ export function CharacterChatExtras({
   const summarize = useServerFn(summarizeCharacterMemory);
   const update = (patch: Partial<CharacterChatPreferences>) =>
     onChange((current) => ({ ...current, ...patch }));
-  const bubbleAppearance = readAppearanceModule("chatBubble", value.appearance.chatBubble);
-  const chromeAppearance = readAppearanceModule("chatChrome", value.appearance.chatChrome);
+  const bubbleLibrary = useChatAppearanceLibrary(userId, "chatBubble");
+  const chromeLibrary = useChatAppearanceLibrary(userId, "chatChrome");
+  const bubbleAppearance = {
+    ...readAppearanceModule("chatBubble", value.appearance.chatBubble),
+    presets: bubbleLibrary.presets as AppearanceModule<ChatBubbleConfig>["presets"],
+  };
+  const chromeAppearance = {
+    ...readAppearanceModule("chatChrome", value.appearance.chatChrome),
+    presets: chromeLibrary.presets as AppearanceModule<ChatChromeConfig>["presets"],
+  };
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      // The generated client predates chat_preferences.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [account, characters] = await Promise.all([
+        db.from("profiles").select("chat_appearance_libraries").eq("id", userId).single(),
+        db.from("ai_personas").select("id, chat_preferences").eq("user_id", userId),
+      ]);
+      if (!active) return;
+      if (account.error || characters.error)
+        throw new Error("预设库读取失败，请检查全局预设数据库迁移。");
+      hydrateChatAppearanceLibraries(userId, account.data?.chat_appearance_libraries);
+      migrateChatAppearanceLibraries(userId, [
+        ...(characters.data ?? []),
+        { id: charId, chat_preferences: legacyPreferences.current },
+      ]);
+      for (const type of ["chatBubble", "chatChrome"] as const) {
+        const { error: saveError } = await db.rpc("save_chat_appearance_library", {
+          p_theme: type,
+          p_library: readChatAppearanceLibrary(userId, type),
+        });
+        if (saveError) throw new Error("全局预设同步失败，请检查数据库迁移。");
+      }
+      if (active) setLibrariesReady(true);
+    })().catch((reason) => {
+      if (active) setError(reason instanceof Error ? reason.message : "旧预设读取失败。");
+    });
+    return () => {
+      active = false;
+    };
+  }, [userId, charId]);
+  function persistLibrary(
+    type: "chatBubble" | "chatChrome",
+    next: AppearanceModule<ChatBubbleConfig> | AppearanceModule<ChatChromeConfig>,
+  ) {
+    saveChatAppearanceLibrary(userId, type, next.presets);
+    const library = readChatAppearanceLibrary(userId, type);
+    const request = librarySaveQueue.current
+      .catch(() => {})
+      .then(async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: saveError } = await (supabase as any).rpc("save_chat_appearance_library", {
+          p_theme: type,
+          p_library: library,
+        });
+        if (saveError) throw new Error("已保留本机预设，账号同步失败，请重试。");
+      });
+    librarySaveQueue.current = request;
+    return request;
+  }
   const setBubbleAppearance = (next: AppearanceModule<ChatBubbleConfig>) =>
     update({
       userBubbleCss: next.config.userCss,
       charBubbleCss: next.config.charCss,
       appearance: {
         ...value.appearance,
-        chatBubble: next as unknown as CharacterChatPreferences["appearance"]["chatBubble"],
+        chatBubble: {
+          ...next,
+          presets: librariesReady ? [] : value.appearance.chatBubble.presets,
+        } as unknown as CharacterChatPreferences["appearance"]["chatBubble"],
       },
     });
   const setChromeAppearance = (next: AppearanceModule<ChatChromeConfig>) =>
     update({
       appearance: {
         ...value.appearance,
-        chatChrome: next as unknown as CharacterChatPreferences["appearance"]["chatChrome"],
+        chatChrome: {
+          ...next,
+          presets: librariesReady ? [] : value.appearance.chatChrome.presets,
+        } as unknown as CharacterChatPreferences["appearance"]["chatChrome"],
       },
     });
   useEffect(() => {
@@ -127,19 +205,21 @@ export function CharacterChatExtras({
     const previous = wallpaper;
     const previewUrl = URL.createObjectURL(file);
     setWallpaper(previewUrl);
+    let uploadedPath = "";
     try {
       const path = await uploadCharacterWallpaper(userId, charId, file);
+      uploadedPath = path;
+      await onWallpaperChange({ wallpaperPath: path, wallpaperUrl: null });
       if (alive.current) {
-        onUploadedPath(path);
         if (localWallpaper.current) URL.revokeObjectURL(localWallpaper.current.url);
         localWallpaper.current = { path, url: previewUrl };
         update({ wallpaperPath: path, wallpaperUrl: null });
         setLink("");
       } else {
         URL.revokeObjectURL(previewUrl);
-        await supabase.storage.from("wallpapers").remove([path]);
       }
     } catch (reason) {
+      if (uploadedPath) void supabase.storage.from("wallpapers").remove([uploadedPath]);
       URL.revokeObjectURL(previewUrl);
       if (alive.current) {
         setWallpaper(previous);
@@ -181,9 +261,25 @@ export function CharacterChatExtras({
         };
         image.src = url;
       });
-      if (alive.current) update({ wallpaperUrl: url, wallpaperPath: null });
+      if (alive.current) {
+        await onWallpaperChange({ wallpaperUrl: url, wallpaperPath: null });
+        update({ wallpaperUrl: url, wallpaperPath: null });
+      }
     } catch (reason) {
       if (alive.current) setError(reason instanceof Error ? reason.message : "图片链接无效。");
+    } finally {
+      if (alive.current) setUploading(false);
+    }
+  }
+  async function resetWallpaper() {
+    setUploading(true);
+    setError("");
+    try {
+      await onWallpaperChange({ wallpaperPath: null, wallpaperUrl: null });
+      update({ wallpaperPath: null, wallpaperUrl: null });
+      setLink("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "壁纸保存失败。");
     } finally {
       if (alive.current) setUploading(false);
     }
@@ -363,6 +459,8 @@ export function CharacterChatExtras({
                 type="chatBubble"
                 value={bubbleAppearance}
                 onChange={setBubbleAppearance}
+                disabled={!librariesReady}
+                onPersist={(next) => persistLibrary("chatBubble", next)}
                 onReset={() =>
                   setBubbleAppearance({
                     ...defaultAppearanceModule("chatBubble"),
@@ -409,21 +507,11 @@ export function CharacterChatExtras({
                 type="button"
                 className="is-danger"
                 disabled={uploading}
-                onClick={() => {
-                  update({ wallpaperPath: null, wallpaperUrl: null });
-                  setLink("");
-                }}
+                onClick={() => void resetWallpaper()}
               >
                 删除壁纸
               </button>
-              <button
-                type="button"
-                disabled={uploading}
-                onClick={() => {
-                  update({ wallpaperPath: null, wallpaperUrl: null });
-                  setLink("");
-                }}
-              >
+              <button type="button" disabled={uploading} onClick={() => void resetWallpaper()}>
                 恢复默认
               </button>
             </div>
@@ -674,6 +762,8 @@ export function CharacterChatExtras({
                 type="chatChrome"
                 value={chromeAppearance}
                 onChange={setChromeAppearance}
+                disabled={!librariesReady}
+                onPersist={(next) => persistLibrary("chatChrome", next)}
                 onReset={() =>
                   setChromeAppearance({
                     ...defaultAppearanceModule("chatChrome"),
