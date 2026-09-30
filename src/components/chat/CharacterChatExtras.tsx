@@ -13,8 +13,9 @@ import {
   deleteCharacterMemory,
   summarizeCharacterMemory,
 } from "@/lib/character-memory.functions";
-import { characterWallpaperUrl, uploadCharacterWallpaper } from "@/lib/character-wallpaper";
-import { retainWallpaperUrl } from "@/lib/wallpaper-media";
+import { changeCharacterWallpaper } from "@/lib/character-wallpaper";
+import { useCharacterWallpaper } from "@/lib/chat-wallpaper-state";
+import type { AiPersona } from "@/lib/types";
 import { assertSafeRemoteUrl } from "@/lib/stickers/resolve-resource";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -42,6 +43,7 @@ export function CharacterChatExtras({
   value,
   onChange,
   onWallpaperChange,
+  onWallpaperSaved,
   onUploadBusy,
 }: {
   charId: string;
@@ -52,11 +54,13 @@ export function CharacterChatExtras({
     patch: Pick<CharacterChatPreferences, "wallpaperPath" | "wallpaperUrl">,
   ) => Promise<void>;
   onUploadBusy: (busy: boolean) => void;
+  onWallpaperSaved: (character: AiPersona) => void;
 }) {
-  const [wallpaper, setWallpaper] = useState("");
-  useEffect(() => retainWallpaperUrl(wallpaper), [wallpaper]);
+  const wallpaperState = useCharacterWallpaper(userId, charId);
+  const wallpaper = wallpaperState.displayUrl;
   const [link, setLink] = useState(value.wallpaperUrl ?? "");
-  const [uploading, setUploading] = useState(false);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const uploading = wallpaperState.busy || linkLoading;
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -66,12 +70,9 @@ export function CharacterChatExtras({
   const alive = useRef(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const cancelLink = useRef<(() => void) | null>(null);
-  const localWallpaper = useRef<{ path: string; url: string } | null>(null);
-  const wallpaperVersion = useRef(0);
   const legacyPreferences = useRef(value);
   const [librariesReady, setLibrariesReady] = useState(false);
   const librarySaveQueue = useRef(Promise.resolve());
-  const { wallpaperPath, wallpaperUrl } = value;
   const list = useServerFn(listCharacterMemories);
   const saveMemory = useServerFn(saveCharacterMemory);
   const deleteMemory = useServerFn(deleteCharacterMemory);
@@ -167,24 +168,8 @@ export function CharacterChatExtras({
     return () => {
       alive.current = false;
       cancelLink.current?.();
-      if (localWallpaper.current) URL.revokeObjectURL(localWallpaper.current.url);
     };
   }, []);
-  useEffect(() => {
-    let active = true;
-    const version = wallpaperVersion.current;
-    if (localWallpaper.current?.path === wallpaperPath) return;
-    if (localWallpaper.current) {
-      URL.revokeObjectURL(localWallpaper.current.url);
-      localWallpaper.current = null;
-    }
-    void characterWallpaperUrl({ wallpaperPath, wallpaperUrl }).then((url) => {
-      if (active && version === wallpaperVersion.current) setWallpaper(url);
-    });
-    return () => {
-      active = false;
-    };
-  }, [wallpaperPath, wallpaperUrl]);
   useEffect(() => onUploadBusy(uploading), [uploading, onUploadBusy]);
 
   const cssErrors = [value.userBubbleCss, value.charBubbleCss].map((css) => {
@@ -199,41 +184,24 @@ export function CharacterChatExtras({
 
   async function upload(file?: File) {
     if (!file || uploading) return;
-    setUploading(true);
     setError("");
-    wallpaperVersion.current++;
-    const previous = wallpaper;
-    const previewUrl = URL.createObjectURL(file);
-    setWallpaper(previewUrl);
-    let uploadedPath = "";
     try {
-      const path = await uploadCharacterWallpaper(userId, charId, file);
-      uploadedPath = path;
-      await onWallpaperChange({ wallpaperPath: path, wallpaperUrl: null });
-      if (alive.current) {
-        if (localWallpaper.current) URL.revokeObjectURL(localWallpaper.current.url);
-        localWallpaper.current = { path, url: previewUrl };
-        update({ wallpaperPath: path, wallpaperUrl: null });
+      const saved = await changeCharacterWallpaper(userId, charId, file);
+      if (alive.current && saved) {
+        onWallpaperSaved(saved);
         setLink("");
-      } else {
-        URL.revokeObjectURL(previewUrl);
       }
     } catch (reason) {
-      if (uploadedPath) void supabase.storage.from("wallpapers").remove([uploadedPath]);
-      URL.revokeObjectURL(previewUrl);
       if (alive.current) {
-        setWallpaper(previous);
         setError(reason instanceof Error ? reason.message : "上传失败。");
       }
-    } finally {
-      if (alive.current) setUploading(false);
     }
   }
   async function applyWallpaperLink() {
     setError("");
     try {
       const url = assertSafeRemoteUrl(link.trim()).toString();
-      setUploading(true);
+      setLinkLoading(true);
       await new Promise<void>((resolve, reject) => {
         const image = new Image();
         const cleanup = () => {
@@ -268,11 +236,11 @@ export function CharacterChatExtras({
     } catch (reason) {
       if (alive.current) setError(reason instanceof Error ? reason.message : "图片链接无效。");
     } finally {
-      if (alive.current) setUploading(false);
+      if (alive.current) setLinkLoading(false);
     }
   }
   async function resetWallpaper() {
-    setUploading(true);
+    setLinkLoading(true);
     setError("");
     try {
       await onWallpaperChange({ wallpaperPath: null, wallpaperUrl: null });
@@ -281,7 +249,7 @@ export function CharacterChatExtras({
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "壁纸保存失败。");
     } finally {
-      if (alive.current) setUploading(false);
+      if (alive.current) setLinkLoading(false);
     }
   }
   async function action(task: () => Promise<void>) {
@@ -326,7 +294,9 @@ export function CharacterChatExtras({
           <ChevronRight size={17} />
         </summary>
         <div className="character-extras__body">
-          <p className="character-extras__hint">仅作用于当前角色。修改后点击顶部“完成”保存。</p>
+          <p className="character-extras__hint">
+            仅作用于当前角色。壁纸自动保存；其他修改点击顶部“完成”保存。
+          </p>
           <section className="character-extras__card">
             <label className="contact-editor__field">
               <span>头像显示模式</span>
@@ -842,9 +812,9 @@ export function CharacterChatExtras({
         </div>
       </details>
       <CharacterWorldBooks value={value} onChange={onChange} />
-      {error && (
+      {(error || wallpaperState.error) && (
         <p className="character-extras__error" role="alert">
-          {error}
+          {error || wallpaperState.error}
         </p>
       )}
       {notice && (

@@ -63,8 +63,7 @@ import {
   readCharacterChatPreferences,
 } from "@/lib/character-chat";
 import { bubbleStyles } from "@/lib/bubble-css";
-import { characterWallpaperUrl } from "@/lib/character-wallpaper";
-import { retainWallpaperUrl } from "@/lib/wallpaper-media";
+import { useCharacterWallpaper } from "@/lib/chat-wallpaper-state";
 import {
   chatChromeElementCss,
   chatChromeVariables,
@@ -364,24 +363,12 @@ function ConversationPage({
   const clear = useServerFn(clearCurrentChat);
   const settleTransfer = useServerFn(settlePenpalTransfer);
   const [current, setCurrent] = useState<AiPersona | null>(null);
-  const [chatWallpaper, setChatWallpaper] = useState("");
-  useEffect(() => retainWallpaperUrl(chatWallpaper), [chatWallpaper]);
+  const chatWallpaper = useCharacterWallpaper(user?.id ?? "", charId, current).displayUrl;
   const chatPreferences = useMemo(
     () => readCharacterChatPreferences(current?.chat_preferences),
     [current?.chat_preferences],
   );
-  const { wallpaperPath, wallpaperUrl } = chatPreferences;
   const userIdentity = characterUserIdentity(current?.chat_preferences, profile);
-  useEffect(() => {
-    let active = true;
-    setChatWallpaper("");
-    void characterWallpaperUrl({ wallpaperPath, wallpaperUrl }).then((url) => {
-      if (active) setChatWallpaper(url);
-    });
-    return () => {
-      active = false;
-    };
-  }, [wallpaperPath, wallpaperUrl]);
   const [sessionId, setSessionId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");

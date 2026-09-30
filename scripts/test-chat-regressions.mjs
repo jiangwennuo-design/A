@@ -267,12 +267,19 @@ test("chat wallpaper auto-save preserves other preferences and character isolati
   const db = database(records),
     removed = [];
   db.storage = { from: () => ({ remove: async (paths) => removed.push(...paths) }) };
+  db.rpc = async (_name, { p_character_id, p_wallpaper }) => {
+    const row = records.ai_personas.find((row) => row.id === p_character_id);
+    if (!row) return { error: new Error("missing") };
+    row.chat_wallpaper = { ...p_wallpaper, updatedAt: new Date().toISOString() };
+    Object.assign(row.chat_preferences, p_wallpaper);
+    return { data: structuredClone(row), error: null };
+  };
   const wallpaper = await load("lib/character-wallpaper.ts", {
     "@/integrations/supabase/client": { supabase: db },
     "./chat-media": {},
     "./wallpaper-media": {},
     "./stickers/resolve-resource": {},
-    "./character-chat": preferences,
+    "./chat-wallpaper-state": {},
   });
   await wallpaper.saveCharacterWallpaper("owner", "a", {
     wallpaperPath: "owner/chat-wallpapers/a/new.png",
@@ -283,7 +290,7 @@ test("chat wallpaper auto-save preserves other preferences and character isolati
   assert.equal(restored[0].chat_preferences.contextDepth, 9);
   assert.equal(restored[0].chat_preferences.userBubbleCss, "color:red;");
   assert.equal(restored[1].chat_preferences.wallpaperUrl, "https://example.invalid/b.png");
-  assert.deepEqual(removed, ["owner/chat-wallpapers/a/old.png"]);
+  assert.deepEqual(removed, []); // Keep older assets usable by open tabs/other devices.
   await wallpaper.saveCharacterWallpaper("owner", "a", { wallpaperPath: null, wallpaperUrl: null });
   assert.equal(records.ai_personas[0].chat_preferences.wallpaperPath, null);
   await assert.rejects(() =>
@@ -365,8 +372,7 @@ test("long-press deletion enters multi-select; cancel, one/multiple delete and q
       "@/lib/chat-media": {},
       "@/lib/character-chat": preferences,
       "@/lib/bubble-css": { bubbleStyles: () => "" },
-      "@/lib/character-wallpaper": { characterWallpaperUrl: async () => "" },
-      "@/lib/wallpaper-media": { retainWallpaperUrl: () => () => {} },
+      "@/lib/chat-wallpaper-state": { useCharacterWallpaper: () => ({ displayUrl: "" }) },
       "@/lib/appearance": appearance,
     },
     {

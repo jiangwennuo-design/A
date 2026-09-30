@@ -61,6 +61,7 @@ export async function prepareChatImage(
   file: File,
   maxSide = 2_048,
   maxBytes = MAX_CHAT_MEDIA_BYTES,
+  options: { alwaysEncode?: boolean } = {},
 ): Promise<PreparedImage> {
   if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type))
     throw new Error("请选择 JPG、PNG、WebP 或 GIF 图片。");
@@ -76,7 +77,10 @@ export async function prepareChatImage(
     let width = Math.max(1, Math.round(bitmap.width * scale));
     let height = Math.max(1, Math.round(bitmap.height * scale));
 
-    if (file.type === "image/gif" || (scale === 1 && file.size <= 2 * 1024 * 1024)) {
+    if (
+      file.type === "image/gif" ||
+      (!options.alwaysEncode && scale === 1 && file.size <= 2 * 1024 * 1024)
+    ) {
       return {
         blob: file,
         width: bitmap.width,

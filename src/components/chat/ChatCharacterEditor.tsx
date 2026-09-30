@@ -11,7 +11,8 @@ import { CharacterChatExtras } from "./CharacterChatExtras";
 import { characterChatSchema, readCharacterChatPreferences } from "@/lib/character-chat";
 import { safeBubbleDeclarations } from "@/lib/bubble-css";
 import { scopeAppearanceCss } from "@/lib/appearance";
-import { saveCharacterWallpaper } from "@/lib/character-wallpaper";
+import { changeCharacterWallpaperReference } from "@/lib/character-wallpaper";
+import { readCharacterWallpaper, useCharacterWallpaper } from "@/lib/chat-wallpaper-state";
 
 const db = supabase as any;
 
@@ -41,9 +42,11 @@ export function ChatCharacterEditor({
     character.chat_thinking_mode ?? defaultMode,
   );
   const [showThinking, setShowThinking] = useState(character.show_chat_thinking ?? false);
-  const [preferences, setPreferences] = useState(() =>
-    readCharacterChatPreferences(character.chat_preferences),
-  );
+  const [preferences, setPreferences] = useState(() => ({
+    ...readCharacterChatPreferences(character.chat_preferences),
+    ...readCharacterWallpaper(character),
+  }));
+  useCharacterWallpaper(userId, character.id, character);
   const [saving, setSaving] = useState(false);
   const [wallpaperBusy, setWallpaperBusy] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -72,8 +75,13 @@ export function ChatCharacterEditor({
   async function persistWallpaper(
     patch: Pick<typeof preferences, "wallpaperPath" | "wallpaperUrl">,
   ) {
-    const saved = await saveCharacterWallpaper(userId, character.id, patch);
-    setPreferences((previous) => ({ ...previous, ...patch }));
+    const saved = await changeCharacterWallpaperReference(userId, character.id, patch);
+    if (saved) wallpaperSaved(saved);
+  }
+
+  function wallpaperSaved(saved: AiPersona) {
+    if (saved.id !== character.id) return;
+    setPreferences((previous) => ({ ...previous, ...readCharacterWallpaper(saved) }));
     onSaved(saved);
   }
 
@@ -205,6 +213,7 @@ export function ChatCharacterEditor({
                 value={preferences}
                 onChange={setPreferences}
                 onWallpaperChange={persistWallpaper}
+                onWallpaperSaved={wallpaperSaved}
                 onUploadBusy={setWallpaperBusy}
               />
             </>
