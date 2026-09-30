@@ -28,7 +28,7 @@ function appearanceModuleStorageSchema<T extends z.ZodTypeAny>(
     name: z.string().default("当前配置"),
     config: config.default(() => config.parse({})),
     customCss: z.string().max(40_000).default(""),
-    presets: z.array(preset).max(80).default([]),
+    presets: z.array(preset).default([]),
   });
 }
 const chatChromeAppearanceSchema = appearanceModuleStorageSchema(

@@ -110,7 +110,7 @@ function moduleSchema<C extends z.ZodTypeAny>(type: AppearanceThemeType, config:
     name: z.string().trim().max(80).default("当前配置"),
     config: config.default(() => config.parse({})),
     customCss: z.string().max(40_000).default(""),
-    presets: z.array(preset).max(80).default([]),
+    presets: z.array(preset).default([]),
   });
 }
 
@@ -219,6 +219,27 @@ export function renameAppearancePreset<C extends object>(
   };
 }
 
+export function updateAppearancePreset<C extends object>(
+  state: AppearanceModule<C>,
+  presetId: string,
+) {
+  if (!state.presets.some((preset) => preset.id === presetId)) return state;
+  return {
+    ...state,
+    currentPresetId: presetId,
+    presets: state.presets.map((preset) =>
+      preset.id === presetId
+        ? {
+            ...preset,
+            config: structuredClone(state.config),
+            customCss: state.customCss,
+            updatedAt: new Date().toISOString(),
+          }
+        : preset,
+    ),
+  };
+}
+
 export function deleteAppearancePreset<C extends object>(
   state: AppearanceModule<C>,
   presetId: string,
@@ -230,20 +251,36 @@ export function deleteAppearancePreset<C extends object>(
   };
 }
 
+/** Persist library edits without applying an uncommitted visual draft. */
+export function withAppearancePresetLibrary<C extends object>(
+  current: AppearanceModule<C>,
+  edited: AppearanceModule<C>,
+): AppearanceModule<C> {
+  const active = edited.presets.find((preset) => preset.id === current.currentPresetId);
+  return {
+    ...current,
+    presets: edited.presets,
+    currentPresetId: active ? current.currentPresetId : null,
+    name: active?.name ?? current.name,
+  };
+}
+
 export function exportAppearancePreset<C extends object>(
   state: AppearanceModule<C>,
   type: AppearanceThemeType,
+  presetId?: string,
 ) {
+  const preset = state.presets.find((entry) => entry.id === presetId);
   const now = new Date().toISOString();
   return JSON.stringify(
     {
       schemaVersion: APPEARANCE_SCHEMA_VERSION,
       themeType: type,
-      name: state.name || "当前配置",
-      config: state.config,
-      customCss: state.customCss,
-      createdAt: now,
-      updatedAt: now,
+      name: preset?.name ?? (state.name || "当前配置"),
+      config: preset?.config ?? state.config,
+      customCss: preset?.customCss ?? state.customCss,
+      createdAt: preset?.createdAt ?? now,
+      updatedAt: preset?.updatedAt ?? now,
     },
     null,
     2,
@@ -262,7 +299,7 @@ export function importAppearancePreset<C extends object>(
   const customCss = z
     .string()
     .max(40_000)
-    .parse(source["customCss"] ?? "");
+    .parse(source["customCss"] ?? source["css"] ?? "");
   validateAppearanceCss(customCss, expectedType);
   const now = new Date().toISOString();
   return {

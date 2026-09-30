@@ -7,6 +7,8 @@ import {
   importAppearancePreset,
   renameAppearancePreset,
   saveAppearancePreset,
+  scopeAppearanceCss,
+  updateAppearancePreset,
   type AppearanceModule,
   type AppearanceThemeType,
 } from "@/lib/appearance";
@@ -15,81 +17,184 @@ export function AppearancePresetManager<C extends object>({
   type,
   value,
   onChange,
+  onPersist,
   onReset,
 }: {
   type: AppearanceThemeType;
   value: AppearanceModule<C>;
   onChange: (value: AppearanceModule<C>) => void;
+  onPersist?: (value: AppearanceModule<C>, mode: "apply" | "library") => void;
   onReset: () => void;
 }) {
-  const [name, setName] = useState(value.name || "当前配置");
-  const [error, setError] = useState("");
+  const [selectedId, setSelectedId] = useState(value.currentPresetId ?? "");
+  const [appliedId, setAppliedId] = useState(value.currentPresetId ?? "");
+  const [newName, setNewName] = useState("");
+  const [rename, setRename] = useState("");
+  const [notice, setNotice] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const selected = value.currentPresetId ?? "";
+  const selected = value.presets.find((preset) => preset.id === selectedId);
+  const commit = (
+    next: AppearanceModule<C>,
+    message: string,
+    mode: "apply" | "library" = "apply",
+  ) => {
+    onChange(next);
+    onPersist?.(next, mode);
+    setNotice(message);
+  };
+  const guarded = (action: () => void) => {
+    try {
+      action();
+    } catch (reason) {
+      setNotice(reason instanceof Error ? reason.message : "预设操作失败。");
+    }
+  };
   const download = () => {
-    const blob = new Blob([exportAppearancePreset(value, type)], { type: "application/json" });
+    if (!selected) return;
+    const blob = new Blob([exportAppearancePreset(value, type, selected.id)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${value.name || type}.json`;
+    link.download = `${selected.name}.json`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+
   return (
     <section className="appearance-presets" data-system-appearance-editor>
-      <div className="appearance-presets__name">
-        <label>
-          预设名称
-          <input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} />
-        </label>
+      <h3>我的预设</h3>
+      <div className="appearance-presets__list" role="list">
+        {value.presets.length === 0 && <p className="appearance-presets__empty">还没有保存预设</p>}
+        {value.presets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            role="listitem"
+            className={
+              selectedId === preset.id
+                ? "appearance-presets__item is-selected"
+                : "appearance-presets__item"
+            }
+            onClick={() => {
+              setSelectedId(preset.id);
+              setRename(preset.name);
+              onChange(applyAppearancePreset(value, preset.id));
+              setNotice("已加载预设内容；点击应用或页面完成以保存。");
+            }}
+          >
+            <span>{preset.name}</span>
+            {appliedId === preset.id && <small>当前使用</small>}
+          </button>
+        ))}
+      </div>
+      <div className="appearance-presets__new">
+        <input
+          aria-label="新预设名称"
+          placeholder="新预设名称"
+          maxLength={80}
+          value={newName}
+          onChange={(event) => setNewName(event.target.value)}
+        />
+        <button
+          type="button"
+          onClick={() =>
+            guarded(() => {
+              scopeAppearanceCss(value.customCss, type);
+              const next = saveAppearancePreset(value, type, newName);
+              setSelectedId(next.currentPresetId ?? "");
+              setAppliedId(next.currentPresetId ?? "");
+              setRename(next.name);
+              setNewName("");
+              commit(next, "已新增独立预设。");
+            })
+          }
+        >
+          ＋ 保存当前为新预设
+        </button>
+      </div>
+      {selected && (
+        <div className="appearance-presets__selected">
+          <div className="appearance-presets__rename">
+            <input
+              aria-label="重命名选中预设"
+              value={rename}
+              maxLength={80}
+              onChange={(event) => setRename(event.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() =>
+                guarded(() =>
+                  commit(
+                    renameAppearancePreset(value, selected.id, rename),
+                    "已重命名。",
+                    "library",
+                  ),
+                )
+              }
+            >
+              重命名
+            </button>
+          </div>
+          <div className="appearance-presets__actions">
+            <button
+              type="button"
+              onClick={() => {
+                commit(applyAppearancePreset(value, selected.id), "已应用预设。");
+                setAppliedId(selected.id);
+              }}
+            >
+              应用
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                guarded(() => {
+                  scopeAppearanceCss(value.customCss, type);
+                  commit(updateAppearancePreset(value, selected.id), "已保存此预设的修改。");
+                })
+              }
+            >
+              <Save size={15} /> 保存修改
+            </button>
+            <button type="button" onClick={download}>
+              <Download size={15} /> 导出
+            </button>
+            <button
+              type="button"
+              className="is-danger"
+              onClick={() => {
+                commit(
+                  deleteAppearancePreset(value, selected.id),
+                  "已删除所选预设，其他预设未变。",
+                  "library",
+                );
+                setSelectedId("");
+                if (appliedId === selected.id) setAppliedId("");
+                setRename("");
+              }}
+            >
+              <Trash2 size={15} /> 删除
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="appearance-presets__utility">
         <button
           type="button"
           onClick={() => {
-            const next = selected
-              ? renameAppearancePreset(value, selected, name)
-              : saveAppearancePreset(value, type, name);
-            onChange(next);
+            onReset();
+            setSelectedId("");
+            setAppliedId("");
+            setNotice("仅恢复当前编辑内容；预设库未清空。");
           }}
         >
-          <Save size={16} /> {selected ? "重命名" : "保存为预设"}
-        </button>
-      </div>
-      {value.presets.length > 0 && (
-        <div className="appearance-presets__select">
-          <select
-            aria-label="选择预设"
-            value={selected}
-            onChange={(event) => onChange(applyAppearancePreset(value, event.target.value))}
-          >
-            <option value="">当前未保存配置</option>
-            {value.presets.map((preset) => (
-              <option value={preset.id} key={preset.id}>
-                {preset.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={!selected}
-            className="is-danger"
-            onClick={() => selected && onChange(deleteAppearancePreset(value, selected))}
-          >
-            <Trash2 size={16} /> 删除
-          </button>
-        </div>
-      )}
-      <div className="appearance-presets__actions">
-        <button type="button" onClick={onReset}>
-          <RotateCcw size={16} />
-          恢复默认
+          <RotateCcw size={15} /> 恢复默认
         </button>
         <button type="button" onClick={() => input.current?.click()}>
-          <Upload size={16} />
-          导入
-        </button>
-        <button type="button" onClick={download}>
-          <Download size={16} />
-          导出
+          <Upload size={15} /> 导入
         </button>
       </div>
       <input
@@ -103,18 +208,23 @@ export function AppearancePresetManager<C extends object>({
           if (!file) return;
           try {
             const preset = importAppearancePreset<C>(await file.text(), type);
-            onChange({ ...value, presets: [...value.presets, preset] });
-            setName(preset.name);
-            setError("已导入预设；选择后才会应用。");
+            commit(
+              { ...value, presets: [...value.presets, preset] },
+              "已导入新预设；点击后可应用。",
+              "library",
+            );
           } catch (reason) {
-            setError(reason instanceof Error ? reason.message : "预设文件无效。");
+            setNotice(reason instanceof Error ? reason.message : "预设文件无效。");
           }
         }}
       />
-      {error && (
+      {notice && (
         <p className="appearance-presets__notice" role="status">
-          {error}
+          {notice}
         </p>
+      )}
+      {type !== "desktop" && (
+        <p className="appearance-presets__hint">聊天预设请点击页面右上角“完成”后保存。</p>
       )}
     </section>
   );

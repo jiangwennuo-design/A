@@ -8,6 +8,7 @@ import {
   defaultAppearanceModule,
   safeScopedAppearanceCss,
   scopeAppearanceCss,
+  withAppearancePresetLibrary,
   type AppearanceModule,
   type DesktopAppearanceConfig,
 } from "@/lib/appearance";
@@ -272,6 +273,12 @@ function DesktopAppearancePage() {
           type="desktop"
           value={draft}
           onChange={setDraft}
+          onPersist={(next, mode) =>
+            saveDesktopAppearance(
+              user?.id ?? "guest",
+              mode === "library" ? withAppearancePresetLibrary(stored, next) : next,
+            )
+          }
           onReset={() =>
             setDraft({
               ...defaultAppearanceModule("desktop"),
