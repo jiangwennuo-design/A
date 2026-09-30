@@ -405,7 +405,15 @@ function MomentsPage() {
                   <div className={`moments-image-grid count-${Math.min(post.imageUrls.length, 4)}`}>
                     {post.imageUrls.map(
                       (src, index) =>
-                        src && <img key={src} src={src} alt={`动态图片 ${index + 1}`} />,
+                        src && (
+                          <img
+                            key={src}
+                            src={src}
+                            alt={`动态图片 ${index + 1}`}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ),
                     )}
                   </div>
                 )}

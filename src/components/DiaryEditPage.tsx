@@ -10,7 +10,12 @@ export function DiaryEditPage({ id }: { id?: string }) {
   const router = useRouter();
   const isEditing = Boolean(id && id !== "new");
 
-  const [diaryDate, setDiaryDate] = useState(new Date().toISOString().slice(0, 10));
+  const [diaryDate, setDiaryDate] = useState(() => {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${today.getFullYear()}-${month}-${day}`;
+  });
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(isEditing);
