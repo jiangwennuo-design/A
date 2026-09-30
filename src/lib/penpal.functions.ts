@@ -275,7 +275,10 @@ async function generatePrivateReply(args: {
       ).loadCharacterMemories(args.db, args.userId, args.character.id)
     : [];
   const rows = recentChatContext([...args.history, ...args.pending], preferences.contextDepth);
-  const messages = await chatRowsForAi(args.db, args.userId, rows);
+  const currentImageIds = new Set(
+    args.pending.filter((row) => row.message_type === "image").map((row) => row.id),
+  );
+  const messages = await chatRowsForAi(args.db, args.userId, rows, currentImageIds);
   const transferable = rows
     .filter((row) => row.message_type === "transfer" && row.role === "user")
     .map((row) => ({ row, transfer: readTransfer(row, args.userId, args.character.id) }))
@@ -437,13 +440,38 @@ function messageBodyForAi(row: ChatRow) {
   return `语音通话记录：${String(row.payload?.["status"] ?? "cancelled")}${duration ? `，${duration} 秒` : ""}。`;
 }
 
-export async function chatRowsForAi(db: Db, userId: string, rows: ChatRow[]): Promise<AiMessage[]> {
+export async function chatRowsForAi(
+  db: Db,
+  userId: string,
+  rows: ChatRow[],
+  currentImageIds?: ReadonlySet<string>,
+): Promise<AiMessage[]> {
+  // Determine the turn before truncating history at the call site. A text follow-up
+  // before the reply still includes its image; an answered image is history only.
+  const lastAssistantIndex = rows.map((row) => row.role).lastIndexOf("assistant");
+  const imageIds =
+    currentImageIds ??
+    new Set(
+      rows
+        .slice(lastAssistantIndex + 1)
+        .filter((row) => row.role === "user" && row.message_type === "image")
+        .map((row) => row.id),
+    );
   const messages: AiMessage[] = [];
   // Bounded concurrency avoids a burst of signed-URL requests for long histories.
   for (let start = 0; start < rows.length; start += 4) {
     const batch = await Promise.all(
       rows.slice(start, start + 4).map(async (row): Promise<AiMessage> => {
         if (row.message_type !== "image") return { role: row.role, content: messageTextForAi(row) };
+        if (!imageIds.has(row.id)) {
+          const caption = cleanText(row.payload?.["caption"]);
+          return {
+            role: row.role,
+            content:
+              quotedContextForAi(row.payload) +
+              `此前发送的图片${caption ? `（备注：${caption}）` : ""}。本轮不重复传图，请沿用已有对话中的图片信息，不根据此记录猜测图片内容。`,
+          };
+        }
         const path = cleanText(row.payload?.["image_path"]);
         if (!path.startsWith(`${userId}/messages/`))
           return { role: row.role, content: quotedContextForAi(row.payload) + IMAGE_UNAVAILABLE };
@@ -463,13 +491,13 @@ export async function chatRowsForAi(db: Db, userId: string, rows: ChatRow[]): Pr
     messages.push(...batch);
   }
   // Private Storage URLs cannot always be fetched by third-party providers.
-  // Inline a few recent images (including an image followed by a text question),
-  // while keeping older images attached to their original messages via signed URLs.
+  // Inline only this turn's images. History must not accumulate binary payloads
+  // or cause old images to be downloaded/recognized again on every request.
   let inlineBudget = 12 * 1024 * 1024;
   let inlineCount = 0;
   for (let index = rows.length - 1; index >= 0 && inlineCount < 6 && inlineBudget > 0; index--) {
     const row = rows[index];
-    if (!row || row.message_type !== "image") continue;
+    if (!row || row.message_type !== "image" || !imageIds.has(row.id)) continue;
     const path = cleanText(row.payload?.["image_path"]);
     if (!path.startsWith(`${userId}/messages/`)) continue;
     inlineCount++;

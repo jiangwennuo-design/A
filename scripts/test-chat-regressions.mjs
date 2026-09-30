@@ -11,6 +11,7 @@ import * as preferences from "../src/lib/character-chat.ts";
 import * as quote from "../src/lib/chat-quote.ts";
 import * as multimodal from "../src/lib/ai/multimodal.ts";
 import * as message from "../src/lib/chat-message.ts";
+import * as replyResponse from "../src/lib/chat-reply-response.ts";
 
 async function load(file, dependencies, globals = {}, extra = "") {
   const source = await readFile(new URL(`../src/${file}`, import.meta.url), "utf8");
@@ -34,6 +35,7 @@ async function load(file, dependencies, globals = {}, extra = "") {
     File,
     Blob,
     Response,
+    Error,
     TextEncoder,
     Uint8Array,
     btoa,
@@ -142,10 +144,18 @@ function database(records) {
 
 test("actual multimodal HTTP payload keeps new/refreshed images and text in order, including 4 MB uploads", async () => {
   const captured = [];
+  const bodySizes = [];
+  const downloaded = [];
   const server = createServer(async (req, res) => {
     let body = "";
     for await (const chunk of req) body += chunk;
     captured.push(JSON.parse(body));
+    bodySizes.push(Buffer.byteLength(body));
+    if (Buffer.byteLength(body) > 6 * 1024 * 1024) {
+      res.statusCode = 413;
+      res.end("Request entity too large");
+      return;
+    }
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ choices: [{ message: { content: "已收到请求" } }] }));
   });
@@ -198,7 +208,10 @@ test("actual multimodal HTTP payload keeps new/refreshed images and text in orde
           data: { signedUrl: "https://example.invalid/private.png" },
           error: null,
         }),
-        download: async (path) => ({ data: blobs[path.endsWith("gif") ? 1 : 0], error: null }),
+        download: async (path) => {
+          downloaded.push(path);
+          return { data: blobs[path.endsWith("gif") ? 1 : 0], error: null };
+        },
       }),
     };
     const saved = JSON.parse(
@@ -239,8 +252,159 @@ test("actual multimodal HTTP payload keeps new/refreshed images and text in orde
     );
     assert.equal(payload.messages[1].content, "第一张是什么？");
     assert.match(payload.messages[2].content[0].image_url.url, /^data:image\/gif;base64,/);
+    captured.length = bodySizes.length = downloaded.length = 0;
+    let history = [];
+    for (let index = 0; index < 10; index++) {
+      const current = {
+        id: `image-${index}`,
+        role: "user",
+        message_type: "image",
+        payload: { image_path: `owner/messages/round-${index}.png`, caption: `图片${index}` },
+      };
+      const question = {
+        id: `text-${index}`,
+        role: "user",
+        message_type: "text",
+        content: `看看第${index}张`,
+      };
+      // Reloaded durable messages, not an in-memory lastImage/pendingImage guess.
+      const rows = JSON.parse(JSON.stringify([...history, current, question]));
+      const mapped = await penpal.chatRowsForAi(db, "owner", rows, new Set([current.id]));
+      await service.generate({
+        scene: "private_chat",
+        userId: "owner",
+        supabase: db,
+        messages: mapped,
+      });
+      const sent = captured.at(-1).messages;
+      const images = sent.flatMap((row) =>
+        Array.isArray(row.content) ? row.content.filter((part) => part.type === "image_url") : [],
+      );
+      assert.equal(images.length, 1, `round ${index}: only the current image reaches the provider`);
+      assert.equal(sent.at(-2).content.at(-1).type, "image_url");
+      assert.equal(sent.at(-1).content, question.content);
+      assert.equal(downloaded.length, index + 1);
+      assert.equal(downloaded.at(-1), current.payload.image_path);
+      history = [
+        ...rows,
+        {
+          id: `answer-${index}`,
+          role: "assistant",
+          content: `第${index}张的识别结果`,
+          message_type: "text",
+        },
+      ];
+    }
+    assert.equal(captured.length, 10);
+    assert.ok(
+      Math.max(...bodySizes) - Math.min(...bodySizes) < 6000,
+      "image bytes do not accumulate across ten rounds",
+    );
+    const followUp = await penpal.chatRowsForAi(db, "owner", [
+      ...history,
+      { id: "follow-up", role: "user", message_type: "text", content: "刚才那张呢？" },
+    ]);
+    assert.equal(multimodal.hasImages(followUp), false);
+    assert.equal(downloaded.length, 10);
+    assert.ok(followUp.some((row) => row.content === "第9张的识别结果"));
+    const truncatedHistory = await penpal.chatRowsForAi(db, "owner", [history[0]], new Set());
+    assert.equal(
+      multimodal.hasImages(truncatedHistory),
+      false,
+      "a truncated history cannot make an old image current again",
+    );
+    assert.equal(downloaded.length, 10);
+    assert.ok(!JSON.stringify(history).includes("data:image"));
+    console.log("10-round provider HTTP payload bytes:", bodySizes);
   } finally {
     await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("chat transport rejects all non-2xx before deserialization and guards absent reply/transfer data", async () => {
+  for (const status of [302, 400, 401, 413, 422, 429, 500, 503]) {
+    let parsed = false;
+    const response = {
+      ok: false,
+      status,
+      json() {
+        parsed = true;
+        throw new Error("must not parse");
+      },
+    };
+    const transport = await load("lib/chat-reply-response.ts", {}, { fetch: async () => response });
+    await assert.rejects(
+      transport.chatReplyFetch("https://example.invalid/chat"),
+      new RegExp(String(status)),
+    );
+    assert.equal(parsed, false);
+  }
+  const response = new Response("ok");
+  const transport = await load("lib/chat-reply-response.ts", {}, { fetch: async () => response });
+  assert.equal(await transport.chatReplyFetch("https://example.invalid/chat"), response);
+  for (const value of [
+    undefined,
+    null,
+    {},
+    { error: "413" },
+    { messages: [] },
+    { messages: [{}], transfer_updates: null },
+  ])
+    assert.throws(() => transport.validateChatReplyResult(value), /聊天/);
+  const valid = { messages: [{ id: "reply" }], transfer_updates: [], transfer_errors: [] };
+  assert.equal(transport.validateChatReplyResult(valid), valid);
+  assert.equal(transport.validateChatReplyResult({ messages: [{}] }).messages.length, 1);
+});
+
+test("provider non-2xx never enters completion JSON parsing or retries 413 as text", async () => {
+  const db = database({
+    ai_configs: [
+      {
+        id: "config",
+        user_id: "owner",
+        enabled: true,
+        encrypted_api_key: "test",
+        model_name: "configured-model",
+        base_url: "https://example.invalid",
+        custom_headers: {},
+      },
+    ],
+  });
+  for (const status of [400, 401, 413, 429, 500, 503]) {
+    let requests = 0,
+      parsed = false;
+    const service = await load(
+      "lib/ai/service.server.ts",
+      { "./crypto.server": { decryptApiKey: async () => "test-key" }, "./multimodal": multimodal },
+      {
+        process: { env: {} },
+        console: { error() {} },
+        fetch: async () => {
+          requests++;
+          return {
+            ok: false,
+            status,
+            text: async () => "Request failed",
+            json: async () => {
+              parsed = true;
+              throw new Error("must not parse");
+            },
+          };
+        },
+      },
+    );
+    await assert.rejects(
+      service.generate({
+        scene: "private_chat",
+        userId: "owner",
+        supabase: db,
+        messages: [
+          { role: "user", content: [{ type: "image", url: "data:image/png;base64,AA==" }] },
+        ],
+      }),
+    );
+    assert.equal(parsed, false);
+    assert.equal(requests, 1);
   }
 });
 
@@ -328,6 +492,7 @@ test("long-press deletion enters multi-select; cancel, one/multiple delete and q
   const db = database(records),
     hook = hooks();
   let confirmation = true;
+  let replyCalls = 0;
   const ChatMessages = () => null;
   const source = await load(
     "routes/_authenticated/chat.tsx",
@@ -345,7 +510,13 @@ test("long-press deletion enters multi-select; cancel, one/multiple delete and q
       "@/context/AuthContext": {
         useAuth: () => ({ user: { id: "owner" }, profile: { id: "owner" } }),
       },
-      "@/lib/penpal.functions": {},
+      "@/lib/penpal.functions": {
+        requestPenpalReply: async (options) => {
+          assert.equal(options.fetch, replyResponse.chatReplyFetch);
+          replyCalls++;
+          return undefined;
+        },
+      },
       "@/lib/avatar": { resolveAvatarUrl: async () => "" },
       "@/components/ui-kit": { EmptyState: component, LoadingSpinner: component },
       "@/components/ChatNav": { ChatNav: component },
@@ -369,6 +540,7 @@ test("long-press deletion enters multi-select; cancel, one/multiple delete and q
       "@/lib/app-transition": {},
       "@/lib/chat-message": message,
       "@/lib/chat-quote": quote,
+      "@/lib/chat-reply-response": replyResponse,
       "@/lib/chat-media": {},
       "@/lib/character-chat": preferences,
       "@/lib/bubble-css": { bubbleStyles: () => "" },
@@ -436,6 +608,16 @@ test("long-press deletion enters multi-select; cancel, one/multiple delete and q
   assert.equal(records.chat_messages.length, 0);
   assert.deepEqual(db.deletes.at(-1), ["two", "four"]);
   assert.equal(props().selectedMessageIds, null);
+  records.chat_messages.push({ ...original, id: "pending", role: "user" });
+  hook.effects.forEach((fn) => fn());
+  await settle();
+  const composer = nodes(render()).find((node) => node.props.onReply);
+  assert.equal(composer.props.canReply, true);
+  composer.props.onReply();
+  await settle();
+  assert.equal(replyCalls, 1);
+  assert.ok(JSON.stringify(render()).includes("没有收到聊天回复"));
+  assert.ok(!JSON.stringify(render()).includes("transfer_updates"));
 });
 
 test("desktop upload automatically persists and applies before leaving; remount uses saved wallpaper without an apply button", async () => {

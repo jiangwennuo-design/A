@@ -56,6 +56,7 @@ import type {
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import { messagePreview, normalizeChatMessage } from "@/lib/chat-message";
 import { quoteMessage } from "@/lib/chat-quote";
+import { chatReplyFetch, validateChatReplyResult } from "@/lib/chat-reply-response";
 import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
 import {
   characterChatName,
@@ -821,7 +822,7 @@ function ConversationPage({
     await sendMessage(message.message_type, message.content, message.payload, message.id);
   }
 
-  function applyTransferUpdates(updates: ChatMessage[], errors: string[]) {
+  function applyTransferUpdates(updates: ChatMessage[] = [], errors: string[] = []) {
     if (updates.length) {
       const byId = new Map(updates.map((row) => [row.id, normalizeChatMessage(row)]));
       setMessages((previous) => previous.map((row) => byId.get(row.id) ?? row));
@@ -855,6 +856,7 @@ function ConversationPage({
     setMessageMenu(null);
     try {
       const result = await requestReply({
+        fetch: chatReplyFetch,
         data: {
           session_id: sessionId,
           char_id: charId,
@@ -862,6 +864,7 @@ function ConversationPage({
           context_diary_id: initialDiaryId ?? null,
         },
       });
+      validateChatReplyResult(result);
       applyTransferUpdates(result.transfer_updates as ChatMessage[], result.transfer_errors);
       await revealAssistantMessages((result.messages as ChatMessage[]).map(normalizeChatMessage));
     } catch (reason) {
@@ -882,6 +885,7 @@ function ConversationPage({
     setError("");
     try {
       const result = await reroll({
+        fetch: chatReplyFetch,
         data: {
           session_id: sessionId,
           char_id: charId,
@@ -890,6 +894,7 @@ function ConversationPage({
           context_diary_id: initialDiaryId ?? null,
         },
       });
+      validateChatReplyResult(result);
       applyTransferUpdates(result.transfer_updates as ChatMessage[], result.transfer_errors);
       await revealAssistantMessages(
         (result.messages as ChatMessage[]).map(normalizeChatMessage),
