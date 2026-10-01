@@ -170,6 +170,8 @@ export function setCharacterWallpaperDisplay(
 ) {
   const current = getCharacterWallpaperSnapshot(userId, charId);
   if (current.busy || current.revision !== revision || current.displayUrl === url) return;
+  // An empty signed-URL result is a read failure, not a request to clear saved wallpaper.
+  if (!url && (current.wallpaperPath || current.wallpaperUrl)) return;
   publish(userId, charId, { ...current, displayUrl: url });
 }
 export function useCharacterWallpaper(
@@ -197,9 +199,17 @@ export function useCharacterWallpaper(
   }, [userId, charId, character]);
   useEffect(() => {
     let active = true;
-    if (!state.busy) {
+    let resolving = false;
+    function restore() {
+      if (!active || state.busy || resolving) return;
+      resolving = true;
       const resolve = state.wallpaperPath
-        ? cachedWallpaperUrl(state.wallpaperPath, true)
+        ? cachedWallpaperUrl(state.wallpaperPath, true).then((url) =>
+            // Retry one transient signing failure without delaying or changing persistence.
+            !url && active && isCurrentWallpaperOperation(userId, charId, state.revision)
+              ? cachedWallpaperUrl(state.wallpaperPath!, true)
+              : url,
+          )
         : Promise.resolve().then(() =>
             state.wallpaperUrl ? assertSafeRemoteUrl(state.wallpaperUrl).toString() : "",
           );
@@ -209,10 +219,28 @@ export function useCharacterWallpaper(
         })
         .catch(() => {
           /* Keep the last valid display if signing/loading fails. */
+        })
+        .finally(() => {
+          resolving = false;
         });
     }
+    const resume = () => {
+      if (document.visibilityState === "visible") restore();
+    };
+    restore();
+    // Resume from offline/background/PWA without requiring another page refresh.
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", restore);
+      window.addEventListener("pageshow", restore);
+    }
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", resume);
     return () => {
       active = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", restore);
+        window.removeEventListener("pageshow", restore);
+      }
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", resume);
     };
   }, [userId, charId, state.wallpaperPath, state.wallpaperUrl, state.busy, state.revision]);
   useEffect(() => retainWallpaperUrl(state.displayUrl), [state.displayUrl]);
