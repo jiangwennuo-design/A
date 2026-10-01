@@ -60,7 +60,9 @@ export const MessageContent = memo(function MessageContent({
             onJump={(id) => onJumpToMessage?.(id)}
           />
         )}
-        <p>{message.content}</p>
+        <p data-ui="message-content" className="content">
+          {message.content}
+        </p>
       </div>
     );
   if (type === "image" || type === "sticker") {
@@ -68,7 +70,10 @@ export const MessageContent = memo(function MessageContent({
     const height = Math.max(1, Number(payload["height"]) || 1);
     if (!url)
       return (
-        <span className={`chat-media-placeholder ${type === "sticker" ? "is-sticker" : ""}`}>
+        <span
+          data-ui="media-placeholder"
+          className={`chat-media-placeholder ${type === "sticker" ? "is-sticker" : ""}`}
+        >
           <ImageOff size={22} />
         </span>
       );
@@ -76,6 +81,7 @@ export const MessageContent = memo(function MessageContent({
       <button
         type="button"
         className={`chat-media ${type === "sticker" ? "is-sticker" : ""}`}
+        data-ui={type === "sticker" ? "sticker" : "chat-image"}
         onClick={() => onOpenImage(url, type === "sticker" ? "表情包" : "聊天图片")}
         style={{ aspectRatio: `${width} / ${height}` }}
       >
@@ -85,6 +91,7 @@ export const MessageContent = memo(function MessageContent({
           alt={type === "sticker" ? "表情包" : "聊天图片"}
           loading="lazy"
           decoding="async"
+          data-ui="media-image"
           onLoad={() => setLoaded(true)}
         />
       </button>
@@ -96,23 +103,25 @@ export const MessageContent = memo(function MessageContent({
       <button
         type="button"
         className={`transfer-message is-${transfer.status}`}
+        data-ui="transfer-card"
+        data-transfer-status={transfer.status}
         onClick={() => onOpenTransfer?.(message)}
         aria-label={`转账 ¥${transfer.amount.toFixed(2)} ${transferStatusLabel(transfer.status)}`}
       >
-        <span className="transfer-message__icon">
+        <span className="transfer-message__icon" data-ui="transfer-icon">
           <ArrowDownLeft size={23} />
         </span>
         <div>
-          <strong>¥ {transfer.amount.toFixed(2)}</strong>
-          <p>{transfer.remark || "转账"}</p>
-          <small>{transferStatusLabel(transfer.status)}</small>
+          <strong data-ui="transfer-amount">¥ {transfer.amount.toFixed(2)}</strong>
+          <p data-ui="transfer-remark">{transfer.remark || "转账"}</p>
+          <small data-ui="transfer-status">{transferStatusLabel(transfer.status)}</small>
         </div>
       </button>
     );
   }
   const duration = Number(payload["duration"] ?? 0);
   return (
-    <div className="call-message">
+    <div className="call-message" data-ui="voice-message" data-css-ui="call-message">
       <Phone size={20} />
       <div>
         <strong>语音通话</strong>

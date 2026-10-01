@@ -26,7 +26,82 @@ import {
   saveChatAppearanceLibrary,
   migrateChatAppearanceLibraries,
   hydrateChatAppearanceLibraries,
+  chatAppearanceLibraryPayload,
 } from "../src/lib/chat-appearance-presets.ts";
+
+test("full CSS is a separate account library; characters store only IDs; remote/cold hydration preserves all three libraries", async () => {
+  const storage = new Map();
+  globalThis.window = {};
+  globalThis.localStorage = {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+  };
+  try {
+    let full = defaultAppearanceModule("chatFull");
+    for (const name of ["A", "B", "C"])
+      full = saveAppearancePreset(
+        {
+          ...full,
+          customCss: `[data-ui="message-bubble"]{border:${name === "A" ? 1 : 2}px solid red}`,
+        },
+        "chatFull",
+        name,
+      );
+    const chrome = saveAppearancePreset(
+      defaultAppearanceModule("chatChrome"),
+      "chatChrome",
+      "旧顶栏",
+    );
+    const bubble = saveAppearancePreset(
+      defaultAppearanceModule("chatBubble"),
+      "chatBubble",
+      "旧气泡",
+    );
+    saveChatAppearanceLibrary("full-css-owner", "chatFull", full.presets);
+    saveChatAppearanceLibrary("full-css-owner", "chatChrome", chrome.presets);
+    saveChatAppearanceLibrary("full-css-owner", "chatBubble", bubble.presets);
+    const a = readCharacterChatPreferences({
+      fullChatCss: { selectedPresetId: full.presets[0].id, enabled: true },
+      wallpaperPath: "u/chat-wallpapers/a.webp",
+    });
+    const b = readCharacterChatPreferences({
+      fullChatCss: { selectedPresetId: full.presets[1].id, enabled: true },
+    });
+    assert.notEqual(a.fullChatCss.selectedPresetId, b.fullChatCss.selectedPresetId);
+    assert.deepEqual(Object.keys(a.fullChatCss).sort(), ["enabled", "selectedPresetId"]);
+    assert.equal(a.wallpaperPath, "u/chat-wallpapers/a.webp");
+    const remote = {
+      chatChrome: chatAppearanceLibraryPayload("full-css-owner", "chatFull"),
+      chatBubble: chatAppearanceLibraryPayload("full-css-owner", "chatBubble"),
+    };
+    assert.equal(remote.chatChrome.presets[0].name, "旧顶栏");
+    assert.equal(remote.chatChrome.fullChatLibrary.presets.length, 3);
+    hydrateChatAppearanceLibraries("new-full-device", JSON.parse(JSON.stringify(remote)));
+    for (const [type, count] of [
+      ["chatFull", 3],
+      ["chatChrome", 1],
+      ["chatBubble", 1],
+    ])
+      assert.equal(readChatAppearanceLibrary("new-full-device", type).presets.length, count);
+    const fresh = await import(`../src/lib/chat-appearance-presets.ts?fullCold=${Date.now()}`);
+    assert.equal(fresh.readChatAppearanceLibrary("new-full-device", "chatFull").presets.length, 3);
+    assert.equal(
+      fresh.readChatAppearanceLibrary("another-full-user", "chatFull").presets.length,
+      0,
+    );
+    const bad = readCharacterChatPreferences({
+      fullChatCss: { enabled: "bad" },
+      contextDepth: 39,
+      wallpaperPath: "u/chat-wallpapers/saved.webp",
+    });
+    assert.equal(bad.contextDepth, 39);
+    assert.equal(bad.wallpaperPath, "u/chat-wallpapers/saved.webp");
+    assert.equal(bad.fullChatCss.enabled, false);
+  } finally {
+    delete globalThis.window;
+    delete globalThis.localStorage;
+  }
+});
 
 test("all appearance modules accept missing, legacy and malformed config without throwing", () => {
   for (const type of ["desktop", "chatChrome", "chatBubble"]) {

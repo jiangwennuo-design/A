@@ -4,10 +4,11 @@ import {
   type AppearancePreset,
   type ChatBubbleConfig,
   type ChatChromeConfig,
+  type FullChatConfig,
 } from "./appearance";
 
-type ThemeType = "chatBubble" | "chatChrome";
-type Config = ChatBubbleConfig | ChatChromeConfig;
+type ThemeType = "chatBubble" | "chatChrome" | "chatFull";
+type Config = ChatBubbleConfig | ChatChromeConfig | FullChatConfig;
 interface Library {
   presets: AppearancePreset<Config>[];
   migratedCharacterIds: string[];
@@ -24,7 +25,9 @@ function validatedPresets(type: ThemeType, raw: unknown): AppearancePreset<Confi
   const module =
     type === "chatBubble"
       ? readAppearanceModule(type, { presets: raw })
-      : readAppearanceModule(type, { presets: raw });
+      : type === "chatChrome"
+        ? readAppearanceModule(type, { presets: raw })
+        : readAppearanceModule("chatFull", { presets: raw });
   if (module.presets.length !== raw.length)
     throw new Error("存在不兼容的旧预设，已停止迁移并保留原始数据。");
   return module.presets;
@@ -79,8 +82,9 @@ export function saveChatAppearanceLibrary(
 /** Reconcile the account record before migrating legacy character libraries. */
 export function hydrateChatAppearanceLibraries(userId: string, remote: unknown) {
   if (!remote || typeof remote !== "object") return;
-  for (const type of ["chatBubble", "chatChrome"] as const) {
-    const raw = (remote as Partial<Record<ThemeType, Library>>)[type];
+  for (const type of ["chatBubble", "chatChrome", "chatFull"] as const) {
+    const source = remote as Partial<Record<ThemeType, Library & { fullChatLibrary?: Library }>>;
+    const raw = type === "chatFull" ? source.chatChrome?.fullChatLibrary : source[type];
     if (!raw || !Array.isArray(raw.presets)) continue;
     const current = readChatAppearanceLibrary(userId, type);
     if ((current.updatedAt ?? "") > (raw.updatedAt ?? "")) continue;
@@ -92,6 +96,18 @@ export function hydrateChatAppearanceLibraries(userId: string, remote: unknown) 
       updatedAt: raw.updatedAt ?? "",
     });
   }
+}
+
+/** Reuse the existing JSON/RPC without a schema change. Full CSS has its own local key
+ * and library, transported in a namespaced JSON member of the existing chrome envelope. */
+export function chatAppearanceLibraryPayload(userId: string, type: ThemeType) {
+  if (type !== "chatBubble") assertStoredLibrary(userId, "chatFull");
+  return type === "chatBubble"
+    ? readChatAppearanceLibrary(userId, type)
+    : {
+        ...readChatAppearanceLibrary(userId, "chatChrome"),
+        fullChatLibrary: readChatAppearanceLibrary(userId, "chatFull"),
+      };
 }
 
 /** Copy old libraries once. Keep character CSS/selections and original records intact. */

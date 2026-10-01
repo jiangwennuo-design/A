@@ -41,6 +41,13 @@ const chatBubbleAppearanceSchema = appearanceModuleStorageSchema(
 );
 
 export const characterChatSchema = z.object({
+  // Only the selection belongs to the character; CSS bodies live in the account library.
+  fullChatCss: z
+    .object({
+      selectedPresetId: z.string().nullable().default(null),
+      enabled: z.boolean().default(true),
+    })
+    .default({ selectedPresetId: null, enabled: true }),
   remark: z.string().trim().max(80).default(""),
   userAvatarOverride: z.string().trim().max(2000).default(""),
   userNicknameOverride: z.string().trim().max(80).default(""),
@@ -73,11 +80,16 @@ export const characterChatSchema = z.object({
 });
 export type CharacterChatPreferences = z.infer<typeof characterChatSchema>;
 export type AvatarDisplayMode = CharacterChatPreferences["avatarDisplayMode"];
-const characterChatBaseSchema = characterChatSchema.omit({ appearance: true });
+const characterChatBaseSchema = characterChatSchema.omit({ appearance: true, fullChatCss: true });
 export function readCharacterChatPreferences(value: unknown): CharacterChatPreferences {
   // An invalid/newer theme must never reset independent wallpaper and chat settings.
   const result = characterChatBaseSchema.safeParse(value ?? {});
   const data = result.success ? result.data : characterChatBaseSchema.parse({});
+  const full = characterChatSchema.shape.fullChatCss.safeParse(
+    value && typeof value === "object"
+      ? (value as { fullChatCss?: unknown }).fullChatCss
+      : undefined,
+  );
   const appearance =
     value && typeof value === "object"
       ? (value as { appearance?: { chatChrome?: unknown; chatBubble?: unknown } }).appearance
@@ -89,6 +101,7 @@ export function readCharacterChatPreferences(value: unknown): CharacterChatPrefe
   if (!bubbles.config.charCss && data.charBubbleCss) bubbles.config.charCss = data.charBubbleCss;
   return {
     ...data,
+    fullChatCss: full.success ? full.data : { selectedPresetId: null, enabled: false },
     appearance: { chatChrome: chrome, chatBubble: bubbles },
   } as CharacterChatPreferences;
 }

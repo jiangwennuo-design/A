@@ -158,6 +158,7 @@ export const ChatMessages = memo(function ChatMessages({
       ref={viewport}
       className="chat-message-list"
       data-ui="chat-messages"
+      data-css-ui="chat-background"
       style={
         wallpaperUrl
           ? {
@@ -179,6 +180,7 @@ export const ChatMessages = memo(function ChatMessages({
         <button
           type="button"
           className="chat-history-button"
+          data-ui="history-button"
           onClick={() => {
             const el = viewport.current!;
             preserveScroll.current = { height: el.scrollHeight, top: el.scrollTop };
@@ -205,7 +207,11 @@ export const ChatMessages = memo(function ChatMessages({
         return (
           <Fragment key={message.id}>
             {showTimeSeparator && (
-              <time className="chat-time-separator" dateTime={message.created_at}>
+              <time
+                className="chat-time-separator"
+                data-ui="timestamp"
+                dateTime={message.created_at}
+              >
                 {formatMessageTimestamp(message.created_at)}
               </time>
             )}
@@ -213,12 +219,14 @@ export const ChatMessages = memo(function ChatMessages({
               data-message-id={message.id}
               data-ui="message"
               data-role={isUser ? "user" : "char"}
-              className={`chat-message-row message-enter ${isUser ? "is-user" : "is-char"} ${grouped ? "is-grouped" : ""}`}
+              data-message-type={message.message_type ?? "text"}
+              className={`chat-message-row message-enter ${isUser ? "is-user user" : "is-char ai"} ${grouped ? "is-grouped" : ""}`}
             >
               {selectedMessageIds && (
                 <input
                   type="checkbox"
                   className="chat-message-select"
+                  data-ui="message-selection"
                   aria-label={`选择${isUser ? userName : assistantName}的消息`}
                   checked={selectedMessageIds.has(message.id)}
                   disabled={message.id.startsWith("pending-")}
@@ -231,7 +239,8 @@ export const ChatMessages = memo(function ChatMessages({
                 name={isUser ? userName : assistantName}
               />
               <div
-                className="message-content-wrapper"
+                className="message-content-wrapper message-wrapper"
+                data-ui="message-wrapper"
                 aria-label={`${isUser ? userName : assistantName}的消息，长按可操作`}
                 onPointerDown={(event) => startLongPress(message.id, event)}
                 onPointerMove={moveLongPress}
@@ -256,11 +265,12 @@ export const ChatMessages = memo(function ChatMessages({
                   typeof (message.payload as Record<string, unknown>)["thinking"] === "string" && (
                     <details
                       className="chat-thinking"
+                      data-ui="thinking"
                       onPointerDown={(event) => event.stopPropagation()}
                       onContextMenu={(event) => event.stopPropagation()}
                     >
-                      <summary>思考</summary>
-                      <div className="chat-thinking__content">
+                      <summary data-ui="thinking-toggle">思考</summary>
+                      <div className="chat-thinking__content" data-ui="thinking-content">
                         {(message.payload as Record<string, unknown>)["thinking_source"] ===
                           "nuojiji" && <span className="chat-thinking-source">@糯叽机</span>}
                         {(message.payload as Record<string, unknown>)["thinking"] as string}
@@ -282,13 +292,16 @@ export const ChatMessages = memo(function ChatMessages({
                 <button
                   type="button"
                   className="chat-message-retry"
+                  data-ui="message-retry"
                   onClick={() => onRetry(message)}
                 >
                   发送失败 · 点击重试
                 </button>
               )}
               {message.delivery_status === "sending" && (
-                <span className="chat-message-sending">发送中…</span>
+                <span className="chat-message-sending" data-ui="system-message">
+                  发送中…
+                </span>
               )}
             </div>
           </Fragment>
@@ -303,7 +316,11 @@ export const ChatMessages = memo(function ChatMessages({
           aria-label="角色正在回复"
         >
           <MessageAvatar url={assistantAvatar} name={assistantName} />
-          <div className="message-bubble typing-bubble">
+          <div
+            className="message-bubble typing-bubble"
+            data-ui="system-message"
+            data-css-ui="typing-indicator"
+          >
             <span className="typing-dot" />
             <span className="typing-dot" />
             <span className="typing-dot" />
@@ -327,6 +344,7 @@ export function MessageAvatar({
     <div
       className="chat-avatar"
       data-ui="message-avatar"
+      data-css-ui="avatar"
       title={name}
       style={alwaysVisible ? { visibility: "visible" } : undefined}
     >

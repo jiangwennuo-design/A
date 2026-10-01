@@ -28,16 +28,16 @@ export function VoiceCallScreen({
   onHangup: () => void;
 }) {
   return (
-    <div className="voice-call-screen">
+    <div className="voice-call-screen" data-ui="voice-call-screen">
       <header>
         <span aria-hidden="true" />
         <span>语音通话</span>
       </header>
       <main>
-        <div className="voice-call-avatar">
+        <div className="voice-call-avatar" data-ui="voice-call-avatar">
           {avatar ? <img src={avatar} alt={name} /> : <span>{name.charAt(0)}</span>}
         </div>
-        <h1>{name}</h1>
+        <h1 data-ui="voice-call-name">{name}</h1>
         <CallStatus state={state} startedAt={startedAt} />
         <small>当前未接入实时 AI 语音</small>
         {state === "calling" && (
@@ -46,7 +46,7 @@ export function VoiceCallScreen({
           </button>
         )}
       </main>
-      <footer>
+      <footer data-ui="voice-call-controls">
         <button type="button" className={muted ? "is-active" : ""} onClick={onToggleMute}>
           <Mic size={22} />
           <span>静音</span>
@@ -55,7 +55,12 @@ export function VoiceCallScreen({
           <Volume2 size={22} />
           <span>扬声器</span>
         </button>
-        <button type="button" className="voice-call-end" onClick={onHangup}>
+        <button
+          type="button"
+          className="voice-call-end"
+          data-ui="voice-call-hangup"
+          onClick={onHangup}
+        >
           <PhoneOff size={24} />
           <span>挂断</span>
         </button>
@@ -77,7 +82,7 @@ function CallStatus({ state, startedAt }: { state: CallState; startedAt: number 
     return () => window.clearInterval(timer);
   }, [startedAt, state]);
   return (
-    <p>
+    <p data-ui="voice-call-status">
       {state === "calling"
         ? "正在呼叫…"
         : state === "connected"

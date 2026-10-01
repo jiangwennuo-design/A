@@ -27,7 +27,7 @@ export function TransferDetailSheet({
     receivedByUser && transfer.status === "pending" && message.delivery_status === "sent";
   return (
     <SystemSheet open title="转账详情" onClose={onClose} scrollable>
-      <div className={`transfer-detail is-${transfer.status}`}>
+      <div className={`transfer-detail is-${transfer.status}`} data-ui="transfer-detail">
         <span className="transfer-detail__icon">
           <ArrowDownLeft size={30} />
         </span>
@@ -50,11 +50,21 @@ export function TransferDetailSheet({
         </dl>
         {canSettle && (
           <div className="transfer-detail__actions">
-            <button type="button" disabled={saving} onClick={() => onSettle("received")}>
+            <button
+              type="button"
+              data-ui="transfer-receive"
+              disabled={saving}
+              onClick={() => onSettle("received")}
+            >
               <Check size={18} />
               {saving ? "处理中…" : "确认收款"}
             </button>
-            <button type="button" disabled={saving} onClick={() => onSettle("refunded")}>
+            <button
+              type="button"
+              data-ui="transfer-refund"
+              disabled={saving}
+              onClick={() => onSettle("refunded")}
+            >
               <Undo2 size={18} />
               退还
             </button>

@@ -22,13 +22,14 @@ export function TransferSheet({
   }
   return (
     <SystemSheet open={open} title="转账" onClose={onClose} scrollable>
-      <form onSubmit={submit} className="transfer-form">
+      <form onSubmit={submit} className="transfer-form" data-ui="transfer-form">
         <label>
           <span>转账金额</span>
           <div>
             <b>¥</b>
             <input
               inputMode="decimal"
+              data-ui="transfer-amount-input"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               placeholder="0.00"
@@ -39,12 +40,17 @@ export function TransferSheet({
           <span>备注</span>
           <input
             value={note}
+            data-ui="transfer-remark-input"
             maxLength={100}
             onChange={(event) => setNote(event.target.value)}
             placeholder="说点什么"
           />
         </label>
-        <button className="btn-primary w-full" disabled={!Number.isFinite(numeric) || numeric <= 0}>
+        <button
+          data-ui="transfer-send"
+          className="btn-primary w-full"
+          disabled={!Number.isFinite(numeric) || numeric <= 0}
+        >
           确认转账
         </button>
       </form>

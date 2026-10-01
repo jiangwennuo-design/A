@@ -5,6 +5,7 @@ import { AppearancePresetManager } from "@/components/appearance/AppearancePrese
 import { SystemSheet } from "@/components/system-ui";
 import { MessageAvatar } from "@/components/ChatMessages";
 import { CharacterWorldBooks } from "./CharacterWorldBooks";
+import { FullChatCssEditor } from "./FullChatCssEditor";
 import { bubbleStyles, safeBubbleDeclarations } from "@/lib/bubble-css";
 import type { CharacterChatPreferences, CharacterMemory } from "@/lib/character-chat";
 import {
@@ -27,14 +28,15 @@ import {
   type AppearanceModule,
   type ChatBubbleConfig,
   type ChatChromeConfig,
+  type FullChatConfig,
 } from "@/lib/appearance";
 import "@/styles/character-chat.css";
 import {
   hydrateChatAppearanceLibraries,
   migrateChatAppearanceLibraries,
-  readChatAppearanceLibrary,
   saveChatAppearanceLibrary,
   useChatAppearanceLibrary,
+  chatAppearanceLibraryPayload,
 } from "@/lib/chat-appearance-presets";
 
 export function CharacterChatExtras({
@@ -45,6 +47,7 @@ export function CharacterChatExtras({
   onWallpaperChange,
   onWallpaperSaved,
   onUploadBusy,
+  onAppearanceSaved,
 }: {
   charId: string;
   userId: string;
@@ -55,6 +58,7 @@ export function CharacterChatExtras({
   ) => Promise<void>;
   onUploadBusy: (busy: boolean) => void;
   onWallpaperSaved: (character: AiPersona) => void;
+  onAppearanceSaved: (character: AiPersona) => void;
 }) {
   const wallpaperState = useCharacterWallpaper(userId, charId);
   const wallpaper = wallpaperState.displayUrl;
@@ -110,7 +114,7 @@ export function CharacterChatExtras({
       for (const type of ["chatBubble", "chatChrome"] as const) {
         const { error: saveError } = await db.rpc("save_chat_appearance_library", {
           p_theme: type,
-          p_library: readChatAppearanceLibrary(userId, type),
+          p_library: chatAppearanceLibraryPayload(userId, type),
         });
         if (saveError) throw new Error("全局预设同步失败，请检查数据库迁移。");
       }
@@ -123,18 +127,17 @@ export function CharacterChatExtras({
     };
   }, [userId, charId]);
   function persistLibrary(
-    type: "chatBubble" | "chatChrome",
-    next: AppearanceModule<ChatBubbleConfig> | AppearanceModule<ChatChromeConfig>,
+    type: "chatBubble" | "chatChrome" | "chatFull",
+    next: AppearanceModule<ChatBubbleConfig | ChatChromeConfig | FullChatConfig>,
   ) {
     saveChatAppearanceLibrary(userId, type, next.presets);
-    const library = readChatAppearanceLibrary(userId, type);
     const request = librarySaveQueue.current
       .catch(() => {})
       .then(async () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: saveError } = await (supabase as any).rpc("save_chat_appearance_library", {
-          p_theme: type,
-          p_library: library,
+          p_theme: type === "chatFull" ? "chatChrome" : type,
+          p_library: chatAppearanceLibraryPayload(userId, type),
         });
         if (saveError) throw new Error("已保留本机预设，账号同步失败，请重试。");
       });
@@ -440,6 +443,35 @@ export function CharacterChatExtras({
               />
             </div>
           </details>
+          <FullChatCssEditor
+            userId={userId}
+            charId={charId}
+            selection={value.fullChatCss}
+            disabled={!librariesReady}
+            persistLibrary={(next) => persistLibrary("chatFull", next)}
+            onSelection={async (selection) => {
+              update({ fullChatCss: selection });
+              // Preserve all existing saved fields, including independent wallpaper metadata.
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const db = supabase as any;
+              const { data, error: readError } = await db
+                .from("ai_personas")
+                .select("chat_preferences")
+                .eq("id", charId)
+                .eq("user_id", userId)
+                .single();
+              if (readError) throw new Error("读取角色美化选择失败。");
+              const { data: saved, error: saveError } = await db
+                .from("ai_personas")
+                .update({ chat_preferences: { ...data.chat_preferences, fullChatCss: selection } })
+                .eq("id", charId)
+                .eq("user_id", userId)
+                .select("*")
+                .single();
+              if (saveError) throw new Error("保存完整 CSS 选择失败。");
+              onAppearanceSaved(saved as AiPersona);
+            }}
+          />
           <section className="character-extras__card">
             <h3>聊天壁纸</h3>
             <input

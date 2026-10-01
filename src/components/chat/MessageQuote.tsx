@@ -14,6 +14,7 @@ export function MessageQuote({
       type="button"
       className="chat-quote-block"
       data-ui="message-quote"
+      data-css-ui="quoted-message"
       disabled={!canJump}
       aria-label={`引用 ${quote.sender}：${quote.content}${canJump ? "，定位原消息" : "，原消息已删除"}`}
       onPointerDown={(event) => event.stopPropagation()}
@@ -26,8 +27,8 @@ export function MessageQuote({
         if (canJump) onJump(quote.messageId);
       }}
     >
-      <strong>{quote.sender}</strong>
-      <span>{quote.content}</span>
+      <strong data-ui="quoted-sender">{quote.sender}</strong>
+      <span data-ui="quoted-content">{quote.content}</span>
     </button>
   );
 }

@@ -1,8 +1,14 @@
 import type { CSSProperties } from "react";
 import { z } from "zod";
+import { FULL_CHAT_CSS_LIMIT, scopeFullChatCss } from "./full-chat-css";
 
 export const APPEARANCE_SCHEMA_VERSION = 1 as const;
-export const appearanceThemeTypeSchema = z.enum(["desktop", "chatChrome", "chatBubble"]);
+export const appearanceThemeTypeSchema = z.enum([
+  "desktop",
+  "chatChrome",
+  "chatBubble",
+  "chatFull",
+]);
 export type AppearanceThemeType = z.infer<typeof appearanceThemeTypeSchema>;
 
 const appVisualSchema = z.object({
@@ -68,6 +74,8 @@ export const chatBubbleConfigSchema = z.object({
   charCss: z.string().max(12000).default(""),
 });
 export type ChatBubbleConfig = z.infer<typeof chatBubbleConfigSchema>;
+export const fullChatConfigSchema = z.object({});
+export type FullChatConfig = z.infer<typeof fullChatConfigSchema>;
 
 export interface AppearancePreset<C extends object> {
   id: string;
@@ -95,13 +103,14 @@ function id() {
 }
 
 function moduleSchema<C extends z.ZodTypeAny>(type: AppearanceThemeType, config: C) {
+  const cssLimit = type === "chatFull" ? FULL_CHAT_CSS_LIMIT : 40_000;
   const preset = z.object({
     id: z.string().min(1),
     schemaVersion: z.literal(APPEARANCE_SCHEMA_VERSION),
     themeType: z.literal(type),
     name: z.string().trim().min(1).max(80),
     config,
-    customCss: z.string().max(40_000).default(""),
+    customCss: z.string().max(cssLimit).default(""),
     createdAt: z.string(),
     updatedAt: z.string(),
   });
@@ -109,7 +118,7 @@ function moduleSchema<C extends z.ZodTypeAny>(type: AppearanceThemeType, config:
     currentPresetId: z.string().nullable().default(null),
     name: z.string().trim().max(80).default("当前配置"),
     config: config.default(() => config.parse({})),
-    customCss: z.string().max(40_000).default(""),
+    customCss: z.string().max(cssLimit).default(""),
     presets: z.array(preset).default([]),
   });
 }
@@ -117,13 +126,16 @@ function moduleSchema<C extends z.ZodTypeAny>(type: AppearanceThemeType, config:
 const desktopModuleSchema = moduleSchema("desktop", desktopAppearanceConfigSchema);
 const chromeModuleSchema = moduleSchema("chatChrome", chatChromeConfigSchema);
 const bubbleModuleSchema = moduleSchema("chatBubble", chatBubbleConfigSchema);
+const fullModuleSchema = moduleSchema("chatFull", fullChatConfigSchema);
 
 export function defaultAppearanceModule(type: "desktop"): AppearanceModule<DesktopAppearanceConfig>;
 export function defaultAppearanceModule(type: "chatChrome"): AppearanceModule<ChatChromeConfig>;
 export function defaultAppearanceModule(type: "chatBubble"): AppearanceModule<ChatBubbleConfig>;
+export function defaultAppearanceModule(type: "chatFull"): AppearanceModule<FullChatConfig>;
 export function defaultAppearanceModule(type: AppearanceThemeType): AppearanceModule<object> {
   if (type === "desktop") return readAppearanceModule("desktop", {});
   if (type === "chatChrome") return readAppearanceModule("chatChrome", {});
+  if (type === "chatFull") return readAppearanceModule("chatFull", {});
   return readAppearanceModule("chatBubble", {});
 }
 
@@ -140,6 +152,10 @@ export function readAppearanceModule(
   value: unknown,
 ): AppearanceModule<ChatBubbleConfig>;
 export function readAppearanceModule(
+  type: "chatFull",
+  value: unknown,
+): AppearanceModule<FullChatConfig>;
+export function readAppearanceModule(
   type: AppearanceThemeType,
   value: unknown,
 ): AppearanceModule<Record<string, unknown>> {
@@ -148,7 +164,9 @@ export function readAppearanceModule(
       ? desktopModuleSchema
       : type === "chatChrome"
         ? chromeModuleSchema
-        : bubbleModuleSchema;
+        : type === "chatFull"
+          ? fullModuleSchema
+          : bubbleModuleSchema;
   const result = schema.safeParse(value ?? {});
   return result.success ? result.data : schema.parse({});
 }
@@ -158,7 +176,9 @@ function configSchema(type: AppearanceThemeType) {
     ? desktopAppearanceConfigSchema
     : type === "chatChrome"
       ? chatChromeConfigSchema
-      : chatBubbleConfigSchema;
+      : type === "chatFull"
+        ? fullChatConfigSchema
+        : chatBubbleConfigSchema;
 }
 
 export function saveAppearancePreset<C extends object>(
@@ -298,7 +318,7 @@ export function importAppearancePreset<C extends object>(
   const config = configSchema(expectedType).parse(source["config"] ?? {}) as C;
   const customCss = z
     .string()
-    .max(40_000)
+    .max(expectedType === "chatFull" ? FULL_CHAT_CSS_LIMIT : 40_000)
     .parse(source["customCss"] ?? source["css"] ?? "");
   validateAppearanceCss(customCss, expectedType);
   const now = new Date().toISOString();
@@ -320,6 +340,10 @@ const HIDE_RECOVERY_UI =
   /(?:display\s*:\s*none|visibility\s*:\s*hidden|pointer-events\s*:\s*none)/i;
 
 export function validateAppearanceCss(css: string, type: AppearanceThemeType) {
+  if (type === "chatFull") {
+    scopeFullChatCss(css, "validation");
+    return;
+  }
   if (!css.trim()) return;
   if (DANGEROUS_CSS.test(css)) throw new Error("CSS 包含不安全的脚本、外部资源或导入规则。");
   if (HIDE_RECOVERY_UI.test(css) && type !== "chatBubble")
@@ -333,6 +357,7 @@ export function validateAppearanceCss(css: string, type: AppearanceThemeType) {
 
 /** Prefix every ordinary rule. The editor itself lives outside these roots. */
 export function scopeAppearanceCss(css: string, type: AppearanceThemeType) {
+  if (type === "chatFull") return scopeFullChatCss(css, "validation");
   validateAppearanceCss(css, type);
   if (!css.trim()) return "";
   const source = css.replace(/\/\*[\s\S]*?\*\//g, "");

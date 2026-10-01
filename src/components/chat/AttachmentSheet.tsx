@@ -33,20 +33,20 @@ export function AttachmentSheet({
           event.currentTarget.value = "";
         }}
       />
-      <div className="attachment-grid">
-        <button type="button" onClick={() => input.current?.click()}>
+      <div className="attachment-grid" data-ui="attachment-menu">
+        <button type="button" data-ui="attachment-image" onClick={() => input.current?.click()}>
           <ImagePlus size={22} />
           <span>图片</span>
         </button>
-        <button type="button" onClick={onStickers}>
+        <button type="button" data-ui="attachment-sticker" onClick={onStickers}>
           <Smile size={22} />
           <span>表情包</span>
         </button>
-        <button type="button" onClick={onTransfer}>
+        <button type="button" data-ui="attachment-transfer" onClick={onTransfer}>
           <WalletCards size={22} />
           <span>转账</span>
         </button>
-        <button type="button" disabled={!canReroll} onClick={onReroll}>
+        <button type="button" data-ui="attachment-reroll" disabled={!canReroll} onClick={onReroll}>
           <RotateCcw size={22} />
           <span>重新生成</span>
         </button>

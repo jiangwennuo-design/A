@@ -214,6 +214,7 @@ export function ChatCharacterEditor({
                 onChange={setPreferences}
                 onWallpaperChange={persistWallpaper}
                 onWallpaperSaved={wallpaperSaved}
+                onAppearanceSaved={onSaved}
                 onUploadBusy={setWallpaperBusy}
               />
             </>

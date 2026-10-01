@@ -13,12 +13,13 @@ export function ImageViewer({
   return (
     <div
       className="image-viewer"
+      data-ui="image-viewer"
       role="dialog"
       aria-modal="true"
       aria-label="图片预览"
       onClick={onClose}
     >
-      <button type="button" aria-label="关闭图片" onClick={onClose}>
+      <button type="button" data-ui="image-viewer-close" aria-label="关闭图片" onClick={onClose}>
         <X size={24} />
       </button>
       <img src={url} alt={alt} onClick={(event) => event.stopPropagation()} />

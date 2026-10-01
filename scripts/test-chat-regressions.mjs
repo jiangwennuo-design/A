@@ -532,6 +532,7 @@ test("long-press deletion enters multi-select; cancel, one/multiple delete and q
           "VoiceCallScreen",
           "ChatCharacterEditor",
           "ChatRemarkSheet",
+          "FullChatCssLayer",
         ].map((name) => [`@/components/chat/${name}`, { [name]: component }]),
       ),
       "@/components/system-ui": { SystemSheet: component },

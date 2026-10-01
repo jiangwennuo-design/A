@@ -33,14 +33,24 @@ export function ChatComposer({
     element.style.height = `${Math.min(element.scrollHeight, 112)}px`;
   }, [value]);
   return (
-    <form onSubmit={onSubmit} className="chat-composer chat-composer--system" data-ui="chat-footer">
+    <form
+      onSubmit={onSubmit}
+      className="chat-composer chat-composer--system"
+      data-ui="chat-footer"
+      data-css-ui="chat-input-area"
+    >
       {quote && (
         <div className="chat-quote-preview" data-ui="chat-reply-preview" role="status">
           <div>
             <strong>引用 {quote.sender}</strong>
             <span>{quote.content}</span>
           </div>
-          <button type="button" aria-label="取消引用" onClick={onCancelQuote}>
+          <button
+            type="button"
+            data-ui="cancel-quote"
+            aria-label="取消引用"
+            onClick={onCancelQuote}
+          >
             <X size={16} />
           </button>
         </div>
@@ -80,6 +90,7 @@ export function ChatComposer({
         aria-label="发送消息"
         className="chat-composer__send"
         data-ui="chat-send"
+        data-css-ui="send-button"
       >
         <ArrowUp size={19} />
       </button>

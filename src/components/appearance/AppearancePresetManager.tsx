@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 import {
   applyAppearancePreset,
@@ -20,6 +20,7 @@ export function AppearancePresetManager<C extends object>({
   onPersist,
   onReset,
   disabled = false,
+  activePresetId,
 }: {
   type: AppearanceThemeType;
   value: AppearanceModule<C>;
@@ -27,6 +28,7 @@ export function AppearancePresetManager<C extends object>({
   onPersist?: (value: AppearanceModule<C>, mode: "apply" | "library") => void | Promise<void>;
   onReset: () => void;
   disabled?: boolean;
+  activePresetId?: string | null;
 }) {
   const [selectedId, setSelectedId] = useState(value.currentPresetId ?? "");
   const [appliedId, setAppliedId] = useState(value.currentPresetId ?? "");
@@ -35,6 +37,14 @@ export function AppearancePresetManager<C extends object>({
   const [notice, setNotice] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const selected = value.presets.find((preset) => preset.id === selectedId);
+  useEffect(() => {
+    if (selectedId || !activePresetId) return;
+    const preset = value.presets.find((preset) => preset.id === activePresetId);
+    if (preset) {
+      setSelectedId(preset.id);
+      setRename(preset.name);
+    }
+  }, [activePresetId, selectedId, value.presets]);
   const commit = (
     next: AppearanceModule<C>,
     message: string,
@@ -103,7 +113,9 @@ export function AppearancePresetManager<C extends object>({
             }}
           >
             <span>{preset.name}</span>
-            {appliedId === preset.id && <small>当前使用</small>}
+            {(activePresetId !== undefined ? activePresetId : appliedId) === preset.id && (
+              <small>当前使用</small>
+            )}
           </button>
         ))}
       </div>

@@ -40,6 +40,7 @@ import { ImageViewer } from "@/components/chat/ImageViewer";
 import { VoiceCallScreen, type CallState } from "@/components/chat/VoiceCallScreen";
 import { ChatCharacterEditor } from "@/components/chat/ChatCharacterEditor";
 import { ChatRemarkSheet } from "@/components/chat/ChatRemarkSheet";
+import { FullChatCssLayer } from "@/components/chat/FullChatCssLayer";
 import { SystemSheet } from "@/components/system-ui";
 import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { lastReadAt, markChatRead } from "@/lib/chat-read-state";
@@ -990,272 +991,318 @@ function ConversationPage({
     );
 
   return (
-    <div
-      ref={conversationRef}
-      className="chat-app chat-conversation"
-      data-chat-scope={charId}
-      data-ui="chat-page"
-      style={chatChromeVariables(chatPreferences.appearance.chatChrome.config)}
-    >
-      <style>
-        {bubbleStyles(charId, chatPreferences.userBubbleCss, chatPreferences.charBubbleCss)}
-      </style>
-      <style>
-        {safeScopedAppearanceCss(chatPreferences.appearance.chatChrome.customCss, "chatChrome")}
-      </style>
-      <style>{chatChromeElementCss(chatPreferences.appearance.chatChrome.config)}</style>
-      <style>
-        {safeScopedAppearanceCss(chatPreferences.appearance.chatBubble.customCss, "chatBubble")}
-      </style>
-      <header className="chat-conversation__header" data-ui="chat-header">
-        <button
-          type="button"
-          aria-label="返回聊天列表"
-          onClick={() => void popSystemPage(() => navigate({ to: "/chat", search: {} }))}
-          className="chat-header-back"
-          data-ui="chat-back"
-        >
-          <ChevronLeft size={26} strokeWidth={1.8} />
-          <span>消息</span>
-        </button>
-        <div className="chat-conversation__contact">
-          <div className="chat-header-avatar" data-ui="chat-header-avatar">
-            {assistantAvatar ? (
-              <img
-                src={assistantAvatar}
-                alt={characterChatName(current)}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <UserRound size={18} className="text-[var(--color-text-secondary)]" />
-            )}
-          </div>
-          <div className="chat-conversation__identity">
-            <h1 data-ui="chat-title">{characterChatName(current)}</h1>
-            {sending && <p>正在回复…</p>}
-          </div>
-        </div>
-        <div className="chat-header-actions">
+    <>
+      <div
+        ref={conversationRef}
+        className="chat-app chat-conversation"
+        data-chat-scope={charId}
+        data-ui="chat-page"
+        data-css-ui="chat-screen chat-background"
+        data-full-chat-root={charId}
+        style={chatChromeVariables(chatPreferences.appearance.chatChrome.config)}
+      >
+        <style>
+          {bubbleStyles(charId, chatPreferences.userBubbleCss, chatPreferences.charBubbleCss)}
+        </style>
+        <style>
+          {safeScopedAppearanceCss(chatPreferences.appearance.chatChrome.customCss, "chatChrome")}
+        </style>
+        <style>{chatChromeElementCss(chatPreferences.appearance.chatChrome.config)}</style>
+        <style>
+          {safeScopedAppearanceCss(chatPreferences.appearance.chatBubble.customCss, "chatBubble")}
+        </style>
+        <header className="chat-conversation__header" data-ui="chat-header">
           <button
             type="button"
-            aria-label="语音通话"
-            onClick={startCall}
-            className="chat-icon-button"
-            data-ui="chat-call"
+            aria-label="返回聊天列表"
+            onClick={() => void popSystemPage(() => navigate({ to: "/chat", search: {} }))}
+            className="chat-header-back"
+            data-ui="chat-back"
           >
-            <Phone size={19} />
+            <ChevronLeft size={26} strokeWidth={1.8} />
+            <span>消息</span>
           </button>
-          <button
-            type="button"
-            aria-label="聊天设置"
-            onClick={() => setChatSettingsOpen(true)}
-            className="chat-icon-button"
-            data-ui="chat-settings"
-          >
-            <Settings size={19} />
-          </button>
-        </div>
-      </header>
-
-      {error && <p className="mx-4 mt-3 text-sm text-[var(--color-error)]">{error}</p>}
-      <ChatMessages
-        selectedMessageIds={selectedMessageIds}
-        onToggleMessageSelection={(id) => {
-          if (deletingMessages) return;
-          setSelectedMessageIds((previous) => {
-            if (!previous) return previous;
-            const next = new Set(previous);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-          });
-        }}
-        avatarDisplayMode={chatPreferences.avatarDisplayMode}
-        wallpaperUrl={chatWallpaper}
-        messages={messages}
-        showThinking={current.chat_thinking_mode !== "off" && current.show_chat_thinking}
-        sending={sending}
-        assistantAvatar={assistantAvatar}
-        userAvatar={userAvatar}
-        assistantName={characterChatName(current)}
-        userName={userIdentity.nickname}
-        onOpenMessageMenu={openMessageMenu}
-        onDismissMessageMenu={() => setMessageMenu(null)}
-        onOpenImage={(url, alt) => setImageViewer({ url, alt })}
-        onOpenTransfer={(message) => {
-          setMessageMenu(null);
-          setTransferError("");
-          setSelectedTransferId(message.id);
-        }}
-        onRetry={(message) => void retryMessage(message)}
-      />
-
-      {messageMenu &&
-        (() => {
-          const selected = messages.find((message) => message.id === messageMenu.messageId);
-          if (!selected) return null;
-          return (
-            <div className="chat-message-menu-backdrop" onPointerDown={() => setMessageMenu(null)}>
-              <div
-                role="menu"
-                aria-label="消息操作"
-                className="chat-message-menu"
-                style={{ left: messageMenu.left, top: messageMenu.top }}
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                {selected.message_type === "text" && (
-                  <>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => void copyMessage(selected)}
-                    >
-                      <Copy size={15} />
-                      <span>复制</span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => void updateMessage(selected)}
-                    >
-                      <Pencil size={15} />
-                      <span>编辑</span>
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setQuotedReply(
-                      quoteMessage(
-                        selected,
-                        selected.role === "user"
-                          ? userIdentity.nickname
-                          : characterChatName(current),
-                      ),
-                    );
-                    setMessageMenu(null);
-                  }}
-                >
-                  <Reply size={15} />
-                  <span>引用</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="is-danger"
-                  onClick={() => selectForDeletion(selected)}
-                >
-                  <Trash2 size={15} />
-                  <span>删除</span>
-                </button>
-              </div>
+          <div className="chat-conversation__contact" data-ui="chat-contact">
+            <div className="chat-header-avatar" data-ui="chat-header-avatar">
+              {assistantAvatar ? (
+                <img
+                  src={assistantAvatar}
+                  alt={characterChatName(current)}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <UserRound size={18} className="text-[var(--color-text-secondary)]" />
+              )}
             </div>
-          );
-        })()}
+            <div className="chat-conversation__identity" data-ui="chat-identity">
+              <h1 data-ui="chat-title">{characterChatName(current)}</h1>
+              {sending && <p data-ui="chat-status">正在回复…</p>}
+            </div>
+          </div>
+          <div className="chat-header-actions" data-ui="chat-header-actions">
+            <button
+              type="button"
+              aria-label="语音通话"
+              onClick={startCall}
+              className="chat-icon-button"
+              data-ui="chat-call"
+            >
+              <Phone size={19} />
+            </button>
+            <button
+              type="button"
+              aria-label="聊天设置"
+              onClick={() => setChatSettingsOpen(true)}
+              className="chat-icon-button"
+              data-ui="chat-settings"
+            >
+              <Settings size={19} />
+            </button>
+          </div>
+        </header>
 
-      {selectedMessageIds ? (
-        <div
-          className="chat-selection-bar"
-          role="toolbar"
-          aria-label="批量删除消息"
-          data-system-appearance-editor
-        >
-          <button
-            type="button"
-            disabled={deletingMessages}
-            onClick={() => setSelectedMessageIds(null)}
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            className="is-danger"
-            disabled={!selectedMessageIds.size || deletingMessages || savingMessage || sending}
-            onClick={() => void deleteSelectedMessages()}
-          >
-            删除（{selectedMessageIds.size}）
-          </button>
-        </div>
-      ) : (
-        <ChatComposer
-          quote={quotedReply?.quotedMessage ?? null}
-          onCancelQuote={() => setQuotedReply(null)}
-          value={input}
-          disabled={savingMessage || sending}
-          canReply={hasPendingMessages}
-          replying={sending}
-          onChange={setInput}
-          onSubmit={submit}
-          onAttachments={() => setAttachmentsOpen(true)}
-          onReply={() => void triggerReply()}
+        {error && (
+          <p data-ui="system-message" className="mx-4 mt-3 text-sm text-[var(--color-error)]">
+            {error}
+          </p>
+        )}
+        <ChatMessages
+          selectedMessageIds={selectedMessageIds}
+          onToggleMessageSelection={(id) => {
+            if (deletingMessages) return;
+            setSelectedMessageIds((previous) => {
+              if (!previous) return previous;
+              const next = new Set(previous);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              return next;
+            });
+          }}
+          avatarDisplayMode={chatPreferences.avatarDisplayMode}
+          wallpaperUrl={chatWallpaper}
+          messages={messages}
+          showThinking={current.chat_thinking_mode !== "off" && current.show_chat_thinking}
+          sending={sending}
+          assistantAvatar={assistantAvatar}
+          userAvatar={userAvatar}
+          assistantName={characterChatName(current)}
+          userName={userIdentity.nickname}
+          onOpenMessageMenu={openMessageMenu}
+          onDismissMessageMenu={() => setMessageMenu(null)}
+          onOpenImage={(url, alt) => setImageViewer({ url, alt })}
+          onOpenTransfer={(message) => {
+            setMessageMenu(null);
+            setTransferError("");
+            setSelectedTransferId(message.id);
+          }}
+          onRetry={(message) => void retryMessage(message)}
         />
-      )}
 
-      <AttachmentSheet
-        open={attachmentsOpen}
-        canReroll={Boolean(latestTurnId) && !sending && !savingMessage}
-        onClose={() => setAttachmentsOpen(false)}
-        onImage={(file) => void sendImage(file)}
-        onStickers={() => {
-          setAttachmentsOpen(false);
-          setStickersOpen(true);
-        }}
-        onTransfer={() => {
-          setAttachmentsOpen(false);
-          setTransferOpen(true);
-        }}
-        onReroll={() => {
-          if (latestTurnId) void rerollTurn(latestTurnId);
-        }}
-      />
-      <TransferSheet
-        open={transferOpen}
-        onClose={() => setTransferOpen(false)}
-        onSend={(amount, note) => void sendTransfer(amount, note)}
-      />
-      <TransferDetailSheet
-        message={messages.find((message) => message.id === selectedTransferId) ?? null}
-        userName={userIdentity.nickname}
-        charName={characterChatName(current)}
-        saving={settlingTransfer}
-        error={transferError}
-        onClose={() => {
-          if (!transferBusy.current) setSelectedTransferId(null);
-        }}
-        onSettle={(status) => void handleTransfer(status)}
-      />
-      {user && (
-        <StickerPicker
-          open={stickersOpen}
-          userId={user.id}
-          onClose={() => setStickersOpen(false)}
-          onSend={(sticker) => void sendSticker(sticker)}
-          onError={setError}
+        {messageMenu &&
+          (() => {
+            const selected = messages.find((message) => message.id === messageMenu.messageId);
+            if (!selected) return null;
+            return (
+              <div
+                className="chat-message-menu-backdrop"
+                data-ui="action-menu-overlay"
+                onPointerDown={() => setMessageMenu(null)}
+              >
+                <div
+                  role="menu"
+                  aria-label="消息操作"
+                  className="chat-message-menu"
+                  data-ui="action-menu"
+                  style={{ left: messageMenu.left, top: messageMenu.top }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  {selected.message_type === "text" && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-ui="action-button"
+                        onClick={() => void copyMessage(selected)}
+                      >
+                        <Copy size={15} />
+                        <span>复制</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-ui="action-button"
+                        onClick={() => void updateMessage(selected)}
+                      >
+                        <Pencil size={15} />
+                        <span>编辑</span>
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-ui="action-button"
+                    onClick={() => {
+                      setQuotedReply(
+                        quoteMessage(
+                          selected,
+                          selected.role === "user"
+                            ? userIdentity.nickname
+                            : characterChatName(current),
+                        ),
+                      );
+                      setMessageMenu(null);
+                    }}
+                  >
+                    <Reply size={15} />
+                    <span>引用</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-ui="action-button"
+                    className="is-danger"
+                    onClick={() => selectForDeletion(selected)}
+                  >
+                    <Trash2 size={15} />
+                    <span>删除</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+        {selectedMessageIds ? (
+          <div
+            className="chat-selection-bar"
+            role="toolbar"
+            aria-label="批量删除消息"
+            data-system-appearance-editor
+          >
+            <button
+              type="button"
+              disabled={deletingMessages}
+              onClick={() => setSelectedMessageIds(null)}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="is-danger"
+              disabled={!selectedMessageIds.size || deletingMessages || savingMessage || sending}
+              onClick={() => void deleteSelectedMessages()}
+            >
+              删除（{selectedMessageIds.size}）
+            </button>
+          </div>
+        ) : (
+          <ChatComposer
+            quote={quotedReply?.quotedMessage ?? null}
+            onCancelQuote={() => setQuotedReply(null)}
+            value={input}
+            disabled={savingMessage || sending}
+            canReply={hasPendingMessages}
+            replying={sending}
+            onChange={setInput}
+            onSubmit={submit}
+            onAttachments={() => setAttachmentsOpen(true)}
+            onReply={() => void triggerReply()}
+          />
+        )}
+
+        <AttachmentSheet
+          open={attachmentsOpen}
+          canReroll={Boolean(latestTurnId) && !sending && !savingMessage}
+          onClose={() => setAttachmentsOpen(false)}
+          onImage={(file) => void sendImage(file)}
+          onStickers={() => {
+            setAttachmentsOpen(false);
+            setStickersOpen(true);
+          }}
+          onTransfer={() => {
+            setAttachmentsOpen(false);
+            setTransferOpen(true);
+          }}
+          onReroll={() => {
+            if (latestTurnId) void rerollTurn(latestTurnId);
+          }}
         />
-      )}
-      {imageViewer && (
-        <ImageViewer
-          url={imageViewer.url}
-          alt={imageViewer.alt}
-          onClose={() => setImageViewer(null)}
+        <TransferSheet
+          open={transferOpen}
+          onClose={() => setTransferOpen(false)}
+          onSend={(amount, note) => void sendTransfer(amount, note)}
         />
-      )}
-      {callState !== "idle" && (
-        <VoiceCallScreen
-          name={characterChatName(current)}
-          avatar={assistantAvatar}
-          state={callState}
-          startedAt={callStartedAt}
-          muted={callMuted}
-          speaker={callSpeaker}
-          onConnect={connectCall}
-          onToggleMute={() => setCallMuted((value) => !value)}
-          onToggleSpeaker={() => setCallSpeaker((value) => !value)}
-          onHangup={() => void hangupCall()}
+        <TransferDetailSheet
+          message={messages.find((message) => message.id === selectedTransferId) ?? null}
+          userName={userIdentity.nickname}
+          charName={characterChatName(current)}
+          saving={settlingTransfer}
+          error={transferError}
+          onClose={() => {
+            if (!transferBusy.current) setSelectedTransferId(null);
+          }}
+          onSettle={(status) => void handleTransfer(status)}
         />
-      )}
+        {user && (
+          <StickerPicker
+            open={stickersOpen}
+            userId={user.id}
+            onClose={() => setStickersOpen(false)}
+            onSend={(sticker) => void sendSticker(sticker)}
+            onError={setError}
+          />
+        )}
+        {imageViewer && (
+          <ImageViewer
+            url={imageViewer.url}
+            alt={imageViewer.alt}
+            onClose={() => setImageViewer(null)}
+          />
+        )}
+        {callState !== "idle" && (
+          <VoiceCallScreen
+            name={characterChatName(current)}
+            avatar={assistantAvatar}
+            state={callState}
+            startedAt={callStartedAt}
+            muted={callMuted}
+            speaker={callSpeaker}
+            onConnect={connectCall}
+            onToggleMute={() => setCallMuted((value) => !value)}
+            onToggleSpeaker={() => setCallSpeaker((value) => !value)}
+            onHangup={() => void hangupCall()}
+          />
+        )}
+
+        <FullChatCssLayer
+          userId={user?.id ?? ""}
+          scope={charId}
+          selection={chatPreferences.fullChatCss}
+          onDisable={async (reset) => {
+            const selection = {
+              ...chatPreferences.fullChatCss,
+              enabled: false,
+              ...(reset ? { selectedPresetId: null } : {}),
+            };
+            const { data, error: readError } = await db
+              .from("ai_personas")
+              .select("chat_preferences")
+              .eq("id", charId)
+              .eq("user_id", user?.id)
+              .single();
+            if (readError) throw new Error("读取 CSS 选择失败。");
+            const { data: saved, error: saveError } = await db
+              .from("ai_personas")
+              .update({ chat_preferences: { ...data.chat_preferences, fullChatCss: selection } })
+              .eq("id", charId)
+              .eq("user_id", user?.id)
+              .select("*")
+              .single();
+            if (saveError) throw new Error("保存 CSS 选择失败。");
+            setCurrent(saved as AiPersona);
+          }}
+        />
+      </div>
 
       <div className="chat-settings-scope">
         <SystemSheet
@@ -1354,7 +1401,7 @@ function ConversationPage({
           onDeleted={() => void navigate({ to: "/chat", search: {} })}
         />
       )}
-    </div>
+    </>
   );
 }
 
