@@ -44,6 +44,26 @@ export interface WorldBook extends WorldBookSummary {
   entries: WorldEntry[];
   raw: Record<string, WorldJson>;
 }
+
+export function createWorldEntryDraft(entries: readonly WorldEntry[] = []): WorldEntry {
+  return {
+    uid: crypto.randomUUID(),
+    name: "",
+    comment: "",
+    content: "",
+    disable: false,
+    constant: false,
+    position: 0,
+    depth: 4,
+    role: "system",
+    key: [],
+    keysecondary: [],
+    selective: false,
+    probability: 100,
+    order: entries.length ? Math.max(...entries.map((entry) => entry.order)) + 1 : 100,
+    raw: {},
+  };
+}
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown, fallback = "") => (typeof value === "string" ? value : fallback);

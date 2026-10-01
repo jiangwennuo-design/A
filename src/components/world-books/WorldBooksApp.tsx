@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Circle,
   Pencil,
+  Plus,
   Search,
   Trash2,
   Upload,
@@ -17,6 +18,7 @@ import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import {
   parseWorldBook,
+  createWorldEntryDraft,
   type WorldBook,
   type WorldBookSummary,
   type WorldEntry,
@@ -24,6 +26,7 @@ import {
 import { importWorldBookFile, worldBookFileAccept } from "@/lib/world-book-file";
 import {
   deleteWorldBook,
+  createWorldBook,
   getWorldBook,
   importWorldBook,
   listWorldBooks,
@@ -35,6 +38,7 @@ import "@/styles/world-books.css";
 
 type ImportDraft = ReturnType<typeof parseWorldBook>;
 type Dialog =
+  | { kind: "create" }
   | { kind: "import"; draft: ImportDraft }
   | { kind: "rename"; book: WorldBookSummary }
   | { kind: "delete"; book: WorldBookSummary; names: string[] };
@@ -44,13 +48,18 @@ export function WorldBooksApp() {
   const list = useServerFn(listWorldBooks);
   const get = useServerFn(getWorldBook);
   const upload = useServerFn(importWorldBook);
+  const create = useServerFn(createWorldBook);
   const update = useServerFn(updateWorldBook);
   const save = useServerFn(saveWorldEntry);
   const bindings = useServerFn(worldBookBindings);
   const remove = useServerFn(deleteWorldBook);
   const [books, setBooks] = useState<WorldBookSummary[]>([]);
   const [book, setBook] = useState<WorldBook | null>(null);
-  const [editing, setEditing] = useState<{ index: number; entry: WorldEntry } | null>(null);
+  const [editing, setEditing] = useState<{
+    index: number;
+    entry: WorldEntry;
+    isNew?: boolean;
+  } | null>(null);
   const [query, setQuery] = useState("");
   const [visible, setVisible] = useState(50);
   const [busy, setBusy] = useState(false);
@@ -139,7 +148,7 @@ export function WorldBooksApp() {
         <button type="button" aria-label="返回" disabled={busy} onClick={back}>
           <ChevronLeft size={24} />
         </button>
-        <h1>{editing ? "编辑条目" : book ? book.name : "世界书"}</h1>
+        <h1>{editing ? (editing.isNew ? "新增条目" : "编辑条目") : book ? book.name : "世界书"}</h1>
         {editing && book ? (
           <button
             key="save-entry"
@@ -153,11 +162,16 @@ export function WorldBooksApp() {
                     index: editing.index,
                     updated_at: book.updated_at,
                     entry: editing.entry,
+                    append: editing.isNew ?? false,
                   },
                 });
                 if (alive.current) {
                   setBook(saved);
                   merge(saved);
+                  if (editing.isNew) {
+                    setQuery("");
+                    setVisible((count) => Math.max(count, saved.entries.length));
+                  }
                   setEditing(null);
                 }
               })
@@ -228,6 +242,18 @@ export function WorldBooksApp() {
         {!book && !editing && (
           <>
             <p className="world-books-app__hint">集中管理设定，再为聊天中的角色单独绑定。</p>
+            <button
+              type="button"
+              className="world-books-app__add"
+              disabled={busy || loading}
+              onClick={() => {
+                setError("");
+                setName("");
+                setDialog({ kind: "create" });
+              }}
+            >
+              <Plus size={20} /> 新建世界书
+            </button>
             <section className="world-books-app__group">
               {filteredBooks.map((item) => (
                 <article className="world-books-app__book" key={item.id}>
@@ -311,6 +337,23 @@ export function WorldBooksApp() {
             <p className="world-books-app__hint">
               {book.entries.length} 个条目 · {book.enabled ? "已启用" : "整本已停用"}
             </p>
+            <button
+              type="button"
+              className="world-books-app__add"
+              disabled={busy || book.entries.length >= 5000}
+              onClick={() => {
+                setError("");
+                void pushSystemPage(() =>
+                  setEditing({
+                    index: book.entries.length,
+                    entry: createWorldEntryDraft(book.entries),
+                    isNew: true,
+                  }),
+                );
+              }}
+            >
+              <Plus size={20} /> 新增条目
+            </button>
             <section className="world-books-app__group">
               {filteredEntries.slice(0, visible).map(({ entry, index }) => (
                 <button
@@ -347,7 +390,11 @@ export function WorldBooksApp() {
               </button>
             )}
             {filteredEntries.length === 0 && (
-              <p className="world-books-app__hint">没有匹配的条目。</p>
+              <p className="world-books-app__hint">
+                {book.entries.length
+                  ? "没有匹配的条目。"
+                  : "还没有条目，点击上方新增条目开始填写。"}
+              </p>
             )}
           </>
         )}
@@ -473,7 +520,9 @@ export function WorldBooksApp() {
             ? "删除世界书"
             : dialog?.kind === "rename"
               ? "重命名"
-              : "导入世界书"
+              : dialog?.kind === "create"
+                ? "新建世界书"
+                : "导入世界书"
         }
         onClose={() => {
           if (!busy) {
@@ -510,7 +559,16 @@ export function WorldBooksApp() {
             onClick={() => {
               if (!dialog) return;
               void action(async () => {
-                if (dialog.kind === "import") {
+                if (dialog.kind === "create") {
+                  const saved = await create({ data: { name: name.trim() } });
+                  if (alive.current) {
+                    setBooks((rows) => [saved, ...rows]);
+                    setBook(saved);
+                    setEditing(null);
+                    setQuery("");
+                    setVisible(50);
+                  }
+                } else if (dialog.kind === "import") {
                   const saved = await upload({ data: { ...dialog.draft, name: name.trim() } });
                   if (alive.current) {
                     setBooks((rows) => [saved, ...rows]);
@@ -538,7 +596,9 @@ export function WorldBooksApp() {
                 ? "确认删除"
                 : dialog?.kind === "import"
                   ? "导入"
-                  : "保存"}
+                  : dialog?.kind === "create"
+                    ? "新建"
+                    : "保存"}
           </button>
         </div>
       </SystemModal>

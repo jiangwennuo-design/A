@@ -41,6 +41,19 @@ export const getWorldBook = createServerFn({ method: "GET" })
   .validator((input: unknown) => idInput.parse(input))
   .handler(({ data, context }) => ownedBook(context.supabase, context.userId, data.id));
 
+export const createWorldBook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ name: nameSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: saved, error } = await (context.supabase as any)
+      .from("world_books")
+      .insert({ name: data.name, user_id: context.userId, entries: [], raw: {} })
+      .select("*")
+      .single();
+    if (error || !saved) throw new Error("世界书创建失败，请重试。");
+    return saved as WorldBook;
+  });
+
 export const importWorldBook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -90,20 +103,30 @@ export const saveWorldEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     idInput
-      .extend({ index: z.number().int().min(0), updated_at: z.string(), entry: worldEntrySchema })
+      .extend({
+        index: z.number().int().min(0),
+        updated_at: z.string(),
+        entry: worldEntrySchema,
+        append: z.boolean().default(false),
+      })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const book = await ownedBook(context.supabase, context.userId, data.id);
     if (book.updated_at !== data.updated_at)
       throw new Error("世界书已在其他页面更新，请重新打开后编辑。");
-    if (!book.entries[data.index]) throw new Error("条目不存在。");
+    if (data.append) {
+      if (data.index !== book.entries.length) throw new Error("世界书已更新，请重新打开后新增。");
+      if (book.entries.length >= 5000) throw new Error("每本世界书最多保存 5000 个条目。");
+      if (book.entries.some((entry) => String(entry.uid) === String(data.entry.uid)))
+        throw new Error("条目编号重复，请重新新增。");
+    } else if (!book.entries[data.index]) throw new Error("条目不存在。");
     const entries = [...book.entries];
     const entry = data.entry;
     entries[data.index] = {
       ...entry,
       raw: {
-        ...book.entries[data.index]!.raw,
+        ...book.entries[data.index]?.raw,
         ...entry.raw,
         uid: entry.uid,
         name: entry.name,
@@ -121,6 +144,12 @@ export const saveWorldEntry = createServerFn({ method: "POST" })
         order: entry.order,
       },
     };
+    if (
+      data.append &&
+      new TextEncoder().encode(JSON.stringify(entries)).length >
+        WORLD_BOOK_FILE_LIMIT * 2 + 1024 * 1024
+    )
+      throw new Error("世界书内容过大，未新增条目。");
     const { data: saved, error } = await (context.supabase as any)
       .from("world_books")
       .update({ entries })
