@@ -23,7 +23,6 @@ export function FullChatCssLayer({
   const library = useChatAppearanceLibrary(userId, "chatFull");
   const [suspended, setSuspended] = useState(false);
   const [error, setError] = useState("");
-  const recovery = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const hasSelection = Boolean(selection.selectedPresetId);
   useEffect(() => {
@@ -70,16 +69,6 @@ export function FullChatCssLayer({
     }
   }, [suspended, selection.enabled, selection.selectedPresetId, sourceCss, scope, hasPreset]);
   const visible = Boolean(selection.enabled && selection.selectedPresetId);
-  useEffect(() => {
-    const element = recovery.current;
-    if (visible && element && "showPopover" in element) {
-      try {
-        element.showPopover();
-      } catch {
-        /* Fixed-position fallback. */
-      }
-    }
-  }, [visible]);
   return (
     <>
       <style id="k-chat-full-css" data-full-chat-styles>
@@ -89,20 +78,6 @@ export function FullChatCssLayer({
         typeof document !== "undefined" &&
         createPortal(
           <>
-            <div
-              ref={recovery}
-              popover="manual"
-              className="full-chat-css-recovery"
-              data-system-appearance-editor
-            >
-              <button
-                type="button"
-                aria-label="完整 CSS 安全恢复"
-                onClick={() => dialog.current?.showModal()}
-              >
-                CSS
-              </button>
-            </div>
             <dialog
               ref={dialog}
               className="full-chat-css-recovery-dialog"

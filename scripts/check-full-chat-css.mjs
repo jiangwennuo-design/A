@@ -101,6 +101,16 @@ const browser = await chromium.launch({
   args: ["--disable-features=LocalNetworkAccessChecks"],
 });
 const errors = [];
+// The normal chat deliberately has no floating recovery entry. Exercise the
+// retained dialog internally, without adding a visible test button to the app.
+async function openRecoveryDialog(page) {
+  assert.equal(await page.locator(".full-chat-css-recovery").count(), 0);
+  assert.equal(
+    await page.getByRole("button", { name: "完整 CSS 安全恢复", includeHidden: true }).count(),
+    0,
+  );
+  await page.locator(".full-chat-css-recovery-dialog").evaluate((dialog) => dialog.showModal());
+}
 async function prepare(context) {
   const page = await context.newPage();
   page.on("pageerror", (e) => errors.push(e.message));
@@ -542,7 +552,7 @@ try {
     return saved.currentPresetId;
   });
   await page.evaluate((id) => window.qa.apply(id), invalidId);
-  await page.getByRole("button", { name: "完整 CSS 安全恢复" }).click();
+  await openRecoveryDialog(page);
   await page
     .locator("dialog[open]")
     .getByText(/CSS 未应用：/)
@@ -731,14 +741,14 @@ try {
       getComputedStyle(document.querySelector('[data-ui="chat-messages"]')).backgroundImage ===
       "none",
   );
-  await page.getByRole("button", { name: "完整 CSS 安全恢复" }).click();
+  await openRecoveryDialog(page);
   await page.getByRole("dialog").getByRole("button", { name: "停用完整 CSS", exact: true }).click();
   await page.waitForFunction(() =>
     getComputedStyle(document.querySelector('[data-ui="chat-messages"]')).backgroundImage.includes(
       "original-wallpaper",
     ),
   );
-  // Even hiding the entire chat and drawing a fixed overlay cannot hide top-layer recovery.
+  // Retained internal recovery still works in the top layer; there is no floating entry.
   await page.evaluate(() => {
     let m = window.qa.api.saveAppearancePreset(
       {
@@ -755,10 +765,42 @@ try {
     ]);
     window.qa.apply(m.currentPresetId);
   });
-  await page.getByRole("button", { name: "完整 CSS 安全恢复" }).click();
+  await openRecoveryDialog(page);
   await page.getByRole("dialog").getByRole("button", { name: "恢复默认", exact: true }).click();
   await page.waitForFunction(
     () => getComputedStyle(document.querySelector('[data-ui="chat-page"]')).display !== "none",
+  );
+  await page.evaluate(() =>
+    window.qa.apply(
+      window.qa.libs.readChatAppearanceLibrary("qa-account", "chatFull").presets[0].id,
+    ),
+  );
+  await page.waitForFunction(
+    () => document.querySelector("#k-chat-full-css").textContent.length > 0,
+  );
+  for (const [width, height] of [
+    [320, 568],
+    [390, 844],
+    [430, 932],
+  ]) {
+    await page.setViewportSize({ width, height });
+    assert.equal(await page.locator(".full-chat-css-recovery").count(), 0);
+    assert.equal(
+      await page.getByRole("button", { name: "完整 CSS 安全恢复", includeHidden: true }).count(),
+      0,
+    );
+    assert.equal(
+      await page
+        .locator(".full-chat-css-recovery-dialog")
+        .evaluate((dialog) => dialog.getClientRects().length),
+      0,
+    );
+    assert.equal(await page.locator("#k-chat-full-css").count(), 1);
+  }
+  await page.getByRole("button", { name: "停用完整 CSS", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("#k-chat-full-css").textContent === "");
+  console.log(
+    "Floating CSS entry has no DOM, placeholder or hit area at 320/390/430px; the existing editor still disables CSS.",
   );
   console.log(
     "Rename/update/delete/import/export, safe URL/script filtering, wallpaper visual override/restoration, outside-chat isolation and top-layer emergency recovery passed.",
