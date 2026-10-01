@@ -2,6 +2,19 @@
 export const FULL_CHAT_CSS_LIMIT = 256_000;
 export const fullChatCssAccept =
   ".css,.docx,text/css,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+// Bounded by bytes as well as entries: typing/role switching cannot retain every draft.
+const compiledCache = new Map<string, string>();
+let cacheSize = 0;
+function remember(key: string, css: string) {
+  compiledCache.set(key, css);
+  cacheSize += key.length + css.length;
+  while (compiledCache.size > 8 || cacheSize > 2_000_000) {
+    const oldest = compiledCache.keys().next().value!;
+    cacheSize -= oldest.length + compiledCache.get(oldest)!.length;
+    compiledCache.delete(oldest);
+  }
+  return css;
+}
 
 function decodedCss(css: string) {
   return css
@@ -35,7 +48,7 @@ function validate(css: string) {
 }
 
 /** Split only top-level selector commas, keeping :has(), :is() and quoted attributes intact. */
-function selectors(text: string) {
+function selectors(text: string, separator = ",") {
   let quote = "",
     level = 0,
     start = 0;
@@ -51,9 +64,9 @@ function selectors(text: string) {
       continue;
     }
     if (char === '"' || char === "'") quote = char;
-    else if (char === "(" || char === "[") level++;
-    else if (char === ")" || char === "]") level--;
-    else if (char === "," && level === 0) {
+    else if (char === "(" || char === "[" || char === "{") level++;
+    else if (char === ")" || char === "]" || char === "}") level--;
+    else if (char === separator && level === 0) {
       result.push(text.slice(start, i).trim());
       start = i + 1;
     }
@@ -63,9 +76,12 @@ function selectors(text: string) {
 }
 
 export function scopeFullChatCss(css: string, scope: string): string {
-  validate(css);
   if (!css.trim()) return "";
   if (!/^[\w-]{1,100}$/.test(scope)) throw new Error("聊天 CSS 作用域无效。");
+  const cacheKey = `${scope}\0${css}`;
+  const cached = compiledCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  validate(css);
   // SSR never evaluates user CSS; the same stylesheet is compiled after hydration.
   if (typeof document === "undefined") return "";
   // Declare our layers before the system's layers. Important layer order is reversed;
@@ -77,7 +93,6 @@ export function scopeFullChatCss(css: string, scope: string): string {
     document.head.prepend(cascade);
   }
   const root = `[data-full-chat-root="${scope}"]`;
-  const priority = root.repeat(8);
   const style = document.createElement("style");
   style.media = "not all";
   document.head.append(style);
@@ -125,12 +140,20 @@ export function scopeFullChatCss(css: string, scope: string): string {
       partition?: boolean,
       animated?: boolean,
     ) =>
-      Array.from(style)
+      // CSSOM serializes valid shorthand declarations in cssText. Enumerating the
+      // declaration object's indices expands background/border into many longhands,
+      // multiplying every imported rule without adding any browser capability.
+      selectors(style.cssText, ";")
+        .map((declaration) => declaration.slice(0, declaration.indexOf(":")).trim())
+        .filter(Boolean)
         .filter(
           (property) =>
             (partition === undefined ||
               Boolean(style.getPropertyPriority(property)) === partition) &&
-            (animated === undefined || animatedProperties.has(property) === animated),
+            (animated === undefined ||
+              (animatedProperties.has(property) ||
+                Array.from(animatedProperties).some((name) => name.startsWith(`${property}-`))) ===
+                animated),
         )
         .map((property) => {
           let value = style.getPropertyValue(property);
@@ -203,7 +226,9 @@ export function scopeFullChatCss(css: string, scope: string): string {
                     /(::[\w-]+(?:\([^)]*\))?|:(?:before|after|first-letter|first-line))$/,
                   )?.[0] ?? "";
                 const subject = pseudo ? selector.slice(0, -pseudo.length) : selector;
-                return `${priority}:is(${subject})${pseudo},${priority} :is(${subject})${pseudo}`;
+                // Constrain the subject itself, including the root, without repeating
+                // its whole selector or generating eight identical scope attributes.
+                return `:is(${subject}):is(${root},${root} *)${pseudo}`;
               })
               .join(",");
             // CSS animations cannot override important declarations. Keep properties
@@ -229,16 +254,24 @@ export function scopeFullChatCss(css: string, scope: string): string {
             const header = rule.cssText.slice(0, rule.cssText.indexOf("{"));
             if (!/^@(?:media|supports|container|layer)\b/i.test(header))
               throw new Error("该全局 CSS 规则无法安全隔离。");
-            // Anonymous layers cannot collide with other apps' layer names.
-            const safeHeader = /^@layer\b/i.test(header) ? "@layer" : header;
-            return `${safeHeader}{${emit(Array.from((rule as CSSGroupingRule).cssRules), parent)}}`;
+            const children = emit(Array.from((rule as CSSGroupingRule).cssRules), parent);
+            // Keep declarations in our override layers rather than nest those layers
+            // under a new low-priority user layer. Layer names never escape the chat.
+            if (/^@layer\b/i.test(header)) return children;
+            return `${header}{${children}}`;
           }
+          // A native @layer ordering statement has no declarations/selectors. It must
+          // not make every valid rule in the imported file disappear.
+          if (/^@layer\s/i.test(rule.cssText)) return "";
           throw new Error("该 CSS 规则无法安全隔离。");
         })
         .join("\n");
     // Remove the default fixed flex basis only while full CSS is active, so custom
     // avatar width works without changing the default 30px layout or old themes.
-    return `${root} [data-ui="message-avatar"]{flex-basis:auto;}\n${emit(rules)}`;
+    return remember(
+      cacheKey,
+      `${root} [data-ui="message-avatar"]{flex-basis:auto;}\n${emit(rules)}`,
+    );
   } finally {
     style.remove();
   }

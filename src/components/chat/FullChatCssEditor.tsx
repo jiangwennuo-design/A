@@ -41,6 +41,8 @@ export function FullChatCssEditor({
   }));
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const initialized = useRef(Boolean(initial));
   useEffect(() => {
     if (!initial || initialized.current) return;
@@ -57,12 +59,13 @@ export function FullChatCssEditor({
   const deferredCss = useDeferredValue(draft.customCss);
   const scope = `preview-full-${charId}`;
   const compiled = useMemo(() => {
+    if (!editorOpen) return { css: "", error: "" };
     try {
       return { css: scopeFullChatCss(deferredCss, scope), error: "" };
     } catch (error) {
       return { css: "", error: error instanceof Error ? error.message : "CSS 无法解析。" };
     }
-  }, [deferredCss, scope]);
+  }, [deferredCss, scope, editorOpen]);
   async function select(next: CharacterChatPreferences["fullChatCss"]) {
     setBusy(true);
     try {
@@ -79,7 +82,13 @@ export function FullChatCssEditor({
     }
   }
   return (
-    <details className="appearance-subsection" data-system-appearance-editor>
+    <details
+      className="appearance-subsection"
+      data-system-appearance-editor
+      onToggle={(event) => {
+        if (event.target === event.currentTarget) setEditorOpen(event.currentTarget.open);
+      }}
+    >
       <summary>
         <span>
           <strong>完整聊天页 CSS</strong>
@@ -163,7 +172,12 @@ export function FullChatCssEditor({
             {compiled.error}
           </p>
         )}
-        <details className="appearance-subsection">
+        <details
+          className="appearance-subsection"
+          onToggle={(event) => {
+            if (event.target === event.currentTarget) setPreviewOpen(event.currentTarget.open);
+          }}
+        >
           <summary>预览与 CSS 选择器</summary>
           <p className="character-extras__hint">
             data-ui：chat-screen / chat-background / chat-header / chat-title / chat-status /
@@ -173,7 +187,7 @@ export function FullChatCssEditor({
             action-button。另有思考、工具、通话、转账详情等入口；data-role 区分 user /
             char，data-message-type 区分消息类型。
           </p>
-          <FullChatCssPreview scope={scope} css={compiled.css} />
+          {editorOpen && previewOpen && <FullChatCssPreview scope={scope} css={compiled.css} />}
         </details>
         <AppearancePresetManager
           type="chatFull"

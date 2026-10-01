@@ -36,6 +36,8 @@
 显式 `!important` 仍高于普通覆盖声明。关键帧不提升为重要声明；
 当前 CSS 的关键帧所驱动的属性保留普通声明，避免覆盖层把动画锁死。
 显式重要值（包括旧主题中的重要值）仍按浏览器规则优先于关键帧；避免锁定相同动画属性。
+`@layer` 声明不再使整份 CSS 失效；块内视觉规则进入完整 CSS 覆盖层。
+为保证系统覆盖优先级，用户自定义的命名 layer 排序不保留，请使用选择器优先级/声明顺序。
 
 CSS 只能改变壁纸**显示效果**。停用后恢复原 inline 壁纸；编译器不调用壁纸上传或持久化。
 编辑器、聊天设置、恢复入口位于作用域外。恢复按钮使用浏览器 top layer，支持停用和恢复默认，
@@ -44,6 +46,10 @@ CSS 只能改变壁纸**显示效果**。停用后恢复原 inline 壁纸；编�
 拒绝 JS/script、expression、behavior、危险 URL scheme、@import/namespace/document/page/property。
 允许 HTTP(S)、图片/字体 Data URL、Blob 与相对 url；外部字体仍受 CORS/CSP/网络限制。
 不保证当前浏览器不支持的 CSS 生效；错误规则按浏览器处理，无有效规则时报告错误。
+真实页面只有一个 `style#k-chat-full-css`。解析错误在独立恢复入口内明确显示，不再静默显示为空。
+只在 CSS 字符串/作用域变化时处理，编译结果有 8 项/2 MB 上限的缓存；
+保留 CSSOM 序列化的 shorthand，不展开成成批的 background/border longhand。
+编辑器预览只在展开时挂载，关闭时卸载，不在后台持续运行皮肤动画。
 原始完整 CSS 上限 256,000 字符（旧气泡/界面限额不变），CSS/DOCX 文件上限 10 MB；DOCX 复用现有正文提取器。
 
 ## 持久化
@@ -58,3 +64,10 @@ CSS 只能改变壁纸**显示效果**。停用后恢复原 inline 壁纸；编�
 
 浏览器兼容测试：`scripts/check-full-chat-css.mjs`（自己生成 CSS/DOCX，使用实际消息/输入/编辑/恢复组件）。
 账号接口在测试中替换为受控响应，不操作真实用户数据。刷新及冷启动用重新加载页面和新浏览器上下文验证。
+
+技术排查模式：`KDEJI_CSS_DIAGNOSE=1` 输出编译耗时和文本膨胀比例。
+可选 `KDEJI_CSS_REFERENCE_DOCS` 为外部 DOCX 路径 JSON 数组，仅在未挂载的 CSSStyleSheet
+中统计技术与真实 DOM 匹配数量；不注入参考 CSS、不复制资源、不提交参考文件。
+测试用 MutationObserver 仅观察是否重复写样式，不存在于产品代码中。
+页面现有 `<time class="chat-time-separator">` 早于完整 CSS 功能存在；其接口仅标记原元素，
+没有按参考文档新增时间组件。本次修复不新增产品 DOM、第三方选择器别名或功能。

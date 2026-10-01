@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { FileJson, FileText, Sparkles } from "lucide-react";
+import { Paintbrush, Sparkles, Zap } from "lucide-react";
 import { SystemModal } from "./system-ui";
 import "@/styles/release-notice.css";
 
-const RELEASE_ID = "2026-10-01-imports";
+const RELEASE_ID = "2026-10-02-chat-css-fix";
 const STORAGE_KEY = "kdeji:last-read-update";
 let acknowledgedInSession = false;
 const ignoreClose = () => {};
@@ -57,34 +57,30 @@ export function ReleaseNotice() {
       <SystemModal
         open
         title="K得机更新啦"
-        description="10月1日 · 今天多了两种导入方式"
+        description="10月2日 · 聊天美化修复"
         onClose={ignoreClose}
       >
         <div className="release-notice__body" ref={content} tabIndex={-1}>
           <span className="release-notice__badge">
-            <Sparkles size={18} /> 导入更方便了
+            <Sparkles size={18} /> 聊天美化更稳、更轻了
           </span>
           <div className="release-notice__item">
-            <FileJson size={22} />
+            <Paintbrush size={22} />
             <div>
-              <h3>角色卡可以直接导入</h3>
-              <p>
-                在名册里选择 JSON 或 PNG
-                角色卡，就能带入名字、人设、开场白和示例对话。检查后点「完成」保存即可。
-              </p>
+              <h3>完整聊天 CSS 更可靠</h3>
+              <p>修复了部分 CSS 无法生效的问题。样式有错误时会显示原因，也能随时停用或恢复默认。</p>
             </div>
           </div>
           <div className="release-notice__item">
-            <FileText size={22} />
+            <Zap size={22} />
             <div>
-              <h3>世界书支持 Word 文档</h3>
-              <p>
-                现在除了 JSON，也能导入
-                DOCX。正文和换行会保留下来，长文不会被截断；导入后照常绑定给角色使用。
-              </p>
+              <h3>打开和编辑更轻快</h3>
+              <p>减少了重复处理样式；预览只在展开时加载，收起后不再占用额外渲染资源。</p>
             </div>
           </div>
-          <p className="release-notice__note">已有角色、聊天记录和设置都保留，不需要重新配置。</p>
+          <p className="release-notice__note">
+            原有气泡、顶栏底栏预设、壁纸和聊天记录都保留，不需要重新配置。
+          </p>
         </div>
         <button
           type="button"

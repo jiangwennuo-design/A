@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 const runtime = process.env.KDEJI_QA_MODULES;
 if (!runtime) throw new Error("Set KDEJI_QA_MODULES to the existing Playwright runtime.");
 const { chromium } = createRequire(`${runtime}/package.json`)("playwright");
@@ -143,6 +145,82 @@ async function prepare(context) {
 try {
   let context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   let page = await prepare(context);
+  if (process.env.KDEJI_CSS_DIAGNOSE) {
+    console.log(
+      "Baseline chain/performance:",
+      await page.evaluate(() => {
+        const { css } = window.qa;
+        const text = Array.from(
+          { length: 300 },
+          (_, i) =>
+            `[data-ui="message-bubble"] { --sample-${i}: ${i}; border:1px solid black; background:white; }`,
+        ).join("\n");
+        const start = performance.now();
+        const processed = css.scopeFullChatCss(text, "A");
+        const elapsed = performance.now() - start;
+        let layerError = "";
+        try {
+          css.scopeFullChatCss(
+            '@layer my-skin; [data-ui="message-bubble"] {background:red !important;}',
+            "A",
+          );
+        } catch (e) {
+          layerError = e.message;
+        }
+        return {
+          inputBytes: text.length,
+          outputBytes: processed.length,
+          compileMs: elapsed,
+          layerError,
+          previewRoots: document.querySelectorAll(".full-chat-css-preview").length,
+        };
+      }),
+    );
+    for (const path of JSON.parse(process.env.KDEJI_CSS_REFERENCE_DOCS || "[]")) {
+      // Inspect reference technology/selectors in an unattached CSSStyleSheet only.
+      // Never apply, save, download URLs, or translate another project's stylesheet.
+      const stats = await page.evaluate(
+        async ({ name, bytes }) => {
+          const { extractDocxText } = await import("/src/lib/stickers/extract-text.ts");
+          const text = await extractDocxText(new File([new Uint8Array(bytes)], name), true);
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync(text);
+          const root = document.querySelector('[data-full-chat-root="A"]');
+          let selectors = 0,
+            matched = 0,
+            pseudos = 0;
+          const visit = (rules) => {
+            for (const rule of rules) {
+              if (rule.selectorText) {
+                selectors++;
+                if (/::/.test(rule.selectorText)) pseudos++;
+                try {
+                  // Pseudo-elements are not DOM nodes; inspect their originating
+                  // subject instead of incorrectly counting them as missing.
+                  const subject = rule.selectorText.replace(
+                    /::[-\w]+(?:\([^()]*\))?(?=\s*(?:,|$))/g,
+                    "",
+                  );
+                  if (root.matches(subject) || root.querySelector(subject)) matched++;
+                } catch {}
+              }
+              if (rule.cssRules) visit(rule.cssRules);
+            }
+          };
+          visit(sheet.cssRules);
+          return {
+            characters: text.length,
+            rules: sheet.cssRules.length,
+            selectorRules: selectors,
+            matchingExistingChatRules: matched,
+            pseudoRules: pseudos,
+          };
+        },
+        { name: basename(path), bytes: [...readFileSync(path)] },
+      );
+      console.log("Reference technology only:", basename(path), stats);
+    }
+  }
   const ids = await page.evaluate((css) => {
     const { api, libs } = window.qa;
     let full = api.defaultAppearanceModule("chatFull");
@@ -173,14 +251,32 @@ try {
     libs.saveChatAppearanceLibrary("qa-account", "chatChrome", chrome.presets);
     return full.presets.map((p) => p.id);
   }, css);
+  const preview = '[data-full-chat-root="A"]';
+  const user = `${preview} [data-role="user"] [data-ui="message-bubble"]`;
+  const bypass = await page.evaluate((selector) => {
+    const bubble = document.querySelector(selector);
+    const style = document.createElement("style");
+    style.id = "qa-temporary-bypass";
+    style.textContent = `${selector}{background:red!important;border:5px solid black!important;}`;
+    document.body.append(style);
+    const result = [
+      getComputedStyle(bubble).backgroundColor,
+      getComputedStyle(bubble).borderTopWidth,
+    ];
+    style.remove();
+    return result;
+  }, user);
+  assert.deepEqual(bypass, ["rgb(255, 0, 0)", "5px"]);
+  assert.equal(await page.locator("#qa-temporary-bypass").count(), 0);
+  console.log(
+    "Direct native CSS bypass hits the actual MessageContent bubble; debug style removed.",
+  );
   // Deliberately challenge legacy !important declarations and dynamic inline background.
   await page.addStyleTag({
     content:
       ".chat-conversation .chat-message-row.is-user .message-content-wrapper > .message-bubble { border:0!important; font-family:system-ui!important; }",
   });
   await page.evaluate((id) => window.qa.apply(id), ids[0]);
-  const preview = '[data-full-chat-root="A"]';
-  const user = `${preview} [data-role="user"] [data-ui="message-bubble"]`;
   try {
     await page.waitForFunction(
       (selector) => getComputedStyle(document.querySelector(selector)).borderTopWidth === "3px",
@@ -254,6 +350,32 @@ try {
     { preview, user },
   );
   assert.equal(result.userBorder, "3px");
+  const chain = await page.evaluate((selector) => {
+    const style = document.getElementById("k-chat-full-css");
+    const matched = [];
+    const visit = (rules) => {
+      for (const rule of rules) {
+        if (rule.selectorText && document.querySelector(selector).matches(rule.selectorText))
+          matched.push(rule.selectorText);
+        if (rule.cssRules) visit(rule.cssRules);
+      }
+    };
+    visit(style.sheet.cssRules);
+    return {
+      selectedId: window.qa.selection().A.selectedPresetId,
+      textLength: style.textContent.length,
+      rules: style.sheet.cssRules.length,
+      matched: matched.length,
+      styleCount: document.querySelectorAll("#k-chat-full-css").length,
+    };
+  }, user);
+  assert.equal(chain.selectedId, ids[0]);
+  assert.ok(chain.textLength > 0 && chain.rules > 0 && chain.matched > 0);
+  assert.equal(chain.styleCount, 1);
+  console.log(
+    "Actual chain: preset/selection → processed text → unique style → cssRules → selector hits:",
+    chain,
+  );
   assert.equal(result.charBorder, "dashed");
   assert.match(result.font, /kdeji-A-QAFont/);
   assert.match(result.gradient, /linear-gradient/);
@@ -320,7 +442,133 @@ try {
     "Computed style: User/Char, font-face/font, border/important, gradients, padding/margin/transform, shadow/radius, avatar/timestamp/header/footer/input/send, transfer/quote/image/sticker/voice/menu, pseudo-elements, variables, :has, media/supports, animation passed.",
   );
 
+  // Native layer statements used to throw and silently clear the whole live sheet.
+  const layerCheck = await page.evaluate((selector) => {
+    const text =
+      '@layer sample; @layer sample { [data-role="user"] [data-ui="message-bubble"] {border:7px solid black!important;} }';
+    const style = document.createElement("style");
+    style.textContent = window.qa.css.scopeFullChatCss(text, "A");
+    document.body.append(style);
+    const value = getComputedStyle(document.querySelector(selector)).borderTopWidth;
+    style.remove();
+    return value;
+  }, user);
+  assert.equal(layerCheck, "7px");
+  const shorthandCheck = await page.evaluate((selector) => {
+    const image =
+      'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="2" height="2"/%3E';
+    const text = `${selector} { background: url('${image}') center / cover no-repeat; border: 4px solid black; } ${selector}::after { content: "a;b:c"; }`;
+    const style = document.createElement("style");
+    style.textContent = window.qa.css.scopeFullChatCss(text, "A");
+    document.body.append(style);
+    const element = document.querySelector(selector);
+    const result = {
+      image: getComputedStyle(element).backgroundImage,
+      size: getComputedStyle(element).backgroundSize,
+      border: getComputedStyle(element).borderTopWidth,
+      content: getComputedStyle(element, "::after").content,
+    };
+    style.remove();
+    return result;
+  }, user);
+  assert.match(shorthandCheck.image, /data:image\/svg\+xml/);
+  assert.equal(shorthandCheck.size, "cover");
+  assert.equal(shorthandCheck.border, "4px");
+  assert.equal(shorthandCheck.content, '"a;b:c"');
+
+  const performanceCheck = await page.evaluate(async () => {
+    const text = Array.from(
+      { length: 300 },
+      (_, i) =>
+        `[data-ui="message-bubble"] { --measure-${i}:${i}; border:1px solid black; background:white; }`,
+    ).join("\n");
+    const observer = new MutationObserver(() => {});
+    observer.observe(document.head, { childList: true });
+    const start = performance.now();
+    const compiled = window.qa.css.scopeFullChatCss(text, "perf-qa");
+    const firstMs = performance.now() - start;
+    const firstMutations = observer.takeRecords().length;
+    const repeatStart = performance.now();
+    for (let i = 0; i < 100; i++) window.qa.css.scopeFullChatCss(text, "perf-qa");
+    const cached100Ms = performance.now() - repeatStart;
+    const cachedMutations = observer.takeRecords().length;
+    observer.disconnect();
+    const style = document.getElementById("k-chat-full-css");
+    const mutations = new MutationObserver(() => {});
+    mutations.observe(style, { childList: true, characterData: true, subtree: true });
+    const lib = window.qa.libs.readChatAppearanceLibrary("qa-account", "chatFull");
+    for (let i = 0; i < 20; i++)
+      window.qa.libs.saveChatAppearanceLibrary("qa-account", "chatFull", lib.presets);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const renderStyleWrites = mutations.takeRecords().length;
+    mutations.disconnect();
+    return {
+      inputChars: text.length,
+      outputChars: compiled.length,
+      firstMs,
+      cached100Ms,
+      firstMutations,
+      cachedMutations,
+      renderStyleWrites,
+      hiddenPreviewCount: document.querySelectorAll(".appearance-subsection .full-chat-css-preview")
+        .length,
+    };
+  });
+  assert.equal(performanceCheck.cachedMutations, 0);
+  assert.equal(performanceCheck.renderStyleWrites, 0);
+  assert.equal(performanceCheck.hiddenPreviewCount, 0);
+  assert.ok(performanceCheck.outputChars < performanceCheck.inputChars * 4);
+  console.log(
+    "Performance: no reparse/style writes for unchanged CSS; folded preview not mounted:",
+    performanceCheck,
+  );
+
+  const invalidId = await page.evaluate(() => {
+    const { api, libs } = window.qa;
+    const saved = api.saveAppearancePreset(
+      {
+        ...api.defaultAppearanceModule("chatFull"),
+        customCss:
+          '@namespace sample url("https://example.invalid/"); [data-ui="message-bubble"] {color:red;}',
+      },
+      "chatFull",
+      "QA错误规则",
+    );
+    const current = libs.readChatAppearanceLibrary("qa-account", "chatFull");
+    libs.saveChatAppearanceLibrary("qa-account", "chatFull", [
+      ...current.presets,
+      ...saved.presets,
+    ]);
+    return saved.currentPresetId;
+  });
+  await page.evaluate((id) => window.qa.apply(id), invalidId);
+  await page.getByRole("button", { name: "完整 CSS 安全恢复" }).click();
+  await page
+    .locator("dialog[open]")
+    .getByText(/CSS 未应用：/)
+    .waitFor();
+  assert.equal(await page.locator("#k-chat-full-css").textContent(), "");
+  await page
+    .locator("dialog[open]")
+    .getByRole("button", { name: "停用完整 CSS", exact: true })
+    .click();
+  await page.evaluate((id) => {
+    const { libs } = window.qa;
+    const current = libs.readChatAppearanceLibrary("qa-account", "chatFull");
+    libs.saveChatAppearanceLibrary(
+      "qa-account",
+      "chatFull",
+      current.presets.filter((p) => p.id !== id),
+    );
+  }, invalidId);
+  console.log("Invalid saved CSS shows its actual compile error and remains recoverable.");
+  await page.evaluate((id) => window.qa.apply(id), ids[0]);
+  await page.waitForFunction(
+    (selector) => getComputedStyle(document.querySelector(selector)).borderTopWidth === "3px",
+    user,
+  );
   await page.evaluate(() => window.qa.select("B"));
+  await page.locator('[data-full-chat-root="B"]').first().waitFor({ state: "attached" });
   await page.evaluate((id) => window.qa.apply(id), ids[1]);
   await page.waitForFunction(
     () =>
@@ -329,6 +577,7 @@ try {
       ).borderTopWidth === "4px",
   );
   await page.evaluate(() => window.qa.select("A"));
+  await page.locator('[data-full-chat-root="A"]').first().waitFor({ state: "attached" });
   await page.waitForFunction(
     () =>
       getComputedStyle(

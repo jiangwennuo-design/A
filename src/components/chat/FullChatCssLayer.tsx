@@ -4,7 +4,7 @@ import {
   hydrateChatAppearanceLibraries,
   useChatAppearanceLibrary,
 } from "@/lib/chat-appearance-presets";
-import { safeFullChatCss } from "@/lib/full-chat-css";
+import { scopeFullChatCss } from "@/lib/full-chat-css";
 import { supabase } from "@/integrations/supabase/client";
 import type { CharacterChatPreferences } from "@/lib/character-chat";
 import "@/styles/full-chat-css.css";
@@ -57,11 +57,18 @@ export function FullChatCssLayer({
   }, [userId, hasSelection]);
   useEffect(() => setSuspended(false), [selection.enabled, selection.selectedPresetId]);
   const preset = library.presets.find((preset) => preset.id === selection.selectedPresetId);
-  const css = useMemo(
-    () =>
-      !suspended && selection.enabled && preset ? safeFullChatCss(preset.customCss, scope) : "",
-    [suspended, selection.enabled, preset, scope],
-  );
+  const sourceCss = preset?.customCss ?? "";
+  const hasPreset = Boolean(preset);
+  const compiled = useMemo(() => {
+    if (suspended || !selection.enabled || !selection.selectedPresetId)
+      return { css: "", error: "" };
+    if (!sourceCss) return { css: "", error: hasPreset ? "" : "所选预设尚未读取，请联网后重试。" };
+    try {
+      return { css: scopeFullChatCss(sourceCss, scope), error: "" };
+    } catch (reason) {
+      return { css: "", error: reason instanceof Error ? reason.message : "CSS 解析失败。" };
+    }
+  }, [suspended, selection.enabled, selection.selectedPresetId, sourceCss, scope, hasPreset]);
   const visible = Boolean(selection.enabled && selection.selectedPresetId);
   useEffect(() => {
     const element = recovery.current;
@@ -75,7 +82,9 @@ export function FullChatCssLayer({
   }, [visible]);
   return (
     <>
-      <style data-full-chat-styles>{css}</style>
+      <style id="k-chat-full-css" data-full-chat-styles>
+        {compiled.css}
+      </style>
       {visible &&
         typeof document !== "undefined" &&
         createPortal(
@@ -101,6 +110,7 @@ export function FullChatCssLayer({
             >
               <h2>完整聊天 CSS</h2>
               <p>此入口不受用户 CSS 控制。</p>
+              {compiled.error && <p role="alert">CSS 未应用：{compiled.error}</p>}
               {[false, true].map((reset) => (
                 <button
                   key={String(reset)}

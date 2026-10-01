@@ -57,7 +57,7 @@ try {
   assert.equal(await dialog.count(), 0);
   assert.equal(
     await page.evaluate(() => localStorage.getItem("kdeji:last-read-update")),
-    "2026-10-01-imports",
+    "2026-10-02-chat-css-fix",
   );
   await page.reload();
   await page.waitForLoadState("networkidle");
