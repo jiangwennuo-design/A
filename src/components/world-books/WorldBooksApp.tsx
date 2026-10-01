@@ -17,11 +17,11 @@ import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
 import {
   parseWorldBook,
-  WORLD_BOOK_FILE_LIMIT,
   type WorldBook,
   type WorldBookSummary,
   type WorldEntry,
 } from "@/lib/world-books";
+import { importWorldBookFile, worldBookFileAccept } from "@/lib/world-book-file";
 import {
   deleteWorldBook,
   getWorldBook,
@@ -169,7 +169,7 @@ export function WorldBooksApp() {
           <button
             key="import-book"
             type="button"
-            aria-label="导入 JSON"
+            aria-label="导入 JSON / DOCX"
             disabled={busy}
             onClick={() => file.current?.click()}
           >
@@ -180,15 +180,14 @@ export function WorldBooksApp() {
       <input
         ref={file}
         type="file"
-        accept=".json,application/json"
+        accept={worldBookFileAccept}
         hidden
         onChange={(e) => {
           const selected = e.currentTarget.files?.[0];
           e.currentTarget.value = "";
           if (!selected) return;
           void action(async () => {
-            if (selected.size > WORLD_BOOK_FILE_LIMIT) throw new Error("文件不能超过 10 MB。");
-            const draft = parseWorldBook(await selected.text(), selected.name);
+            const draft = await importWorldBookFile(selected);
             if (alive.current) {
               setName(draft.name);
               setDialog({ kind: "import", draft });
@@ -301,7 +300,7 @@ export function WorldBooksApp() {
                 <BookOpen size={38} />
                 <p>{query ? "没有匹配的世界书" : "还没有世界书"}</p>
                 <button type="button" disabled={busy} onClick={() => file.current?.click()}>
-                  导入 JSON
+                  导入 JSON / DOCX
                 </button>
               </div>
             )}

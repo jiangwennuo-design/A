@@ -1,0 +1,106 @@
+.release-notice .system-overlay {
+  position: fixed;
+  z-index: 2147483000;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  background: rgb(21 31 48 / 35%);
+  overscroll-behavior: contain;
+}
+.release-notice .system-modal {
+  width: min(100%, 380px);
+  max-height: calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border: 1px solid rgb(255 255 255 / 60%);
+  border-radius: 24px;
+  background: #fff;
+  padding: 26px 24px 22px;
+  color: #202733;
+  box-shadow: 0 16px 56px rgb(15 24 38 / 15%);
+}
+.release-notice .system-modal__header {
+  margin-bottom: 20px;
+}
+.release-notice .system-modal__header h2 {
+  color: #202733;
+  font-size: 23px;
+  letter-spacing: -0.5px;
+}
+.release-notice .system-modal__header p {
+  margin-top: 8px;
+  color: #9299a4;
+  font-size: 12px;
+}
+.release-notice .system-modal__header > button {
+  display: none;
+}
+.release-notice__body {
+  outline: none;
+}
+.release-notice__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: #eef5ff;
+  color: #4a8fdf;
+  font-size: 12px;
+}
+.release-notice__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 22px;
+}
+.release-notice__item > svg {
+  color: #6da3df;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.release-notice__item h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 7px;
+}
+.release-notice__item p {
+  margin: 0;
+  font-size: 13px;
+  color: #747d8a;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.release-notice__note {
+  margin: 22px 0;
+  padding-top: 16px;
+  border-top: 1px solid #eef0f3;
+  color: #9aa0a9;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.release-notice__confirm {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-radius: 13px;
+  background: #4a9eff;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.release-notice__confirm:disabled {
+  background: #eaf1fa;
+  color: #94a9c3;
+  cursor: default;
+}
+.release-notice__confirm:focus-visible {
+  outline: 2px solid #1c74d6;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .release-notice *,
+  .release-notice *::before,
+  .release-notice *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

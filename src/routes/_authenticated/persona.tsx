@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorBanner, LoadingSpinner } from "@/components/ui-kit";
 import { closeSystemApp, pushSystemPage } from "@/lib/app-transition";
@@ -19,6 +19,7 @@ import { readCharacterChatPreferences } from "@/lib/character-chat";
 import "@/styles/rosters.css";
 import type { AiPersona } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
+import { characterCardAccept, importCharacterCard } from "@/lib/character-card";
 
 export const Route = createFileRoute("/_authenticated/persona")({ component: PersonaPage });
 const blank: PersonaDraft = {
@@ -56,6 +57,8 @@ function PersonaPage() {
   const [section, setSection] = useState<ContactSection>("basic");
   const [preferences, setPreferences] = useState(() => readCharacterChatPreferences({}));
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const cardFile = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -234,14 +237,46 @@ function PersonaPage() {
       </header>
       {error && <ErrorBanner message={error} />}
       {view === "list" && (
-        <ContactList
-          contacts={items}
-          avatars={avatars}
-          query={query}
-          onQueryChange={setQuery}
-          onSelect={select}
-          onCreate={create}
-        />
+        <>
+          <input
+            ref={cardFile}
+            type="file"
+            accept={characterCardAccept}
+            hidden
+            onChange={(event) => {
+              const selected = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (!selected || importing) return;
+              setImporting(true);
+              setError("");
+              void importCharacterCard(selected)
+                .then((fields) => {
+                  create();
+                  setForm({ ...blank, ...fields });
+                })
+                .catch((reason) =>
+                  setError(reason instanceof Error ? reason.message : "角色卡导入失败。"),
+                )
+                .finally(() => setImporting(false));
+            }}
+          />
+          <button
+            type="button"
+            className="contact-import"
+            disabled={importing}
+            onClick={() => cardFile.current?.click()}
+          >
+            <Upload size={15} /> {importing ? "正在读取…" : "导入 JSON / PNG 角色卡"}
+          </button>
+          <ContactList
+            contacts={items}
+            avatars={avatars}
+            query={query}
+            onQueryChange={setQuery}
+            onSelect={select}
+            onCreate={create}
+          />
+        </>
       )}
       {(view === "profile" || view === "details") && active && (
         <ContactProfile
