@@ -14,6 +14,7 @@ import {
   recentChatContext,
 } from "./character-chat";
 import { buildPromptContext } from "./world-books";
+import { chatTimeZoneContext, PHONE_CHAT_CONTEXT } from "./chat-timezone";
 import { createTransfer, readTransfer, transferAmount, transferStatusLabel } from "./chat-transfer";
 import {
   applyCharacterTransfers,
@@ -265,10 +266,10 @@ async function generatePrivateReply(args: {
   const stickerInstruction = catalog.length
     ? `你可以在确实自然时把一条消息写成 {"type":"sticker","stickerId":"目录中的 id"}。只根据语境选择，不要解释选择过程，也不要频繁使用。可用表情目录（仅语义，不含图片）：${JSON.stringify(catalog.map(({ id, name, tags }) => ({ id, name, tags })))}`
     : "";
+  const preferences = readCharacterChatPreferences(args.character.chat_preferences);
   const contextPrompt = `${profilePrompt(args.profile, args.character, "chat")}${timeContext(args.profile, args.history)}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
   const replyPrompt = `\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。${stickerInstruction}`;
   const { generate } = await import("./ai/service.server");
-  const preferences = readCharacterChatPreferences(args.character.chat_preferences);
   const memories = preferences.longTermMemory
     ? await (
         await import("./character-memory.server")
@@ -287,7 +288,11 @@ async function generatePrivateReply(args: {
   const { loadBoundWorldBooks } = await import("./world-books.server");
   const books = await loadBoundWorldBooks(args.db, args.userId, preferences.worldBookIds);
   const sharedContext =
-    contextPrompt + buildPromptContext(books) + memoryContext(preferences.longTermMemory, memories);
+    contextPrompt +
+    buildPromptContext(books) +
+    memoryContext(preferences.longTermMemory, memories) +
+    PHONE_CHAT_CONTEXT +
+    chatTimeZoneContext(preferences.longDistance);
   let thinking = "";
   if (innerLifePrompt) {
     const preparation = await generate({

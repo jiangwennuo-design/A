@@ -255,7 +255,25 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
   assert.match(calls.at(-1).systemPrompt, /用户喜欢红茶/);
   assert.doesNotMatch(calls.at(-1).systemPrompt, /B独有记忆/);
   assert.equal(calls.at(-1).charId, a);
+  assert.match(calls.at(-1).systemPrompt, /当前交互媒介是手机聊天/);
+  assert.doesNotMatch(calls.at(-1).systemPrompt, /User local time:|REAL TIME CONTEXT/);
+  records.ai_personas[0].chat_preferences.longDistance = {
+    enabled: true,
+    userTimeZone: "Asia/Shanghai",
+    charTimeZone: "America/Los_Angeles",
+  };
+  // Settings reload through the actual owned character DB read, not browser state.
+  records.ai_personas[0].chat_preferences = JSON.parse(
+    JSON.stringify(records.ai_personas[0].chat_preferences),
+  );
+  await reply(a, sa);
+  assert.match(calls.at(-1).systemPrompt, /User local time:.*Asia\/Shanghai/);
+  assert.match(calls.at(-1).systemPrompt, /Char local time:.*America\/Los_Angeles/);
+  assert.match(calls.at(-1).systemPrompt, /Time difference: Char minus User/);
+  assert.doesNotMatch(calls.at(-1).systemPrompt, /REAL TIME CONTEXT/);
   await reply(b, sb);
+  assert.doesNotMatch(calls.at(-1).systemPrompt, /User local time:|America\/Los_Angeles/);
+  assert.match(calls.at(-1).systemPrompt, /PHONE CHAT SCENE/);
   assert.doesNotMatch(calls.at(-1).systemPrompt, /LONG TERM MEMORY|用户喜欢红茶|B独有记忆/);
   output = JSON.stringify({ memories: ["用户喜欢红茶", "用户养猫"] });
   const summary = await invoke("summarizeCharacterMemory", { char_id: a });
@@ -353,6 +371,9 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
     assert.equal(calls.length, mode === "off" ? 1 : 2);
     const final = calls.at(-1);
     for (const call of calls) {
+      assert.match(call.systemPrompt, /PHONE CHAT SCENE/);
+      assert.match(call.systemPrompt, /User local time:.*Asia\/Shanghai/);
+      assert.match(call.systemPrompt, /Char local time:.*America\/Los_Angeles/);
       assert.match(call.systemPrompt, /当前角色常驻规则已编辑/);
       assert.doesNotMatch(call.systemPrompt, /禁止注入的关闭规则/);
     }

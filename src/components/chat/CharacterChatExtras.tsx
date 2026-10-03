@@ -5,6 +5,7 @@ import { AppearancePresetManager } from "@/components/appearance/AppearancePrese
 import { SystemSheet } from "@/components/system-ui";
 import { MessageAvatar } from "@/components/ChatMessages";
 import { CharacterWorldBooks } from "./CharacterWorldBooks";
+import { CharacterTimeZones } from "./CharacterTimeZones";
 import { FullChatCssEditor } from "./FullChatCssEditor";
 import { bubbleStyles, safeBubbleDeclarations } from "@/lib/bubble-css";
 import type { CharacterChatPreferences, CharacterMemory } from "@/lib/character-chat";
@@ -844,6 +845,10 @@ export function CharacterChatExtras({
         </div>
       </details>
       <CharacterWorldBooks value={value} onChange={onChange} />
+      <CharacterTimeZones
+        value={value.longDistance}
+        onChange={(longDistance) => update({ longDistance })}
+      />
       {(error || wallpaperState.error) && (
         <p className="character-extras__error" role="alert">
           {error || wallpaperState.error}

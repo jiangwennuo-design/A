@@ -8,6 +8,7 @@ import * as jsx from "react/jsx-runtime";
 import * as zod from "zod";
 import * as appearance from "../src/lib/appearance.ts";
 import * as preferences from "../src/lib/character-chat.ts";
+import * as chatTimezone from "../src/lib/chat-timezone.ts";
 import * as quote from "../src/lib/chat-quote.ts";
 import * as multimodal from "../src/lib/ai/multimodal.ts";
 import * as message from "../src/lib/chat-message.ts";
@@ -173,6 +174,7 @@ test("actual multimodal HTTP payload keeps new/refreshed images and text in orde
       "./ai/multimodal": multimodal,
       "./chat-quote": quote,
       "./character-chat": preferences,
+      "./chat-timezone": chatTimezone,
       "./world-books": {},
       "./chat-transfer": {},
       "./chat-transfer.server": {},

@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Globe,
   House,
   Pencil,
   Plus,
@@ -1343,6 +1344,21 @@ function ConversationPage({
               <UserRound size={20} />
               <span>编辑当前角色与头像</span>
               <ChevronRight size={17} className="chat-settings-row__chevron" />
+            </button>
+            <button
+              type="button"
+              className="chat-settings-row"
+              onClick={() => {
+                setChatSettingsOpen(false);
+                setCharacterEditOpen(true);
+              }}
+            >
+              <Globe size={20} />
+              <span>异地恋 / 时区</span>
+              <span className="chat-settings-row__status">
+                {chatPreferences.longDistance.enabled ? "开启" : "关闭"}
+                <ChevronRight size={17} />
+              </span>
             </button>
             <label className="chat-settings-row">
               <BookOpen size={20} />

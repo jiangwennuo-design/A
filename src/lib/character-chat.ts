@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidTimeZone } from "./chat-timezone";
 import {
   defaultAppearanceModule,
   chatBubbleConfigSchema,
@@ -41,6 +42,13 @@ const chatBubbleAppearanceSchema = appearanceModuleStorageSchema(
 );
 
 export const characterChatSchema = z.object({
+  longDistance: z
+    .object({
+      enabled: z.boolean().default(false),
+      userTimeZone: z.string().refine(isValidTimeZone, "请选择有效的 User 时区。").default("UTC"),
+      charTimeZone: z.string().refine(isValidTimeZone, "请选择有效的 Char 时区。").default("UTC"),
+    })
+    .default({ enabled: false, userTimeZone: "UTC", charTimeZone: "UTC" }),
   // Only the selection belongs to the character; CSS bodies live in the account library.
   fullChatCss: z
     .object({
@@ -80,11 +88,20 @@ export const characterChatSchema = z.object({
 });
 export type CharacterChatPreferences = z.infer<typeof characterChatSchema>;
 export type AvatarDisplayMode = CharacterChatPreferences["avatarDisplayMode"];
-const characterChatBaseSchema = characterChatSchema.omit({ appearance: true, fullChatCss: true });
+const characterChatBaseSchema = characterChatSchema.omit({
+  appearance: true,
+  fullChatCss: true,
+  longDistance: true,
+});
 export function readCharacterChatPreferences(value: unknown): CharacterChatPreferences {
   // An invalid/newer theme must never reset independent wallpaper and chat settings.
   const result = characterChatBaseSchema.safeParse(value ?? {});
   const data = result.success ? result.data : characterChatBaseSchema.parse({});
+  const distance = characterChatSchema.shape.longDistance.safeParse(
+    value && typeof value === "object"
+      ? (value as { longDistance?: unknown }).longDistance
+      : undefined,
+  );
   const full = characterChatSchema.shape.fullChatCss.safeParse(
     value && typeof value === "object"
       ? (value as { fullChatCss?: unknown }).fullChatCss
@@ -101,6 +118,9 @@ export function readCharacterChatPreferences(value: unknown): CharacterChatPrefe
   if (!bubbles.config.charCss && data.charBubbleCss) bubbles.config.charCss = data.charBubbleCss;
   return {
     ...data,
+    longDistance: distance.success
+      ? distance.data
+      : { enabled: false, userTimeZone: "UTC", charTimeZone: "UTC" },
     fullChatCss: full.success ? full.data : { selectedPresetId: null, enabled: false },
     appearance: { chatChrome: chrome, chatBubble: bubbles },
   } as CharacterChatPreferences;
