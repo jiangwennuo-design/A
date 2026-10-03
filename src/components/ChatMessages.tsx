@@ -8,7 +8,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { EmptyState } from "@/components/ui-kit";
+import { EmptyState, LoadingSpinner } from "@/components/ui-kit";
 import type { ChatMessage } from "@/lib/types";
 import type { AvatarDisplayMode } from "@/lib/character-chat";
 import { MessageContent } from "@/components/chat/MessageContent";
@@ -16,6 +16,7 @@ import { readQuotedMessage } from "@/lib/chat-quote";
 import { MessageQuote } from "@/components/chat/MessageQuote";
 
 interface Props {
+  loading?: boolean;
   selectedMessageIds?: Set<string> | null;
   onToggleMessageSelection?: (id: string) => void;
   avatarDisplayMode?: AvatarDisplayMode;
@@ -43,6 +44,7 @@ export interface MessageAnchor {
 }
 
 export const ChatMessages = memo(function ChatMessages({
+  loading = false,
   selectedMessageIds = null,
   onToggleMessageSelection,
   avatarDisplayMode = "simple",
@@ -190,7 +192,8 @@ export const ChatMessages = memo(function ChatMessages({
           查看更早的消息
         </button>
       )}
-      {messages.length === 0 && !sending && (
+      {loading && <LoadingSpinner />}
+      {messages.length === 0 && !sending && !loading && (
         <EmptyState icon="✉️" title={`和${assistantName}聊聊`} subtitle="慢慢说，我在这里。" />
       )}
       {messages.slice(-visibleCount).map((message, index, shown) => {

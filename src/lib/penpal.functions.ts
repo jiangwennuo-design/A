@@ -14,7 +14,7 @@ import {
   recentChatContext,
 } from "./character-chat";
 import { buildPromptContext } from "./world-books";
-import { chatTimeZoneContext, PHONE_CHAT_CONTEXT } from "./chat-timezone";
+import { chatTimeZoneContext, isValidTimeZone, PHONE_CHAT_CONTEXT } from "./chat-timezone";
 import { createTransfer, readTransfer, transferAmount, transferStatusLabel } from "./chat-transfer";
 import {
   applyCharacterTransfers,
@@ -35,6 +35,7 @@ const replyInput = z.object({
   char_id: uuid,
   diary_context_mode: z.enum(["none", "current", "recent", "all"]),
   context_diary_id: uuid.nullable().optional(),
+  device_timezone: z.string().refine(isValidTimeZone).optional(),
 });
 
 type Db = any;
@@ -242,6 +243,7 @@ async function generatePrivateReply(args: {
   pending: ChatRow[];
   mode: "none" | "current" | "recent" | "all";
   diaryId?: string | null | undefined;
+  deviceTimeZone?: string | undefined;
 }) {
   const min = Math.max(1, Number(args.character.minimum_messages ?? 1));
   const max = Math.max(min, Number(args.character.maximum_messages ?? min));
@@ -292,7 +294,7 @@ async function generatePrivateReply(args: {
     buildPromptContext(books) +
     memoryContext(preferences.longTermMemory, memories) +
     PHONE_CHAT_CONTEXT +
-    chatTimeZoneContext(preferences.longDistance);
+    chatTimeZoneContext(preferences.longDistance, new Date(), args.deviceTimeZone);
   let thinking = "";
   if (innerLifePrompt) {
     const preparation = await generate({
@@ -712,6 +714,7 @@ export const requestPenpalReply = createServerFn({ method: "POST" })
       pending,
       mode: data.diary_context_mode,
       diaryId: data.context_diary_id,
+      deviceTimeZone: data.device_timezone,
     });
     const turnId = newTurnId();
     const { data: inserted, error } = await db
@@ -763,6 +766,7 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
         turn_id: uuid,
         diary_context_mode: z.enum(["none", "current", "recent", "all"]),
         context_diary_id: uuid.nullable().optional(),
+        device_timezone: z.string().refine(isValidTimeZone).optional(),
       })
       .parse(data),
   )
@@ -804,6 +808,7 @@ export const rerollPenpalTurn = createServerFn({ method: "POST" })
       pending: userMessages,
       mode: data.diary_context_mode,
       diaryId: data.context_diary_id,
+      deviceTimeZone: data.device_timezone,
     });
     const { data: replaced, error } = await db.rpc("replace_chat_turn", {
       p_session_id: data.session_id,

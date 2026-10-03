@@ -12,6 +12,7 @@ import {
   PHONE_CHAT_CONTEXT,
 } from "../src/lib/chat-timezone.ts";
 import { characterChatSchema, readCharacterChatPreferences } from "../src/lib/character-chat.ts";
+import { searchTimeZones, timeZoneLabel } from "../src/lib/timezone-options.ts";
 
 test("actual chat character editor saves timezone to owned DB row and restores it on remount", async () => {
   const records = [
@@ -133,6 +134,9 @@ test("actual chat character editor saves timezone to owned DB row and restores i
         enabled: true,
         userTimeZone: "Asia/Shanghai",
         charTimeZone: "America/Los_Angeles",
+        userDisplayLocation: "怀城",
+        charDisplayLocation: "赛博城",
+        userFollowDevice: true,
       },
     }));
   tree = render();
@@ -141,6 +145,8 @@ test("actual chat character editor saves timezone to owned DB row and restores i
     .props.onSubmit({ preventDefault() {} });
   assert.equal(closed, 1);
   assert.equal(records[0].chat_preferences.longDistance.charTimeZone, "America/Los_Angeles");
+  assert.equal(records[0].chat_preferences.longDistance.charDisplayLocation, "赛博城");
+  assert.equal(records[0].chat_preferences.longDistance.userFollowDevice, true);
   assert.equal(records[0].chat_preferences.contextDepth, 9);
   assert.equal(records[0].chat_preferences.wallpaperPath, "owner/a.webp");
   assert.deepEqual(records[1].chat_preferences, {});
@@ -150,6 +156,67 @@ test("actual chat character editor saves timezone to owned DB row and restores i
     walk(render()).find((n) => n.type === Extras).props.value.longDistance.enabled,
     true,
   );
+  assert.equal(
+    walk(render()).find((n) => n.type === Extras).props.value.longDistance.userDisplayLocation,
+    "怀城",
+  );
+});
+
+test("local timezone search accepts Chinese, English and IANA; multi-zone countries keep distinct cities", () => {
+  for (const [query, expected] of [
+    ["中国", "Asia/Shanghai"],
+    ["上海", "Asia/Shanghai"],
+    ["北京", "Asia/Shanghai"],
+    ["日本", "Asia/Tokyo"],
+    ["东京", "Asia/Tokyo"],
+    ["美国", "America/New_York"],
+    ["纽约", "America/New_York"],
+    ["洛杉矶", "America/Los_Angeles"],
+    ["澳大利亚", "Australia/Brisbane"],
+    ["布里斯班", "Australia/Brisbane"],
+    ["新加坡", "Asia/Singapore"],
+    ["London", "Europe/London"],
+    ["New York", "America/New_York"],
+    ["Australia/Brisbane", "Australia/Brisbane"],
+  ])
+    assert.ok(
+      searchTimeZones(query).some((item) => item.timezone === expected),
+      query,
+    );
+  assert.ok(searchTimeZones("美国").length > 4);
+  assert.ok(searchTimeZones("澳大利亚").some((item) => item.timezone === "Australia/Perth"));
+  assert.equal(timeZoneLabel("Asia/Shanghai"), "中国 · 上海");
+  assert.equal(timeZoneLabel("Asia/Tokyo"), "日本 · 东京");
+  assert.equal(searchTimeZones("不存在的虚构时区").length, 0);
+  assert.equal(searchTimeZones("US/Eastern")[0].timezone, "US/Eastern");
+});
+
+test("fictional location labels never change time calculation; following device resolves each request", () => {
+  const saved = readCharacterChatPreferences({
+    longDistance: {
+      enabled: true,
+      userTimeZone: "Asia/Shanghai",
+      charTimeZone: "Asia/Tokyo",
+      userDisplayLocation: "怀城",
+      charDisplayLocation: "赛博城",
+      userFollowDevice: true,
+    },
+  }).longDistance;
+  const now = new Date("2026-10-04T14:00:00Z");
+  assert.match(chatTimeZoneContext(saved, now), /User local time: 2026-10-04 22:00:00/);
+  const context = chatTimeZoneContext(saved, now, "Europe/London");
+  assert.match(context, /User local time: 2026-10-04 15:00:00.*Europe\/London/);
+  assert.match(context, /Char local time: 2026-10-04 23:00:00.*Asia\/Tokyo/);
+  assert.match(context, /User location label: "怀城"/);
+  assert.match(context, /Char location label: "赛博城"/);
+  assert.match(chatTimeZoneContext(saved, now, "bad zone"), /User local time: 2026-10-04 22:00:00/);
+  assert.equal(
+    readCharacterChatPreferences({
+      longDistance: { enabled: true, userTimeZone: "Asia/Shanghai", charTimeZone: "Asia/Tokyo" },
+    }).longDistance.userDisplayLocation,
+    "",
+  );
+  assert.equal(saved.userTimeZone, "Asia/Shanghai");
 });
 
 test("timezone feature defaults off; per-character roundtrip preserves every existing preference", () => {

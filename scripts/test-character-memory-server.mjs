@@ -271,6 +271,22 @@ test("real handlers: memory CRUD, owner/character isolation, summary, 20-row mod
   assert.match(calls.at(-1).systemPrompt, /Char local time:.*America\/Los_Angeles/);
   assert.match(calls.at(-1).systemPrompt, /Time difference: Char minus User/);
   assert.doesNotMatch(calls.at(-1).systemPrompt, /REAL TIME CONTEXT/);
+  records.ai_personas[0].chat_preferences.longDistance.userFollowDevice = true;
+  records.ai_personas[0].chat_preferences.longDistance.userDisplayLocation = "怀城";
+  records.ai_personas[0].chat_preferences.longDistance.charDisplayLocation = "赛博城";
+  await chat.namespace.requestPenpalReply({
+    data: {
+      char_id: a,
+      session_id: sa,
+      diary_context_mode: "none",
+      device_timezone: "Europe/London",
+    },
+    context: { supabase: db, userId: owner },
+  });
+  assert.match(calls.at(-1).systemPrompt, /User local time:.*Europe\/London/);
+  assert.match(calls.at(-1).systemPrompt, /Char local time:.*America\/Los_Angeles/);
+  assert.match(calls.at(-1).systemPrompt, /User location label: "怀城"/);
+  assert.match(calls.at(-1).systemPrompt, /Char location label: "赛博城"/);
   await reply(b, sb);
   assert.doesNotMatch(calls.at(-1).systemPrompt, /User local time:|America\/Los_Angeles/);
   assert.match(calls.at(-1).systemPrompt, /PHONE CHAT SCENE/);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { execFileSync } from "node:child_process";
 import vm from "node:vm";
 import ts from "typescript";
 import * as jsx from "react/jsx-runtime";
@@ -14,8 +15,8 @@ import * as multimodal from "../src/lib/ai/multimodal.ts";
 import * as message from "../src/lib/chat-message.ts";
 import * as replyResponse from "../src/lib/chat-reply-response.ts";
 
-async function load(file, dependencies, globals = {}, extra = "") {
-  const source = await readFile(new URL(`../src/${file}`, import.meta.url), "utf8");
+async function load(file, dependencies, globals = {}, extra = "", override) {
+  const source = override ?? (await readFile(new URL(`../src/${file}`, import.meta.url), "utf8"));
   const code = ts.transpileModule(source + extra, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -142,6 +143,199 @@ function database(records) {
     },
   };
 }
+
+test("chat shell does not await avatars/history; delayed transport benchmark uses actual route components", async () => {
+  async function measure(page, baseline) {
+    const record = {
+      id: "m",
+      session_id: "s",
+      role: "user",
+      content: "完整历史",
+      created_at: "2026-10-04T00:00:00Z",
+      payload: {},
+    };
+    const records = {
+      ai_personas: [{ id: "a", name: "角色", avatar_url: "stored-avatar" }],
+      chat_sessions: [
+        { id: "s", char_id: "a", diary_context_mode: "none", updated_at: record.created_at },
+      ],
+      chat_messages: Array.from({ length: 250 }, (_, i) => ({ ...record, id: `m${i}` })),
+    };
+    const db = database(records),
+      hook = hooks(),
+      counts = {};
+    const from = db.from.bind(db);
+    db.from = (table) => {
+      const q = from(table);
+      const delayed =
+        (run) =>
+        (...args) => {
+          counts[table] = (counts[table] ?? 0) + 1;
+          return new Promise((resolve) => setTimeout(resolve, 40)).then(() => run(...args));
+        };
+      q.single = delayed(q.single);
+      q.maybeSingle = delayed(q.maybeSingle);
+      const then = q.then;
+      q.then = (ok, fail) => delayed(() => then((x) => x))().then(ok, fail);
+      return q;
+    };
+    const ChatMessages = () => null,
+      ChatComposer = () => null;
+    let effectIndex = 0;
+    const previousDeps = [],
+      pendingEffects = [],
+      cleanups = [];
+    hook.react.useEffect = (fn, deps) => {
+      const index = effectIndex++;
+      if (
+        !previousDeps[index] ||
+        !deps ||
+        deps.some((dep, i) => !Object.is(dep, previousDeps[index][i]))
+      ) {
+        previousDeps[index] = deps;
+        pendingEffects.push(() => {
+          if (typeof cleanups[index] === "function") cleanups[index]();
+          cleanups[index] = fn();
+        });
+      }
+    };
+    const source = await load(
+      "routes/_authenticated/chat.tsx",
+      {
+        react: hook.react,
+        "react/jsx-runtime": jsx,
+        zod,
+        "@tanstack/react-router": {
+          createFileRoute: () => (options) => options,
+          useNavigate: () => component,
+        },
+        "@tanstack/react-start": { useServerFn: (fn) => fn },
+        "lucide-react": new Proxy({}, { get: () => component }),
+        "@/integrations/supabase/client": { supabase: db },
+        "@/context/AuthContext": {
+          useAuth: () => ({ user: { id: "owner" }, profile: { id: "owner" } }),
+        },
+        "@/lib/penpal.functions": {},
+        "@/lib/avatar": {
+          resolveAvatarUrl: async (value) => {
+            if (!value) return "";
+            await new Promise((resolve) => setTimeout(resolve, 120));
+            return "https://example.invalid/avatar.webp";
+          },
+        },
+        "@/components/ui-kit": { EmptyState: component, LoadingSpinner: component },
+        "@/components/ChatNav": { ChatNav: component },
+        "@/components/ChatMessages": { ChatMessages },
+        "@/components/chat/ChatComposer": { ChatComposer },
+        ...Object.fromEntries(
+          [
+            "AttachmentSheet",
+            "TransferSheet",
+            "TransferDetailSheet",
+            "StickerPicker",
+            "ImageViewer",
+            "VoiceCallScreen",
+            "ChatCharacterEditor",
+            "ChatRemarkSheet",
+            "FullChatCssLayer",
+          ].map((name) => [`@/components/chat/${name}`, { [name]: component }]),
+        ),
+        "@/components/system-ui": { SystemSheet: component },
+        "@/hooks/useKeyboardViewport": { useKeyboardViewport() {} },
+        "@/lib/chat-read-state": { lastReadAt: () => 0, markChatRead() {} },
+        "@/lib/app-transition": {},
+        "@/lib/chat-message": message,
+        "@/lib/chat-quote": quote,
+        "@/lib/chat-reply-response": replyResponse,
+        "@/lib/chat-media": {},
+        "@/lib/character-chat": preferences,
+        "@/lib/chat-timezone": chatTimezone,
+        "@/lib/bubble-css": { bubbleStyles: () => "" },
+        "@/lib/chat-wallpaper-state": { useCharacterWallpaper: () => ({ displayUrl: "" }) },
+        "@/lib/appearance": appearance,
+      },
+      {
+        localStorage: { setItem() {} },
+        document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} },
+        window: { innerWidth: 390, innerHeight: 844 },
+      },
+      "\nexport { ConversationPage, ChatFriendList };",
+      baseline,
+    );
+    const render = () => {
+      effectIndex = 0;
+      const tree = hook.render(() => source[page]({ charId: "a" }));
+      pendingEffects.splice(0).forEach((fn) => fn());
+      return tree;
+    };
+    const start = performance.now();
+    render();
+    let shell,
+      avatar,
+      loaded,
+      waitingProtected = false;
+    while (performance.now() - start < 1500) {
+      const tree = render(),
+        all = nodes(tree),
+        elapsed = performance.now() - start;
+      const shown =
+        page === "ChatFriendList"
+          ? all.some((n) => n.props.className === "chat-friends")
+          : all.some((n) => n.type === ChatMessages);
+      if (shown && shell === undefined) shell = Math.round(elapsed);
+      const image =
+        page === "ChatFriendList"
+          ? all.find((n) => n.type?.name === "FriendAvatar" && n.props.url)
+          : all.find((n) => n.type === "img" && n.props.src);
+      if (image && avatar === undefined) avatar = Math.round(elapsed);
+      const history = all.find((n) => n.type === ChatMessages)?.props;
+      if (history?.loading) {
+        assert.equal(all.find((n) => n.type === ChatComposer).props.disabled, true);
+        assert.equal(history.messages.length, 0);
+        waitingProtected = true;
+      }
+      if (history?.messages.length === 250 && loaded === undefined) loaded = Math.round(elapsed);
+      if (
+        shell !== undefined &&
+        avatar !== undefined &&
+        (page === "ChatFriendList" || loaded !== undefined)
+      )
+        break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    cleanups.forEach((fn) => typeof fn === "function" && fn());
+    assert.equal(counts.ai_personas, 1);
+    assert.equal(counts.chat_sessions, 1);
+    assert.equal(counts.chat_messages, 1);
+    assert.ok(shell !== undefined && avatar !== undefined);
+    if (!baseline && page === "ConversationPage")
+      assert.ok(waitingProtected, "history must remain protected before sending");
+    return { shell, avatar, history: loaded };
+  }
+  const baseline = process.env.KDEJI_LOADING_BASELINE
+    ? execFileSync(
+        "git",
+        ["show", `${process.env.KDEJI_LOADING_BASELINE}:src/routes/_authenticated/chat.tsx`],
+        { encoding: "utf8" },
+      )
+    : undefined;
+  const before = baseline
+    ? {
+        inbox: await measure("ChatFriendList", baseline),
+        chat: await measure("ConversationPage", baseline),
+      }
+    : undefined;
+  const after = { inbox: await measure("ChatFriendList"), chat: await measure("ConversationPage") };
+  if (before) {
+    assert.ok(after.inbox.shell < before.inbox.shell);
+    assert.ok(after.inbox.avatar < before.inbox.avatar);
+    assert.ok(after.chat.shell < before.chat.shell);
+  }
+  console.log(
+    "Controlled benchmark (40ms/query; 120ms/avatar signing; not iPhone network):",
+    JSON.stringify({ before, after }),
+  );
+});
 
 test("actual multimodal HTTP payload keeps new/refreshed images and text in order, including 4 MB uploads", async () => {
   const captured = [];
@@ -546,6 +740,7 @@ test("long-press deletion enters multi-select; cancel, one/multiple delete and q
       "@/lib/chat-reply-response": replyResponse,
       "@/lib/chat-media": {},
       "@/lib/character-chat": preferences,
+      "@/lib/chat-timezone": chatTimezone,
       "@/lib/bubble-css": { bubbleStyles: () => "" },
       "@/lib/chat-wallpaper-state": { useCharacterWallpaper: () => ({ displayUrl: "" }) },
       "@/lib/appearance": appearance,

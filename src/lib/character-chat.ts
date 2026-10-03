@@ -47,6 +47,10 @@ export const characterChatSchema = z.object({
       enabled: z.boolean().default(false),
       userTimeZone: z.string().refine(isValidTimeZone, "请选择有效的 User 时区。").default("UTC"),
       charTimeZone: z.string().refine(isValidTimeZone, "请选择有效的 Char 时区。").default("UTC"),
+      userDisplayLocation: z.string().trim().max(80).default(""),
+      charDisplayLocation: z.string().trim().max(80).default(""),
+      userFollowDevice: z.boolean().default(false),
+      charFollowDevice: z.boolean().default(false),
     })
     .default({ enabled: false, userTimeZone: "UTC", charTimeZone: "UTC" }),
   // Only the selection belongs to the character; CSS bodies live in the account library.

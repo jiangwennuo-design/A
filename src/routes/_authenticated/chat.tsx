@@ -67,6 +67,7 @@ import {
 } from "@/lib/character-chat";
 import { bubbleStyles } from "@/lib/bubble-css";
 import { useCharacterWallpaper } from "@/lib/chat-wallpaper-state";
+import { deviceTimeZone } from "@/lib/chat-timezone";
 import {
   chatChromeElementCss,
   chatChromeVariables,
@@ -118,6 +119,15 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
       ]);
       if (!active) return;
       const nextPersonas = (personaRows ?? []) as AiPersona[];
+      setPersonas(nextPersonas);
+      // Avatar signing is independent of inbox data; one slow image must not block the list.
+      for (const persona of nextPersonas) {
+        void resolveAvatarUrl(persona.avatar_url)
+          .then((url) => {
+            if (active) setAvatars((previous) => ({ ...previous, [persona.id]: url }));
+          })
+          .catch(() => {});
+      }
       const personaById = new Map(nextPersonas.map((persona) => [persona.id, persona]));
       const latestByPersona = new Map<string, ChatSession>();
       for (const session of (sessionRows ?? []) as ChatSession[]) {
@@ -130,6 +140,14 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
         }
       }
       const sessions = [...latestByPersona.values()];
+      setFriends(
+        sessions.map((session) => ({
+          session,
+          persona: personaById.get(session.char_id!)!,
+          lastMessage: undefined,
+        })),
+      );
+      setLoading(false);
       let messageRows: ChatMessage[] = [];
       if (sessions.length) {
         const { data } = await db
@@ -156,15 +174,6 @@ function ChatFriendList({ initialDiaryId }: { initialDiaryId: string | undefined
           lastMessage: lastBySession.get(session.id),
         })),
       );
-      const resolved = await Promise.all(
-        nextPersonas.map(async (persona) => [
-          persona.id,
-          await resolveAvatarUrl(persona.avatar_url),
-        ]),
-      );
-      if (!active) return;
-      setAvatars(Object.fromEntries(resolved));
-      setLoading(false);
     })().catch((reason) => {
       if (!active) return;
       setError(reason instanceof Error ? reason.message : "聊天列表加载失败。");
@@ -371,12 +380,16 @@ function ConversationPage({
     () => readCharacterChatPreferences(current?.chat_preferences),
     [current?.chat_preferences],
   );
-  const userIdentity = characterUserIdentity(current?.chat_preferences, profile);
+  const userIdentity = useMemo(
+    () => characterUserIdentity(current?.chat_preferences, profile),
+    [current?.chat_preferences, profile],
+  );
   const [sessionId, setSessionId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [quotedReply, setQuotedReply] = useState<ChatQuoteMetadata | null>(null);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [savingMessage, setSavingMessage] = useState(false);
   const messageWriteBusy = useRef(false);
   const [sending, setSending] = useState(false);
@@ -456,29 +469,43 @@ function ConversationPage({
     let active = true;
     void (async () => {
       setLoading(true);
+      setHistoryLoading(true);
+      setCurrent(null);
+      setSessionId("");
+      setMessages([]);
       setError("");
       setQuotedReply(null);
       setSelectedMessageIds(null);
-      const { data: persona } = await db
-        .from("ai_personas")
-        .select("*")
-        .eq("id", charId)
-        .maybeSingle();
+      const [{ data: persona, error: personaError }, { data: existing, error: sessionError }] =
+        await Promise.all([
+          db
+            .from("ai_personas")
+            .select("*")
+            .eq("id", charId)
+            .maybeSingle()
+            .then((result: { data: AiPersona | null; error: unknown }) => {
+              if (active && result.data && !result.error) {
+                setCurrent(result.data);
+                setLoading(false);
+              }
+              return result;
+            }),
+          db
+            .from("chat_sessions")
+            .select("*")
+            .eq("char_id", charId)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
       if (!active) return;
+      if (personaError || sessionError) throw new Error("聊天资料加载失败，请稍后重试。");
       if (!persona) {
         setCurrent(null);
         setLoading(false);
         return;
       }
-      setCurrent(persona as AiPersona);
       localStorage.setItem("current-char-id", charId);
-      const { data: existing } = await db
-        .from("chat_sessions")
-        .select("*")
-        .eq("char_id", charId)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
       let currentSession = existing;
       if (!currentSession) {
         const { data } = await db
@@ -500,15 +527,18 @@ function ConversationPage({
       }
       setSessionId(currentSession.id);
       setMode(currentSession.diary_context_mode);
-      const { data: rows } = await db
+      // Show the conversation shell immediately; retain the complete existing history query.
+      setLoading(false);
+      const { data: rows, error: historyError } = await db
         .from("chat_messages")
         .select("*")
         .eq("session_id", currentSession.id)
         .order("created_at", { ascending: true })
         .order("message_order", { ascending: true });
       if (!active) return;
+      if (historyError) throw new Error("聊天记录加载失败，请重新进入聊天。");
       setMessages((rows ?? []).map(normalizeChatMessage) as ChatMessage[]);
-      setLoading(false);
+      setHistoryLoading(false);
     })().catch((reason) => {
       if (!active) return;
       setError(reason instanceof Error ? reason.message : "聊天加载失败。");
@@ -521,9 +551,13 @@ function ConversationPage({
 
   useEffect(() => {
     let active = true;
-    void resolveAvatarUrl(current?.avatar_url).then((url) => {
-      if (active) setAssistantAvatar(url);
-    });
+    void resolveAvatarUrl(current?.avatar_url)
+      .then((url) => {
+        if (active) setAssistantAvatar(url);
+      })
+      .catch(() => {
+        if (active) setAssistantAvatar("");
+      });
     return () => {
       active = false;
     };
@@ -531,9 +565,13 @@ function ConversationPage({
   useEffect(() => {
     let active = true;
     setUserAvatar("");
-    void resolveAvatarUrl(userIdentity.avatar).then((url) => {
-      if (active) setUserAvatar(url);
-    });
+    void resolveAvatarUrl(userIdentity.avatar)
+      .then((url) => {
+        if (active) setUserAvatar(url);
+      })
+      .catch(() => {
+        if (active) setUserAvatar("");
+      });
     return () => {
       active = false;
     };
@@ -556,6 +594,7 @@ function ConversationPage({
   }
 
   async function changeMode(nextMode: DiaryContextMode) {
+    if (historyLoading) return;
     setMode(nextMode);
     if (sessionId)
       await db.from("chat_sessions").update({ diary_context_mode: nextMode }).eq("id", sessionId);
@@ -645,7 +684,7 @@ function ConversationPage({
     payload: ChatMessagePayload,
     retryId?: string,
   ) {
-    if (!sessionId || !charId || messageWriteBusy.current || sending) return;
+    if (historyLoading || !sessionId || !charId || messageWriteBusy.current || sending) return;
     messageWriteBusy.current = true;
     const messagePayload = retryId ? payload : { ...payload, ...quotedReply };
     if (!retryId) setQuotedReply(null);
@@ -706,6 +745,7 @@ function ConversationPage({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (historyLoading) return;
     const text = input.trim();
     if (!text) return;
     setInput("");
@@ -713,7 +753,8 @@ function ConversationPage({
   }
 
   async function sendImage(file: File) {
-    if (!user || !sessionId || !charId || messageWriteBusy.current || sending) return;
+    if (historyLoading || !user || !sessionId || !charId || messageWriteBusy.current || sending)
+      return;
     messageWriteBusy.current = true;
     const imageQuote = quotedReply;
     let prepared: Awaited<ReturnType<typeof prepareChatImage>> | null = null;
@@ -851,6 +892,7 @@ function ConversationPage({
   }
 
   async function triggerReply() {
+    if (historyLoading) return;
     if (!sessionId || !charId || sending || messageWriteBusy.current || !hasPendingMessages) return;
     setSending(true);
     setError("");
@@ -864,6 +906,7 @@ function ConversationPage({
           char_id: charId,
           diary_context_mode: mode,
           context_diary_id: initialDiaryId ?? null,
+          device_timezone: deviceTimeZone(),
         },
       });
       validateChatReplyResult(result);
@@ -894,6 +937,7 @@ function ConversationPage({
           turn_id: turnId,
           diary_context_mode: mode,
           context_diary_id: initialDiaryId ?? null,
+          device_timezone: deviceTimeZone(),
         },
       });
       validateChatReplyResult(result);
@@ -915,6 +959,7 @@ function ConversationPage({
   }
 
   function startCall() {
+    if (historyLoading) return;
     setCallState("calling");
     setCallStartedAt(0);
     setCallMuted(false);
@@ -946,6 +991,7 @@ function ConversationPage({
 
   async function clearChat() {
     if (
+      historyLoading ||
       !sessionId ||
       !charId ||
       sending ||
@@ -1068,6 +1114,7 @@ function ConversationPage({
           </p>
         )}
         <ChatMessages
+          loading={historyLoading}
           selectedMessageIds={selectedMessageIds}
           onToggleMessageSelection={(id) => {
             if (deletingMessages) return;
@@ -1201,12 +1248,14 @@ function ConversationPage({
             quote={quotedReply?.quotedMessage ?? null}
             onCancelQuote={() => setQuotedReply(null)}
             value={input}
-            disabled={savingMessage || sending}
+            disabled={historyLoading || savingMessage || sending}
             canReply={hasPendingMessages}
             replying={sending}
             onChange={setInput}
             onSubmit={submit}
-            onAttachments={() => setAttachmentsOpen(true)}
+            onAttachments={() => {
+              if (!historyLoading) setAttachmentsOpen(true);
+            }}
             onReply={() => void triggerReply()}
           />
         )}
@@ -1376,6 +1425,7 @@ function ConversationPage({
               </span>
               <select
                 aria-label="日记读取权限"
+                disabled={historyLoading}
                 value={mode}
                 onChange={(event) => void changeMode(event.target.value as DiaryContextMode)}
                 className="chat-settings-row__select"

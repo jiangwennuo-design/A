@@ -2,16 +2,36 @@ export interface ChatTimeZoneSettings {
   enabled: boolean;
   userTimeZone: string;
   charTimeZone: string;
+  userDisplayLocation?: string;
+  charDisplayLocation?: string;
+  userFollowDevice?: boolean;
+  charFollowDevice?: boolean;
 }
 
+const validTimeZones = new Map<string, boolean>();
 export function isValidTimeZone(value: string): boolean {
   // Accept named IANA timezones, not raw UTC offsets or arbitrary prompt text.
   if (!/^[A-Za-z0-9_+/-]{1,100}$/.test(value) || /^[+-]/.test(value)) return false;
+  const cached = validTimeZones.get(value);
+  if (cached !== undefined) return cached;
+  let valid = false;
   try {
     new Intl.DateTimeFormat("en", { timeZone: value });
-    return true;
+    valid = true;
   } catch {
-    return false;
+    /* Unsupported IANA name. */
+  }
+  if (validTimeZones.size >= 512) validTimeZones.delete(validTimeZones.keys().next().value!);
+  validTimeZones.set(value, valid);
+  return valid;
+}
+
+export function deviceTimeZone(): string | undefined {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return isValidTimeZone(zone) ? zone : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -54,7 +74,17 @@ function utcOffset(minutes: number) {
   return `UTC${minutes < 0 ? "-" : "+"}${String(Math.floor(absolute / 60)).padStart(2, "0")}:${String(absolute % 60).padStart(2, "0")}`;
 }
 
-export function chatTimeZoneContext(settings: ChatTimeZoneSettings, now = new Date()): string {
+export function chatTimeZoneContext(
+  saved: ChatTimeZoneSettings,
+  now = new Date(),
+  deviceZone?: string,
+): string {
+  const useDevice = deviceZone && isValidTimeZone(deviceZone);
+  const settings = {
+    ...saved,
+    userTimeZone: saved.userFollowDevice && useDevice ? deviceZone! : saved.userTimeZone,
+    charTimeZone: saved.charFollowDevice && useDevice ? deviceZone! : saved.charTimeZone,
+  };
   if (
     !settings.enabled ||
     !isValidTimeZone(settings.userTimeZone) ||
@@ -67,6 +97,7 @@ export function chatTimeZoneContext(settings: ChatTimeZoneSettings, now = new Da
   return `\n\nLONG DISTANCE TIME CONTEXT
 User local time: ${user.time} (${settings.userTimeZone}, ${utcOffset(user.offsetMinutes)})
 Char local time: ${char.time} (${settings.charTimeZone}, ${utcOffset(char.offsetMinutes)})
+${settings.userDisplayLocation ? `User location label: ${JSON.stringify(settings.userDisplayLocation)}\n` : ""}${settings.charDisplayLocation ? `Char location label: ${JSON.stringify(settings.charDisplayLocation)}\n` : ""}地点名称只是用户提供的显示标签，不据此推测或改变参考时区。
 Time difference: Char minus User = ${difference >= 0 ? "+" : ""}${difference} minutes (${difference / 60} hours)
 Local calendar dates differ: ${user.date !== char.date}
 异地恋设置开启：默认双方当前处于不同地点，只有上下文明确已经线下见面才可视为同处一地。以上为同一时刻的两地当地时间，已考虑夏令时；据 Char 当地日期和时间理解白天、夜晚、跨天与可能的作息，不擅自断言正在睡觉。这里的时间优先于通用时间上下文中的当地时间，原有互动间隔仍有效。仅作为本轮理解依据，不把这些字段输出为聊天正文，不每轮刻意强调异地。`;
