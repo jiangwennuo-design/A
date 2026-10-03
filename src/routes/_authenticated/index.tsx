@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Settings,
   SwatchBook,
+  Target,
   Timer,
   UtensilsCrossed,
   type LucideIcon,
@@ -19,6 +20,8 @@ import { SystemModal } from "@/components/system-ui";
 import { openSystemApp } from "@/lib/app-transition";
 import { safeScopedAppearanceCss } from "@/lib/appearance";
 import { useDesktopAppearance } from "@/lib/desktop-appearance";
+import { localDate, useGoals } from "@/lib/goals";
+import { GoalWidget } from "@/components/goals/GoalWidget";
 
 const QUOTE_STORAGE_KEY = "cxyj-daily-quote";
 const DEFAULT_QUOTE = "把想说的话，慢慢写进今天。";
@@ -35,6 +38,8 @@ function PhoneHomePage() {
   const { profile, user } = useAuth();
   const appearance = useDesktopAppearance(user?.id ?? "guest");
   const desktop = appearance.config;
+  const goals = useGoals(user?.id ?? "guest");
+  const desktopGoal = goals.goals.find((goal) => goal.id === goals.desktopGoalId);
   const [now, setNow] = useState(() => new Date());
   const [quote, setQuote] = useState(
     () => localStorage.getItem(QUOTE_STORAGE_KEY) || DEFAULT_QUOTE,
@@ -73,7 +78,7 @@ function PhoneHomePage() {
   return (
     <DesktopWallpaper>
       <main
-        className="phone-home fade-in"
+        className={`phone-home fade-in${desktopGoal ? " phone-home--goal-widget" : ""}`}
         data-ui="desktop"
         style={
           {
@@ -104,6 +109,18 @@ function PhoneHomePage() {
             </p>
           )}
         </section>
+
+        {desktopGoal && (
+          <GoalWidget
+            goal={desktopGoal}
+            today={localDate(now)}
+            onOpen={() => {
+              void openSystemApp("goal", null, () =>
+                navigate({ to: "/goal", search: { id: desktopGoal.id } }),
+              );
+            }}
+          />
+        )}
 
         <section className="phone-app-grid" data-ui="app-grid" aria-label="应用列表">
           <AppIcon
@@ -156,6 +173,13 @@ function PhoneHomePage() {
             icon={SwatchBook}
             tone="appearance"
             onClick={(event) => openApp("appearance", event, () => navigate({ to: "/appearance" }))}
+          />
+          <AppIcon
+            label="规划"
+            subtitle="目标与进度"
+            icon={Target}
+            tone="goal"
+            onClick={(event) => openApp("goal", event, () => navigate({ to: "/goal", search: {} }))}
           />
         </section>
 

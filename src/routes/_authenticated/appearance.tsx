@@ -22,6 +22,7 @@ const apps = [
   ["food", "吃什么"],
   ["world", "世界书"],
   ["appearance", "美化"],
+  ["goal", "规划"],
   ["roster", "名册"],
   ["wallpaper", "壁纸"],
   ["settings", "设置"],
@@ -343,42 +344,44 @@ function DesktopPreview({ value }: { value: AppearanceModule<DesktopAppearanceCo
           gap: config.gridGap,
         }}
       >
-        {apps.slice(0, 4).map(([id, label]) => {
-          const visual = config.apps[id] ?? {};
-          const size = Math.round((visual.size ?? config.iconSize) * 0.56);
-          return (
-            <span
-              data-ui="app"
-              data-app-id={id}
-              key={id}
-              style={{
-                transform: `translate(${(visual.x ?? 0) * 0.35}px, ${(visual.y ?? 0) * 0.35}px) scale(${visual.scale ?? 1}) rotate(${visual.rotate ?? 0}deg)`,
-                opacity: visual.opacity ?? 1,
-              }}
-            >
-              <i
-                data-ui="app-icon"
+        {apps
+          .filter(([id], index) => index < 4 || id === "goal")
+          .map(([id, label]) => {
+            const visual = config.apps[id] ?? {};
+            const size = Math.round((visual.size ?? config.iconSize) * 0.56);
+            return (
+              <span
+                data-ui="app"
+                data-app-id={id}
+                key={id}
                 style={{
-                  width: size,
-                  height: size,
-                  borderRadius: `${Math.round((visual.radius ?? 17) * 0.6)}px`,
-                  backgroundImage: visual.iconUrl
-                    ? `url(${JSON.stringify(visual.iconUrl)})`
-                    : undefined,
-                  backgroundSize: "cover",
+                  transform: `translate(${(visual.x ?? 0) * 0.35}px, ${(visual.y ?? 0) * 0.35}px) scale(${visual.scale ?? 1}) rotate(${visual.rotate ?? 0}deg)`,
+                  opacity: visual.opacity ?? 1,
                 }}
-              />
-              {(visual.labelVisible ?? true) && (
-                <small
-                  data-ui="app-label"
-                  style={{ fontSize: `${Math.max(7, (visual.labelSize ?? 12) * 0.65)}px` }}
-                >
-                  {label}
-                </small>
-              )}
-            </span>
-          );
-        })}
+              >
+                <i
+                  data-ui="app-icon"
+                  style={{
+                    width: size,
+                    height: size,
+                    borderRadius: `${Math.round((visual.radius ?? 17) * 0.6)}px`,
+                    backgroundImage: visual.iconUrl
+                      ? `url(${JSON.stringify(visual.iconUrl)})`
+                      : undefined,
+                    backgroundSize: "cover",
+                  }}
+                />
+                {(visual.labelVisible ?? true) && (
+                  <small
+                    data-ui="app-label"
+                    style={{ fontSize: `${Math.max(7, (visual.labelSize ?? 12) * 0.65)}px` }}
+                  >
+                    {label}
+                  </small>
+                )}
+              </span>
+            );
+          })}
       </div>
       {config.showQuote && <div data-ui="desktop-quote">“把想说的话，慢慢写进今天。”</div>}
       <div

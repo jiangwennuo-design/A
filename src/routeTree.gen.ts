@@ -18,6 +18,7 @@ import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/c
 import { Route as AuthenticatedDiaryRouteImport } from './routes/_authenticated/diary'
 import { Route as AuthenticatedFocusRouteImport } from './routes/_authenticated/focus'
 import { Route as AuthenticatedFoodRouteImport } from './routes/_authenticated/food'
+import { Route as AuthenticatedGoalRouteImport } from './routes/_authenticated/goal'
 import { Route as AuthenticatedListenRouteImport } from './routes/_authenticated/listen'
 import { Route as AuthenticatedMomentsRouteImport } from './routes/_authenticated/moments'
 import { Route as AuthenticatedPersonaRouteImport } from './routes/_authenticated/persona'
@@ -74,6 +75,11 @@ const AuthenticatedFocusRoute = AuthenticatedFocusRouteImport.update({
 const AuthenticatedFoodRoute = AuthenticatedFoodRouteImport.update({
   id: '/food',
   path: '/food',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedGoalRoute = AuthenticatedGoalRouteImport.update({
+  id: '/goal',
+  path: '/goal',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedListenRoute = AuthenticatedListenRouteImport.update({
@@ -154,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/diary': typeof AuthenticatedDiaryRouteWithChildren
   '/focus': typeof AuthenticatedFocusRoute
   '/food': typeof AuthenticatedFoodRoute
+  '/goal': typeof AuthenticatedGoalRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
@@ -175,6 +182,7 @@ export interface FileRoutesByTo {
   '/chat': typeof AuthenticatedChatRoute
   '/focus': typeof AuthenticatedFocusRoute
   '/food': typeof AuthenticatedFoodRoute
+  '/goal': typeof AuthenticatedGoalRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
@@ -200,6 +208,7 @@ export interface FileRoutesById {
   '/_authenticated/diary': typeof AuthenticatedDiaryRouteWithChildren
   '/_authenticated/focus': typeof AuthenticatedFocusRoute
   '/_authenticated/food': typeof AuthenticatedFoodRoute
+  '/_authenticated/goal': typeof AuthenticatedGoalRoute
   '/_authenticated/listen': typeof AuthenticatedListenRoute
   '/_authenticated/moments': typeof AuthenticatedMomentsRoute
   '/_authenticated/persona': typeof AuthenticatedPersonaRoute
@@ -226,6 +235,7 @@ export interface FileRouteTypes {
     | '/diary'
     | '/focus'
     | '/food'
+    | '/goal'
     | '/listen'
     | '/moments'
     | '/persona'
@@ -247,6 +257,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/focus'
     | '/food'
+    | '/goal'
     | '/listen'
     | '/moments'
     | '/persona'
@@ -271,6 +282,7 @@ export interface FileRouteTypes {
     | '/_authenticated/diary'
     | '/_authenticated/focus'
     | '/_authenticated/food'
+    | '/_authenticated/goal'
     | '/_authenticated/listen'
     | '/_authenticated/moments'
     | '/_authenticated/persona'
@@ -355,6 +367,13 @@ declare module '@tanstack/react-router' {
       path: '/food'
       fullPath: '/food'
       preLoaderRoute: typeof AuthenticatedFoodRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/goal': {
+      id: '/_authenticated/goal'
+      path: '/goal'
+      fullPath: '/goal'
+      preLoaderRoute: typeof AuthenticatedGoalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/listen': {
@@ -479,6 +498,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDiaryRoute: typeof AuthenticatedDiaryRouteWithChildren
   AuthenticatedFocusRoute: typeof AuthenticatedFocusRoute
   AuthenticatedFoodRoute: typeof AuthenticatedFoodRoute
+  AuthenticatedGoalRoute: typeof AuthenticatedGoalRoute
   AuthenticatedListenRoute: typeof AuthenticatedListenRoute
   AuthenticatedMomentsRoute: typeof AuthenticatedMomentsRoute
   AuthenticatedPersonaRoute: typeof AuthenticatedPersonaRoute
@@ -496,6 +516,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDiaryRoute: AuthenticatedDiaryRouteWithChildren,
   AuthenticatedFocusRoute: AuthenticatedFocusRoute,
   AuthenticatedFoodRoute: AuthenticatedFoodRoute,
+  AuthenticatedGoalRoute: AuthenticatedGoalRoute,
   AuthenticatedListenRoute: AuthenticatedListenRoute,
   AuthenticatedMomentsRoute: AuthenticatedMomentsRoute,
   AuthenticatedPersonaRoute: AuthenticatedPersonaRoute,
