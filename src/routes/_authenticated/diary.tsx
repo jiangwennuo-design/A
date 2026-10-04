@@ -21,6 +21,7 @@ function DiaryBottomNav() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { diaryProfile, avatarUrl } = useDiaryProfile();
+  if (pathname === "/diary/new" || /^\/diary\/[^/]+\/edit$/.test(pathname)) return null;
   const active =
     pathname.startsWith("/diary/me") || pathname === "/diary/profile-edit"
       ? "me"

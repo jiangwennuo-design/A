@@ -1,9 +1,12 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
+import { CalendarDays, X } from "lucide-react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { Header, LoadingSpinner, ErrorBanner } from "@/components/ui-kit";
+import { LoadingSpinner, ErrorBanner } from "@/components/ui-kit";
 import type { Diary } from "@/lib/types";
 import { popSystemPage } from "@/lib/app-transition";
+import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
+import "@/styles/diary-editor.css";
 
 export function DiaryEditPage({ id }: { id?: string }) {
   const navigate = useNavigate();
@@ -21,6 +24,8 @@ export function DiaryEditPage({ id }: { id?: string }) {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const editorRef = useRef<HTMLDivElement>(null);
+  useKeyboardViewport(editorRef, !loading);
 
   useEffect(() => {
     if (!isEditing || !id) return;
@@ -76,33 +81,35 @@ export function DiaryEditPage({ id }: { id?: string }) {
   }
 
   return (
-    <div className="page-container diary-app diary-editor">
-      <form onSubmit={handleSave} className="fade-in diary-editor__form">
-        <Header
-          className="diary-page-header"
-          title={isEditing ? "编辑日记" : "写日记"}
-          onBack={() => void popSystemPage(() => router.history.back())}
-        />
+    <div ref={editorRef} className="page-container diary-app diary-editor">
+      <form
+        onSubmit={handleSave}
+        className="diary-editor__form"
+        aria-label={isEditing ? "编辑日记" : "写日记"}
+      >
+        <header className="diary-editor__header">
+          <button
+            type="button"
+            className="diary-editor__close"
+            aria-label="关闭"
+            onClick={() => void popSystemPage(() => router.history.back())}
+          >
+            <X size={25} strokeWidth={1.6} />
+          </button>
+          <button type="submit" disabled={saving} className="diary-editor__publish">
+            {saving ? "发布中…" : "发布"}
+          </button>
+        </header>
 
         {error && <ErrorBanner message={error} />}
 
         <div className="diary-editor__paper">
-          <div className="diary-editor__date">
-            <label>日期</label>
-            <input
-              type="date"
-              value={diaryDate}
-              onChange={(e) => setDiaryDate(e.target.value)}
-              className="diary-editor__date-input"
-              required
-            />
-          </div>
-
           <div>
             <label className="sr-only">标题</label>
             <input
               type="text"
-              placeholder="给这篇日记起个标题..."
+              placeholder="标题（可选）"
+              aria-label="标题（可选）"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="diary-editor__title"
@@ -112,18 +119,30 @@ export function DiaryEditPage({ id }: { id?: string }) {
           <div className="diary-editor__body">
             <label className="sr-only">正文</label>
             <textarea
-              placeholder="今天发生了什么？想记录些什么..."
+              placeholder="写点什么吧"
+              aria-label="日记正文"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               className="diary-editor__content"
-              rows={16}
+              rows={1}
             />
           </div>
         </div>
 
         <div className="diary-editor__actions">
-          <button type="submit" disabled={saving} className="btn-primary w-full">
-            {saving ? <LoadingSpinner /> : "保存"}
+          <label className="diary-editor__date-tool" title="修改日记日期">
+            <CalendarDays size={22} strokeWidth={1.6} />
+            <span>{diaryDate}</span>
+            <input
+              type="date"
+              aria-label="日记日期"
+              value={diaryDate}
+              onChange={(e) => setDiaryDate(e.target.value)}
+              required
+            />
+          </label>
+          <button type="submit" disabled={saving} className="diary-editor__publish">
+            {saving ? "发布中…" : "发布"}
           </button>
         </div>
       </form>
