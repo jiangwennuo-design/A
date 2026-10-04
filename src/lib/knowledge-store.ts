@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
 import { knowledgeCardSchema, type KnowledgeCard } from "./knowledge";
 
+export interface KnowledgeProfile {
+  avatar: string;
+  displayName: string;
+  signature: string;
+}
+const defaultProfile: KnowledgeProfile = { avatar: "", displayName: "K", signature: "" };
 export interface KnowledgeState {
   cards: KnowledgeCard[];
   tagOrder: string[];
+  profile: KnowledgeProfile;
 }
-const empty: KnowledgeState = { cards: [], tagOrder: [] };
+const empty: KnowledgeState = { cards: [], tagOrder: [], profile: defaultProfile };
 let database: Promise<IDBDatabase> | undefined;
 const listeners = new Map<string, Set<(state: KnowledgeState) => void>>();
 const queues = new Map<string, Promise<unknown>>();
@@ -43,6 +50,16 @@ function normalize(raw: unknown): KnowledgeState {
     throw new Error("知识库数据无法读取，未覆盖原数据。");
   return {
     cards: raw.cards.map((card) => knowledgeCardSchema.parse(card)),
+    profile: {
+      ...defaultProfile,
+      ...("profile" in raw && raw.profile && typeof raw.profile === "object"
+        ? Object.fromEntries(
+            Object.entries(raw.profile).filter(
+              ([key, value]) => key in defaultProfile && typeof value === "string",
+            ),
+          )
+        : {}),
+    },
     tagOrder:
       "tagOrder" in raw && Array.isArray(raw.tagOrder)
         ? raw.tagOrder.filter((tag): tag is string => typeof tag === "string")
@@ -113,6 +130,12 @@ export function saveKnowledgeCards(userId: string, cards: KnowledgeCard[]) {
       ],
     };
   });
+}
+export function saveKnowledgeProfile(userId: string, patch: Partial<KnowledgeProfile>) {
+  return updateKnowledge(userId, (state) => ({
+    ...state,
+    profile: { ...state.profile, ...patch },
+  }));
 }
 export function useKnowledge(userId: string) {
   const [state, setState] = useState(empty);

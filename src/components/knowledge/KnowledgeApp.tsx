@@ -37,6 +37,7 @@ import { recognizeKnowledgeImage } from "@/lib/knowledge.functions";
 import { KnowledgeEditor } from "./KnowledgeEditor";
 import { KnowledgeSources } from "./KnowledgeSources";
 import { KnowledgeImage } from "./KnowledgeImage";
+import { KnowledgeProfile } from "./KnowledgeProfile";
 import "@/styles/knowledge.css";
 
 export type KnowledgeView =
@@ -56,7 +57,6 @@ function exportKnowledge(cards: KnowledgeCard[], name = "知识库") {
 
 export function KnowledgeApp({
   userId,
-  displayName,
   view,
   selectedId,
   tag,
@@ -65,7 +65,6 @@ export function KnowledgeApp({
   onSource,
 }: {
   userId: string;
-  displayName: string;
   view: KnowledgeView;
   selectedId?: string | undefined;
   tag?: string | undefined;
@@ -460,9 +459,7 @@ export function KnowledgeApp({
               </>
             ) : view === "me" ? (
               <section className="knowledge-my">
-                <UserRound size={42} strokeWidth={1.2} />
-                <h2>{displayName || "我的知识"}</h2>
-                <p>把零散的想法，慢慢连接起来。</p>
+                <KnowledgeProfile userId={userId} profile={library.profile} />
                 <div className="knowledge-stats">
                   <span>
                     <strong>{cards.length}</strong>卡片

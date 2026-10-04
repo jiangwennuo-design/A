@@ -183,3 +183,67 @@ test("desktop pagination supports 3/4/5 columns, widget occupancy, unlimited pag
   }
   assert.deepEqual(paginateDesktop([], 4, 420, 90, 18), [[]]);
 });
+
+test("knowledge profile persists independently per account and preserves old cards/tag order", async () => {
+  const source = await readFile(new URL("../src/lib/knowledge-store.ts", import.meta.url), "utf8");
+  const code = ts.transpileModule(source, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const oldCard = newKnowledgeCard({ title: "原有卡片", tags: ["原标签"] });
+  const records = new Map([["A", { cards: [oldCard], tagOrder: ["原标签"] }]]);
+  function load() {
+    const exports = {};
+    vm.runInNewContext(code, {
+      exports,
+      require: (name) => (name === "./knowledge" ? { knowledgeCardSchema } : {}),
+      indexedDB: {
+        open: () => {
+          const request = {
+            result: {
+              transaction: () => {
+                const transaction = {
+                  objectStore: () => ({
+                    get: (id) => {
+                      const read = { result: structuredClone(records.get(id)) };
+                      queueMicrotask(() => {
+                        read.onsuccess();
+                        queueMicrotask(() => transaction.oncomplete?.());
+                      });
+                      return read;
+                    },
+                    put: (value, id) => records.set(id, structuredClone(value)),
+                  }),
+                  abort: () => {},
+                };
+                return transaction;
+              },
+            },
+          };
+          queueMicrotask(() => request.onsuccess());
+          return request;
+        },
+      },
+    });
+    return exports;
+  }
+  const store = load();
+  assert.equal((await store.readKnowledge("A")).profile.displayName, "K");
+  await Promise.all([
+    store.saveKnowledgeProfile("A", { displayName: "独立昵称", signature: "我的签名\n第二行" }),
+    store.saveKnowledgeProfile("A", { avatar: "A/messages/avatar.webp" }),
+    store.saveKnowledgeProfile("B", { displayName: "另一个账号" }),
+  ]);
+  const refreshed = load();
+  const a = await refreshed.readKnowledge("A");
+  assert.deepEqual(JSON.parse(JSON.stringify(a.profile)), {
+    avatar: "A/messages/avatar.webp",
+    displayName: "独立昵称",
+    signature: "我的签名\n第二行",
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(a.cards)), [oldCard]);
+  assert.deepEqual(Array.from(a.tagOrder), ["原标签"]);
+  assert.equal((await refreshed.readKnowledge("B")).profile.avatar, "");
+  await refreshed.saveKnowledgeProfile("A", { signature: "" });
+  assert.equal((await load().readKnowledge("A")).profile.signature, "");
+  assert.equal((await load().readKnowledge("B")).profile.displayName, "另一个账号");
+});

@@ -17,14 +17,13 @@ export const Route = createFileRoute("/_authenticated/knowledge")({
   component: KnowledgePage,
 });
 function KnowledgePage() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const search = Route.useSearch();
   return (
     <KnowledgeApp
       key={user?.id ?? "guest"}
       userId={user?.id ?? "guest"}
-      displayName={profile?.display_name || "我的知识"}
       view={search.view || "home"}
       selectedId={search.id}
       tag={search.tag}
