@@ -359,6 +359,7 @@ export async function resolveConfigForUser(
 }
 
 export type AiScene =
+  | "knowledge_ocr"
   | "private_chat"
   | "diary_reply"
   | "reroll"

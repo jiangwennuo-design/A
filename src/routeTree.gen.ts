@@ -19,6 +19,7 @@ import { Route as AuthenticatedDiaryRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedFocusRouteImport } from './routes/_authenticated/focus'
 import { Route as AuthenticatedFoodRouteImport } from './routes/_authenticated/food'
 import { Route as AuthenticatedGoalRouteImport } from './routes/_authenticated/goal'
+import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated/knowledge'
 import { Route as AuthenticatedListenRouteImport } from './routes/_authenticated/listen'
 import { Route as AuthenticatedMomentsRouteImport } from './routes/_authenticated/moments'
 import { Route as AuthenticatedPersonaRouteImport } from './routes/_authenticated/persona'
@@ -80,6 +81,11 @@ const AuthenticatedFoodRoute = AuthenticatedFoodRouteImport.update({
 const AuthenticatedGoalRoute = AuthenticatedGoalRouteImport.update({
   id: '/goal',
   path: '/goal',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedKnowledgeRoute = AuthenticatedKnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedListenRoute = AuthenticatedListenRouteImport.update({
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/focus': typeof AuthenticatedFocusRoute
   '/food': typeof AuthenticatedFoodRoute
   '/goal': typeof AuthenticatedGoalRoute
+  '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/focus': typeof AuthenticatedFocusRoute
   '/food': typeof AuthenticatedFoodRoute
   '/goal': typeof AuthenticatedGoalRoute
+  '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
@@ -209,6 +217,7 @@ export interface FileRoutesById {
   '/_authenticated/focus': typeof AuthenticatedFocusRoute
   '/_authenticated/food': typeof AuthenticatedFoodRoute
   '/_authenticated/goal': typeof AuthenticatedGoalRoute
+  '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
   '/_authenticated/listen': typeof AuthenticatedListenRoute
   '/_authenticated/moments': typeof AuthenticatedMomentsRoute
   '/_authenticated/persona': typeof AuthenticatedPersonaRoute
@@ -236,6 +245,7 @@ export interface FileRouteTypes {
     | '/focus'
     | '/food'
     | '/goal'
+    | '/knowledge'
     | '/listen'
     | '/moments'
     | '/persona'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/focus'
     | '/food'
     | '/goal'
+    | '/knowledge'
     | '/listen'
     | '/moments'
     | '/persona'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/_authenticated/focus'
     | '/_authenticated/food'
     | '/_authenticated/goal'
+    | '/_authenticated/knowledge'
     | '/_authenticated/listen'
     | '/_authenticated/moments'
     | '/_authenticated/persona'
@@ -374,6 +386,13 @@ declare module '@tanstack/react-router' {
       path: '/goal'
       fullPath: '/goal'
       preLoaderRoute: typeof AuthenticatedGoalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/knowledge': {
+      id: '/_authenticated/knowledge'
+      path: '/knowledge'
+      fullPath: '/knowledge'
+      preLoaderRoute: typeof AuthenticatedKnowledgeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/listen': {
@@ -499,6 +518,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFocusRoute: typeof AuthenticatedFocusRoute
   AuthenticatedFoodRoute: typeof AuthenticatedFoodRoute
   AuthenticatedGoalRoute: typeof AuthenticatedGoalRoute
+  AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
   AuthenticatedListenRoute: typeof AuthenticatedListenRoute
   AuthenticatedMomentsRoute: typeof AuthenticatedMomentsRoute
   AuthenticatedPersonaRoute: typeof AuthenticatedPersonaRoute
@@ -517,6 +537,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFocusRoute: AuthenticatedFocusRoute,
   AuthenticatedFoodRoute: AuthenticatedFoodRoute,
   AuthenticatedGoalRoute: AuthenticatedGoalRoute,
+  AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
   AuthenticatedListenRoute: AuthenticatedListenRoute,
   AuthenticatedMomentsRoute: AuthenticatedMomentsRoute,
   AuthenticatedPersonaRoute: AuthenticatedPersonaRoute,

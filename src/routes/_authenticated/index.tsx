@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   BookHeart,
   BookOpen,
+  Library,
   ContactRound,
   Image,
   Headphones,
@@ -22,6 +23,7 @@ import { safeScopedAppearanceCss } from "@/lib/appearance";
 import { useDesktopAppearance } from "@/lib/desktop-appearance";
 import { localDate, useGoals } from "@/lib/goals";
 import { GoalWidget } from "@/components/goals/GoalWidget";
+import { DesktopPages } from "@/components/DesktopPages";
 
 const QUOTE_STORAGE_KEY = "cxyj-daily-quote";
 const DEFAULT_QUOTE = "把想说的话，慢慢写进今天。";
@@ -110,19 +112,22 @@ function PhoneHomePage() {
           )}
         </section>
 
-        {desktopGoal && (
-          <GoalWidget
-            goal={desktopGoal}
-            today={localDate(now)}
-            onOpen={() => {
-              void openSystemApp("goal", null, () =>
-                navigate({ to: "/goal", search: { id: desktopGoal.id } }),
-              );
-            }}
-          />
-        )}
-
-        <section className="phone-app-grid" data-ui="app-grid" aria-label="应用列表">
+        <DesktopPages
+          config={desktop}
+          widget={
+            desktopGoal ? (
+              <GoalWidget
+                goal={desktopGoal}
+                today={localDate(now)}
+                onOpen={() => {
+                  void openSystemApp("goal", null, () =>
+                    navigate({ to: "/goal", search: { id: desktopGoal.id } }),
+                  );
+                }}
+              />
+            ) : null
+          }
+        >
           <AppIcon
             label="此心一笺"
             subtitle="日记"
@@ -181,7 +186,16 @@ function PhoneHomePage() {
             tone="goal"
             onClick={(event) => openApp("goal", event, () => navigate({ to: "/goal", search: {} }))}
           />
-        </section>
+          <AppIcon
+            label="知识库"
+            subtitle="想法与连接"
+            icon={Library}
+            tone="knowledge"
+            onClick={(event) =>
+              openApp("knowledge", event, () => navigate({ to: "/knowledge", search: {} }))
+            }
+          />
+        </DesktopPages>
 
         {desktop.showQuote && (
           <button

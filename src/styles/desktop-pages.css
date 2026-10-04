@@ -1,0 +1,90 @@
+.phone-home .desktop-pages {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.desktop-pages::-webkit-scrollbar {
+  display: none;
+}
+.desktop-page {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex: 0 0 100%;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.desktop-page-widget {
+  flex: none;
+}
+.desktop-page .goal-widget {
+  margin-bottom: var(--desktop-grid-gap, 18px);
+}
+.desktop-page .phone-app-grid {
+  flex: none;
+  column-gap: var(--desktop-page-column-gap, var(--desktop-grid-gap, 18px));
+  grid-template-columns: repeat(
+    var(--desktop-page-columns, var(--desktop-grid-columns, 4)),
+    minmax(0, 1fr)
+  );
+}
+.desktop-page-indicator {
+  display: flex;
+  max-width: 100%;
+  min-height: 20px;
+  flex: none;
+  align-items: center;
+  justify-content: safe center;
+  gap: 2px;
+  margin: 5px auto 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.desktop-page-indicator button {
+  flex: none;
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+.desktop-page-indicator button::before {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8e959f55;
+  content: "";
+}
+.desktop-page-indicator button[aria-current="page"]::before {
+  background: #747d8d;
+}
+.phone-home.phone-home--goal-widget {
+  overflow: hidden;
+}
+.phone-home.phone-home--goal-widget .desktop-pages {
+  flex-shrink: 1;
+}
+.phone-home:has(.desktop-pages) > .phone-home__quote {
+  flex: none;
+  margin-top: 0;
+}
+.phone-home:has(.desktop-pages) > .phone-dock {
+  flex: none;
+}
+.phone-app__icon--knowledge {
+  color: #7e87a8;
+  background: #e5e7f2;
+}
