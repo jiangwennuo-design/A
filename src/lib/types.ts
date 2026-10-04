@@ -78,7 +78,7 @@ export interface ChatMessage {
   updated_at: string;
 }
 
-export type MessageType = "text" | "image" | "sticker" | "transfer" | "call";
+export type MessageType = "text" | "image" | "sticker" | "transfer" | "call" | "voice";
 
 export interface QuotedMessage {
   messageId: string;
@@ -94,6 +94,7 @@ export interface ChatQuoteMetadata {
 
 export type ChatMessagePayload = ChatQuoteMetadata &
   (
+    | { display_type?: "voice"; duration: number }
     | ChatQuoteMetadata
     | {
         image_path: string;

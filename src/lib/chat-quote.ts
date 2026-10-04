@@ -1,4 +1,5 @@
 import type { ChatQuoteMetadata, MessageType, QuotedMessage } from "./types";
+import { messageDisplayType } from "./chat-message";
 
 type QuoteSource = {
   id: string;
@@ -9,10 +10,10 @@ type QuoteSource = {
 };
 
 export function quoteMessage(message: QuoteSource, sender: string): ChatQuoteMetadata {
-  const type = message.message_type ?? "text";
+  const type = messageDisplayType(message);
   const payload = (message.payload ?? {}) as Record<string, unknown>;
   const text =
-    type === "text"
+    type === "text" || type === "voice"
       ? message.content
       : type === "image"
         ? `[图片]${typeof payload["caption"] === "string" ? ` ${payload["caption"]}` : ""}`
@@ -45,7 +46,7 @@ export function readQuotedMessage(payload: unknown): QuotedMessage | null {
     typeof quote.sender !== "string" ||
     typeof quote.content !== "string" ||
     (quote.role !== "user" && quote.role !== "assistant") ||
-    !["text", "image", "sticker", "transfer", "call"].includes(String(quote.messageType))
+    !["text", "image", "sticker", "transfer", "call", "voice"].includes(String(quote.messageType))
   )
     return null;
   return {

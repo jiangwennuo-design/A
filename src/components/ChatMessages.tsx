@@ -13,6 +13,7 @@ import type { ChatMessage } from "@/lib/types";
 import type { AvatarDisplayMode } from "@/lib/character-chat";
 import { MessageContent } from "@/components/chat/MessageContent";
 import { readQuotedMessage } from "@/lib/chat-quote";
+import { messageDisplayType } from "@/lib/chat-message";
 import { MessageQuote } from "@/components/chat/MessageQuote";
 
 interface Props {
@@ -222,7 +223,7 @@ export const ChatMessages = memo(function ChatMessages({
               data-message-id={message.id}
               data-ui="message"
               data-role={isUser ? "user" : "char"}
-              data-message-type={message.message_type ?? "text"}
+              data-message-type={messageDisplayType(message)}
               className={`chat-message-row message-enter ${isUser ? "is-user user" : "is-char ai"} ${grouped ? "is-grouped" : ""}`}
             >
               {selectedMessageIds && (
@@ -280,7 +281,7 @@ export const ChatMessages = memo(function ChatMessages({
                       </div>
                     </details>
                   )}
-                {quote && (message.message_type ?? "text") !== "text" && (
+                {quote && messageDisplayType(message) !== "text" && (
                   <MessageQuote quote={quote} canJump={quoteCanJump} onJump={jumpToMessage} />
                 )}
                 <MessageContent

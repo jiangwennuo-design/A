@@ -34,6 +34,7 @@ import { ChatMessages, type MessageAnchor } from "@/components/ChatMessages";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { AttachmentSheet } from "@/components/chat/AttachmentSheet";
 import { TransferSheet } from "@/components/chat/TransferSheet";
+import { VoiceMessageSheet } from "@/components/chat/VoiceMessageSheet";
 import { TransferDetailSheet } from "@/components/chat/TransferDetailSheet";
 import type { TransferStatus } from "@/lib/chat-transfer";
 import { StickerPicker } from "@/components/chat/StickerPicker";
@@ -56,7 +57,8 @@ import type {
   MessageType,
 } from "@/lib/types";
 import { closeSystemApp, popSystemPage, pushSystemPage } from "@/lib/app-transition";
-import { messagePreview, normalizeChatMessage } from "@/lib/chat-message";
+import { messagePreview, normalizeChatMessage, voiceDuration } from "@/lib/chat-message";
+import "@/styles/chat-voice.css";
 import { quoteMessage } from "@/lib/chat-quote";
 import { chatReplyFetch, validateChatReplyResult } from "@/lib/chat-reply-response";
 import { prepareChatImage, uploadChatMedia } from "@/lib/chat-media";
@@ -397,6 +399,7 @@ function ConversationPage({
   const [attachmentsOpen, setAttachmentsOpen] = useState(false);
   const [stickersOpen, setStickersOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
   const [settlingTransfer, setSettlingTransfer] = useState(false);
   const [transferError, setTransferError] = useState("");
@@ -684,7 +687,8 @@ function ConversationPage({
     payload: ChatMessagePayload,
     retryId?: string,
   ) {
-    if (historyLoading || !sessionId || !charId || messageWriteBusy.current || sending) return;
+    if (historyLoading || !sessionId || !charId || messageWriteBusy.current || sending)
+      return false;
     messageWriteBusy.current = true;
     const messagePayload = retryId ? payload : { ...payload, ...quotedReply };
     if (!retryId) setQuotedReply(null);
@@ -730,6 +734,7 @@ function ConversationPage({
       setMessages((previous) =>
         previous.map((message) => (message.id === optimisticId ? savedUser : message)),
       );
+      return true;
     } catch (reason) {
       setMessages((previous) =>
         previous.map((message) =>
@@ -737,6 +742,7 @@ function ConversationPage({
         ),
       );
       setError(reason instanceof Error ? reason.message : "发送失败。");
+      return false;
     } finally {
       messageWriteBusy.current = false;
       setSavingMessage(false);
@@ -1044,6 +1050,13 @@ function ConversationPage({
         className="chat-app chat-conversation"
         data-chat-scope={charId}
         data-ui="chat-page"
+        onPointerDownCapture={(event) => {
+          if (
+            attachmentsOpen &&
+            !(event.target as Element).closest('[data-ui="attachment-menu"], [data-ui="chat-add"]')
+          )
+            setAttachmentsOpen(false);
+        }}
         data-css-ui="chat-screen chat-background"
         data-full-chat-root={charId}
         style={chatChromeVariables(chatPreferences.appearance.chatChrome.config)}
@@ -1254,28 +1267,37 @@ function ConversationPage({
             onChange={setInput}
             onSubmit={submit}
             onAttachments={() => {
-              if (!historyLoading) setAttachmentsOpen(true);
+              if (!historyLoading) setAttachmentsOpen((open) => !open);
             }}
             onReply={() => void triggerReply()}
+            attachmentsOpen={attachmentsOpen}
+            attachmentMenu={
+              <AttachmentSheet
+                open={attachmentsOpen}
+                canReroll={Boolean(latestTurnId) && !sending && !savingMessage}
+                onClose={() => setAttachmentsOpen(false)}
+                onImage={(file) => void sendImage(file)}
+                onStickers={() => {
+                  setAttachmentsOpen(false);
+                  setStickersOpen(true);
+                }}
+                onTransfer={() => {
+                  setAttachmentsOpen(false);
+                  setTransferOpen(true);
+                }}
+                onVoice={() => setVoiceOpen(true)}
+                onReroll={() => {
+                  if (latestTurnId) void rerollTurn(latestTurnId);
+                }}
+              />
+            }
           />
         )}
-
-        <AttachmentSheet
-          open={attachmentsOpen}
-          canReroll={Boolean(latestTurnId) && !sending && !savingMessage}
-          onClose={() => setAttachmentsOpen(false)}
-          onImage={(file) => void sendImage(file)}
-          onStickers={() => {
-            setAttachmentsOpen(false);
-            setStickersOpen(true);
-          }}
-          onTransfer={() => {
-            setAttachmentsOpen(false);
-            setTransferOpen(true);
-          }}
-          onReroll={() => {
-            if (latestTurnId) void rerollTurn(latestTurnId);
-          }}
+        <VoiceMessageSheet
+          open={voiceOpen}
+          disabled={historyLoading || savingMessage || sending}
+          onClose={() => setVoiceOpen(false)}
+          onSend={(text) => sendMessage("voice", text, { duration: voiceDuration(text) })}
         />
         <TransferSheet
           open={transferOpen}

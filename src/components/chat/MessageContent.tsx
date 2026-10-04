@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from "react";
-import { ArrowDownLeft, ImageOff, Phone } from "lucide-react";
+import { ArrowDownLeft, AudioLines, ImageOff, Phone } from "lucide-react";
 import { resolveSignedMediaUrl } from "@/lib/signed-media";
-import { formatCallDuration } from "@/lib/chat-message";
+import { formatCallDuration, messageDisplayType, voiceDuration } from "@/lib/chat-message";
 import type { ChatMessage } from "@/lib/types";
 import { readTransfer, transferStatusLabel } from "@/lib/chat-transfer";
 import { readQuotedMessage } from "@/lib/chat-quote";
@@ -22,7 +22,8 @@ export const MessageContent = memo(function MessageContent({
 }) {
   const [url, setUrl] = useState("");
   const [loaded, setLoaded] = useState(false);
-  const type = message.message_type ?? "text";
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const type = messageDisplayType(message);
   const quote = readQuotedMessage(message.payload);
   const payload = message.payload as Record<string, unknown>;
   const localPreview = String(payload["local_preview_url"] ?? "");
@@ -65,6 +66,38 @@ export const MessageContent = memo(function MessageContent({
         </p>
       </div>
     );
+  if (type === "voice") {
+    const seconds = Number(payload["duration"]);
+    const duration =
+      Number.isFinite(seconds) && seconds > 0
+        ? Math.min(600, Math.round(seconds))
+        : voiceDuration(message.content);
+    return (
+      <div className="chat-voice" data-ui="voice-message">
+        <button
+          type="button"
+          className="chat-voice__bar"
+          data-ui="voice-toggle"
+          aria-label={`${duration}秒语音，${transcriptOpen ? "收起" : "展开"}文字`}
+          aria-expanded={transcriptOpen}
+          aria-controls={`voice-transcript-${message.id}`}
+          onClick={() => setTranscriptOpen((open) => !open)}
+        >
+          <AudioLines size={22} data-ui="voice-icon" aria-hidden="true" />
+          <span data-ui="voice-duration">{duration}″</span>
+        </button>
+        {transcriptOpen && (
+          <div
+            id={`voice-transcript-${message.id}`}
+            className="chat-voice__transcript"
+            data-ui="voice-transcript"
+          >
+            {message.content}
+          </div>
+        )}
+      </div>
+    );
+  }
   if (type === "image" || type === "sticker") {
     const width = Math.max(1, Number(payload["width"]) || 1);
     const height = Math.max(1, Number(payload["height"]) || 1);

@@ -1,0 +1,120 @@
+/* Only the new voice renderer and attachment popover; existing bubbles stay untouched. */
+.chat-voice {
+  max-width: 100%;
+}
+.chat-voice__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  min-width: 112px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  background: #f5f8fc;
+  color: #414853;
+  font-size: 14px;
+}
+[data-role="user"] .chat-voice__bar {
+  background: #edf5ff;
+}
+.chat-voice__transcript {
+  margin-top: 6px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #f5f6f8;
+  color: #777c85;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-voice-form {
+  display: grid;
+  gap: 12px;
+}
+.chat-voice-form label {
+  display: grid;
+  gap: 10px;
+  color: #414853;
+  font-size: 14px;
+}
+.chat-voice-form textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e9ebef;
+  border-radius: 14px;
+  background: #f7f9fc;
+  font-size: 16px;
+  resize: vertical;
+}
+.chat-voice-form small {
+  color: #8e8e93;
+}
+.chat-voice-form > p {
+  color: #d54a51;
+  font-size: 12px;
+}
+.chat-voice-form > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 14px;
+  background: #4a9eff;
+  color: white;
+}
+.chat-voice-form > button:disabled {
+  opacity: 0.45;
+}
+.chat-composer__more.is-menu-open {
+  position: relative;
+  z-index: 30;
+}
+.chat-attachment-popover {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 10px);
+  left: 12px;
+  width: min(224px, calc(100vw - 32px));
+  max-height: 45vh;
+  max-height: 45dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 94%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 20px rgb(31 55 83 / 8%);
+}
+.chat-attachment-popover button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #414853;
+  font-size: 14px;
+  text-align: left;
+}
+.chat-attachment-popover button + button {
+  border-top: 1px solid #e9ebef;
+}
+.chat-attachment-popover button svg {
+  color: #4a9eff;
+  flex-shrink: 0;
+}
+.chat-attachment-popover button:active {
+  background: #f5f8fc;
+}
+.chat-attachment-popover button:disabled {
+  color: #8e8e93;
+  opacity: 0.5;
+}

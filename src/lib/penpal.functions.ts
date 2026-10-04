@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AiMessage } from "./ai/multimodal";
 import { IMAGE_UNAVAILABLE } from "./ai/multimodal";
 import { quoteMessage, quotedContextForAi } from "./chat-quote";
+import { messageDisplayType, voiceDuration } from "./chat-message";
 import type { ChatThinkingMode } from "./ai/inner-life.server";
 import {
   characterChatName,
@@ -27,7 +28,7 @@ const queuedMessageInput = z.object({
   message: z.string().max(8000).default(""),
   session_id: uuid,
   char_id: uuid,
-  message_type: z.enum(["text", "image", "sticker", "transfer", "call"]).default("text"),
+  message_type: z.enum(["text", "image", "sticker", "transfer", "call", "voice"]).default("text"),
   payload: z.record(z.unknown()).default({}),
 });
 const replyInput = z.object({
@@ -46,7 +47,7 @@ type ChatRow = {
   turn_id: string | null;
   message_order: number;
   created_at: string;
-  message_type?: "text" | "image" | "sticker" | "transfer" | "call";
+  message_type?: "text" | "image" | "sticker" | "transfer" | "call" | "voice";
   payload?: Record<string, unknown>;
 };
 type StickerRow = {
@@ -57,10 +58,11 @@ type StickerRow = {
   width: number | null;
   height: number | null;
 };
-type ParsedBubble = { type: "text"; content: string } | { type: "sticker"; stickerId: string };
+type ParsedBubble =
+  { type: "text" | "voice"; content: string } | { type: "sticker"; stickerId: string };
 type GeneratedBubble = {
   content: string;
-  message_type: "text" | "sticker";
+  message_type: "text" | "sticker" | "voice";
   payload: Record<string, unknown>;
 };
 const newTurnId = () => crypto.randomUUID();
@@ -102,7 +104,7 @@ function parseBubbles(
     }
     const content = cleanText(value["content"]);
     if (!content) throw new Error("AI 返回了空消息，请重试。");
-    return { type: "text", content };
+    return { type: value["type"] === "voice" ? "voice" : "text", content };
   });
   return {
     bubbles,
@@ -270,7 +272,7 @@ async function generatePrivateReply(args: {
     : "";
   const preferences = readCharacterChatPreferences(args.character.chat_preferences);
   const contextPrompt = `${profilePrompt(args.profile, args.character, "chat")}${timeContext(args.profile, args.history)}${await diaryContext(args.db, args.userId, args.mode, args.diaryId)}`;
-  const replyPrompt = `\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。${stickerInstruction}`;
+  const replyPrompt = `\n\n你在进行即时私聊，不是客服，不要每次总结。请自然地用中文回复，可短可长。不要机械拆句或凑数量。必须只返回 JSON：${responseShape}；messages 数组中必须有 ${min} 到 ${max} 条，每条文字消息使用 {"type":"text","content":"..."}。也可以根据角色和当前语境自然选择语音消息 {"type":"voice","content":"语音正文"}，content 是完整说出的文字；无需强制使用语音，不根据关键词决定，不输出录音、识别或音频链接。${stickerInstruction}`;
   const { generate } = await import("./ai/service.server");
   const memories = preferences.longTermMemory
     ? await (
@@ -401,7 +403,16 @@ async function generatePrivateReply(args: {
     }
     const content = separatePrivateThinking(bubble.content).visible;
     if (!content) throw new Error("AI 返回了空消息，请重试。");
-    return { content, message_type: "text", payload: thinkingPayload };
+    return {
+      content,
+      message_type: "text",
+      payload: {
+        ...thinkingPayload,
+        ...(bubble.type === "voice"
+          ? { display_type: "voice", duration: voiceDuration(content) }
+          : {}),
+      },
+    };
   });
   return { bubbles, transferActions };
 }
@@ -429,6 +440,7 @@ function messageTextForAi(row: ChatRow) {
 }
 
 function messageBodyForAi(row: ChatRow) {
+  if (messageDisplayType(row) === "voice") return `[语音消息，以下为完整文字内容]\n${row.content}`;
   if (!row.message_type || row.message_type === "text") return row.content;
   if (row.message_type === "image") return cleanText(row.payload?.["caption"]) || IMAGE_UNAVAILABLE;
   if (row.message_type === "sticker") {
@@ -554,8 +566,8 @@ function validateMessagePayload(
   raw: Record<string, unknown>,
   userId: string,
   charId: string,
-) {
-  if (type === "text") return {};
+): Record<string, unknown> {
+  if (type === "text" || type === "voice") return {};
   if (type === "image") {
     const imagePath = cleanText(raw["image_path"]);
     if (!imagePath.startsWith(`${userId}/messages/`)) throw new Error("图片路径无效。");
@@ -585,7 +597,7 @@ function validateMessagePayload(
     };
   }
   if (type === "transfer") {
-    return createTransfer(userId, charId, raw["amount"], raw["remark"] ?? raw["note"]);
+    return { ...createTransfer(userId, charId, raw["amount"], raw["remark"] ?? raw["note"]) };
   }
   const status = ["missed", "cancelled", "completed"].includes(String(raw["status"]))
     ? String(raw["status"])
@@ -631,7 +643,10 @@ export const queuePenpalMessage = createServerFn({ method: "POST" })
           : characterUserIdentity(character.chat_preferences, profile).nickname;
       payload = { ...payload, ...quoteMessage(original, sender) };
     }
-    if (data.message_type === "text" && !content) throw new Error("消息内容不能为空。");
+    if ((data.message_type === "text" || data.message_type === "voice") && !content)
+      throw new Error("消息内容不能为空。");
+    if (data.message_type === "voice")
+      payload = { ...payload, display_type: "voice", duration: voiceDuration(content) };
     const { data: inserted, error } = await db
       .from("chat_messages")
       .insert({
@@ -639,7 +654,7 @@ export const queuePenpalMessage = createServerFn({ method: "POST" })
         user_id: context.userId,
         role: "user",
         content,
-        message_type: data.message_type,
+        message_type: data.message_type === "voice" ? "text" : data.message_type,
         payload,
         delivery_status: "sent",
         message_order: 0,

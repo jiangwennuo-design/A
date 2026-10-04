@@ -7,7 +7,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as zod from "zod";
 
-test("bidirectional transfers: model actions, ownership, receipt/refund, durable JSON, CAS, legacy", async () => {
+test("bidirectional transfers and voice: real handlers, ownership, persistence, model content and reroll", async () => {
   const userId = crypto.randomUUID(),
     charId = crypto.randomUUID(),
     sessionId = crypto.randomUUID();
@@ -288,4 +288,87 @@ test("bidirectional transfers: model actions, ownership, receipt/refund, durable
       }),
     /本轮包含转账/,
   );
+  // Legacy fixture above uses the real clock; subsequent inserts must remain chronological.
+  clock = Math.ceil((Date.now() - 1760000000000) / 1000) + 1;
+  const voice = (
+    await queue(
+      "voice",
+      { duration: 99999, text: "forged", status: "completed" },
+      "今天终于忙完了\n想听听你的声音",
+    )
+  ).message;
+  assert.equal(voice.message_type, "text");
+  assert.equal(voice.payload.display_type, "voice");
+  assert.equal(voice.role, "user");
+  assert.equal(voice.content, "今天终于忙完了\n想听听你的声音");
+  assert.ok(voice.payload.duration > 0 && voice.payload.duration < 60);
+  assert.equal(voice.payload.status, undefined);
+  assert.equal(voice.payload.text, undefined);
+  await assert.rejects(() => queue("voice", {}, "  "), /不能为空/);
+  output = {
+    messages: [
+      { type: "voice", content: "我也刚忙完\n现在可以陪你一会儿" },
+      { type: "text", content: "今天怎么样" },
+    ],
+  };
+  const voiceReply = await invoke("requestPenpalReply", {
+    session_id: sessionId,
+    char_id: charId,
+    diary_context_mode: "none",
+  });
+  assert.equal(voiceReply.messages[0].message_type, "text");
+  assert.equal(voiceReply.messages[0].payload.display_type, "voice");
+  assert.equal(voiceReply.messages[1].message_type, "text");
+  assert.ok(voiceReply.messages[0].payload.duration > 0);
+  assert.match(requests.at(-1).systemPrompt, /type.*voice/);
+  assert.ok(
+    requests
+      .at(-1)
+      .messages.some(
+        (row) => typeof row.content === "string" && row.content.includes(voice.content),
+      ),
+  );
+  const quotedVoice = (await queue("text", { replyToMessageId: voiceReply.messages[0].id }, "好呀"))
+    .message;
+  assert.equal(quotedVoice.payload.quotedMessage.messageType, "voice");
+  assert.equal(quotedVoice.payload.quotedMessage.content, voiceReply.messages[0].content);
+  const voiceSnapshot = JSON.parse(JSON.stringify(records.chat_messages));
+  const modelHistory = await mod.namespace.chatRowsForAi(db, userId, voiceSnapshot);
+  assert.ok(modelHistory.some((row) => row.content.includes(voiceReply.messages[0].content)));
+  assert.ok(
+    modelHistory.some(
+      (row) => row.content.includes("被引用原文") && row.content.includes("我也刚忙完"),
+    ),
+  );
+  // Every stored row and RPC input must work with the unchanged production CHECK/RPC.
+  assert.ok(records.chat_messages.every((row) => row.message_type !== "voice"));
+  db.rpc = async (name, args) => {
+    assert.equal(name, "replace_chat_turn");
+    assert.equal(args.p_char_id, charId);
+    assert.equal(args.p_messages[0].message_type, "text");
+    assert.equal(args.p_messages[0].payload.display_type, "voice");
+    const saved = args.p_messages.map((row, index) => ({
+      ...row,
+      id: crypto.randomUUID(),
+      user_id: userId,
+      session_id: sessionId,
+      role: "assistant",
+      turn_id: args.p_turn_id,
+      message_order: index + 1,
+    }));
+    records.chat_messages = records.chat_messages.filter(
+      (row) => row.turn_id !== args.p_turn_id || row.role !== "assistant",
+    );
+    records.chat_messages.push(...saved);
+    return { data: saved, error: null };
+  };
+  const rerolled = await invoke("rerollPenpalTurn", {
+    session_id: sessionId,
+    char_id: charId,
+    turn_id: voiceReply.turn_id,
+    diary_context_mode: "none",
+  });
+  assert.equal(rerolled.messages[0].message_type, "text");
+  assert.equal(rerolled.messages[0].payload.display_type, "voice");
+  assert.equal(rerolled.messages[0].content, voiceReply.messages[0].content);
 });

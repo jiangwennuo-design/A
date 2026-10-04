@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FormEvent } from "react";
+import { useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { ArrowUp, Plus, Reply, X } from "lucide-react";
 import type { QuotedMessage } from "@/lib/types";
 
@@ -13,6 +13,8 @@ export function ChatComposer({
   onReply,
   quote,
   onCancelQuote,
+  attachmentsOpen = false,
+  attachmentMenu,
 }: {
   value: string;
   disabled: boolean;
@@ -24,6 +26,8 @@ export function ChatComposer({
   onReply: () => void;
   quote?: QuotedMessage | null;
   onCancelQuote?: () => void;
+  attachmentsOpen?: boolean;
+  attachmentMenu?: ReactNode;
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -58,8 +62,9 @@ export function ChatComposer({
       <button
         type="button"
         aria-label="附件"
+        aria-expanded={attachmentsOpen}
         onClick={onAttachments}
-        className="chat-composer__more"
+        className={`chat-composer__more${attachmentsOpen ? " is-menu-open" : ""}`}
         data-ui="chat-add"
       >
         <Plus size={19} />
@@ -94,6 +99,7 @@ export function ChatComposer({
       >
         <ArrowUp size={19} />
       </button>
+      {attachmentMenu}
     </form>
   );
 }
