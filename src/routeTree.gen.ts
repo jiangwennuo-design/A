@@ -19,6 +19,7 @@ import { Route as AuthenticatedDiaryRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedFocusRouteImport } from './routes/_authenticated/focus'
 import { Route as AuthenticatedFoodRouteImport } from './routes/_authenticated/food'
 import { Route as AuthenticatedGoalRouteImport } from './routes/_authenticated/goal'
+import { Route as AuthenticatedHappenedRouteImport } from './routes/_authenticated/happened'
 import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated/knowledge'
 import { Route as AuthenticatedListenRouteImport } from './routes/_authenticated/listen'
 import { Route as AuthenticatedMomentsRouteImport } from './routes/_authenticated/moments'
@@ -81,6 +82,11 @@ const AuthenticatedFoodRoute = AuthenticatedFoodRouteImport.update({
 const AuthenticatedGoalRoute = AuthenticatedGoalRouteImport.update({
   id: '/goal',
   path: '/goal',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHappenedRoute = AuthenticatedHappenedRouteImport.update({
+  id: '/happened',
+  path: '/happened',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedKnowledgeRoute = AuthenticatedKnowledgeRouteImport.update({
@@ -167,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/focus': typeof AuthenticatedFocusRoute
   '/food': typeof AuthenticatedFoodRoute
   '/goal': typeof AuthenticatedGoalRoute
+  '/happened': typeof AuthenticatedHappenedRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByTo {
   '/focus': typeof AuthenticatedFocusRoute
   '/food': typeof AuthenticatedFoodRoute
   '/goal': typeof AuthenticatedGoalRoute
+  '/happened': typeof AuthenticatedHappenedRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
@@ -217,6 +225,7 @@ export interface FileRoutesById {
   '/_authenticated/focus': typeof AuthenticatedFocusRoute
   '/_authenticated/food': typeof AuthenticatedFoodRoute
   '/_authenticated/goal': typeof AuthenticatedGoalRoute
+  '/_authenticated/happened': typeof AuthenticatedHappenedRoute
   '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
   '/_authenticated/listen': typeof AuthenticatedListenRoute
   '/_authenticated/moments': typeof AuthenticatedMomentsRoute
@@ -245,6 +254,7 @@ export interface FileRouteTypes {
     | '/focus'
     | '/food'
     | '/goal'
+    | '/happened'
     | '/knowledge'
     | '/listen'
     | '/moments'
@@ -268,6 +278,7 @@ export interface FileRouteTypes {
     | '/focus'
     | '/food'
     | '/goal'
+    | '/happened'
     | '/knowledge'
     | '/listen'
     | '/moments'
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/_authenticated/focus'
     | '/_authenticated/food'
     | '/_authenticated/goal'
+    | '/_authenticated/happened'
     | '/_authenticated/knowledge'
     | '/_authenticated/listen'
     | '/_authenticated/moments'
@@ -386,6 +398,13 @@ declare module '@tanstack/react-router' {
       path: '/goal'
       fullPath: '/goal'
       preLoaderRoute: typeof AuthenticatedGoalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/happened': {
+      id: '/_authenticated/happened'
+      path: '/happened'
+      fullPath: '/happened'
+      preLoaderRoute: typeof AuthenticatedHappenedRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/knowledge': {
@@ -518,6 +537,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFocusRoute: typeof AuthenticatedFocusRoute
   AuthenticatedFoodRoute: typeof AuthenticatedFoodRoute
   AuthenticatedGoalRoute: typeof AuthenticatedGoalRoute
+  AuthenticatedHappenedRoute: typeof AuthenticatedHappenedRoute
   AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
   AuthenticatedListenRoute: typeof AuthenticatedListenRoute
   AuthenticatedMomentsRoute: typeof AuthenticatedMomentsRoute
@@ -537,6 +557,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFocusRoute: AuthenticatedFocusRoute,
   AuthenticatedFoodRoute: AuthenticatedFoodRoute,
   AuthenticatedGoalRoute: AuthenticatedGoalRoute,
+  AuthenticatedHappenedRoute: AuthenticatedHappenedRoute,
   AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
   AuthenticatedListenRoute: AuthenticatedListenRoute,
   AuthenticatedMomentsRoute: AuthenticatedMomentsRoute,

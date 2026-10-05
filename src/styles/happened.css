@@ -1,0 +1,980 @@
+.happened-app {
+  --happened-blue: #dfeefa;
+  --happened-pink: #f9e9ef;
+  --happened-purple: #eeeafa;
+  --happened-yellow: #fbf3da;
+  --happened-mint: #e0f3ee;
+  position: fixed;
+  inset: var(--keyboard-top, 0px) 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  height: var(--keyboard-height, 100dvh);
+  margin: auto;
+  overflow: hidden;
+  color: #303745;
+  background: #fff;
+  font:
+    14px / 1.65 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+.happened-app * {
+  box-sizing: border-box;
+}
+.happened-app button {
+  cursor: pointer;
+}
+.happened-app button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.happened-app input,
+.happened-app textarea,
+.happened-app select {
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  color: inherit;
+  accent-color: #9dbbde;
+}
+.happened-app input::placeholder,
+.happened-app textarea::placeholder {
+  color: #aab0ba;
+}
+.happened-app button:focus-visible,
+.happened-app input:focus-visible,
+.happened-app textarea:focus-visible {
+  outline: 2px solid #afc6e1;
+  outline-offset: 2px;
+}
+.happened-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: calc(env(safe-area-inset-top) + 16px) 15px 14px;
+}
+.happened-header > strong {
+  flex: 1;
+  min-width: 0;
+  font-size: 19px;
+  line-height: 1.35;
+  font-weight: 650;
+}
+.happened-header > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.happened-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 32px;
+  color: #8f9aae;
+}
+.happened-header .happened-today {
+  padding: 0 3px;
+  font-size: 11px;
+  color: #8ba9cf;
+}
+.happened-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 20px 24px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.happened-bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  flex: none;
+  gap: 3px;
+  padding: 10px 15px calc(9px + env(safe-area-inset-bottom));
+  background: rgb(255 255 255 / 0.94);
+  border-top: 1px solid #f1f3f7;
+  backdrop-filter: blur(14px);
+}
+.happened-bottom-nav button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 44px;
+  color: #9ea7b7;
+}
+.happened-bottom-nav button span {
+  font-size: 10px;
+}
+.happened-bottom-nav button[aria-current="page"] {
+  color: #91b6e2;
+}
+.happened-bottom-nav .happened-add-button {
+  justify-self: center;
+  width: 43px;
+  height: 43px;
+  min-height: 43px;
+  border-radius: 50%;
+  color: white;
+  background: #a5bce1;
+  box-shadow: 0 3px 9px #e8edf5;
+}
+.happened-date-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 7px;
+  color: #a7aebd;
+  font-size: 12px;
+}
+.happened-date-select input {
+  border: 0;
+  background: transparent;
+  max-width: 150px;
+}
+.happened-daily-quote {
+  margin: 4px 0 27px;
+  color: #9ba4b5;
+  font-size: 13px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.happened-daily-quote > button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  text-align: left;
+}
+.happened-daily-quote textarea {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  resize: vertical;
+  font-size: 16px;
+}
+.happened-daily-quote form button {
+  margin-right: 16px;
+  color: #94abcd;
+}
+.happened-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.happened-entry {
+  display: grid;
+  grid-template-columns: 39px 25px minmax(0, 1fr);
+  align-items: start;
+  position: relative;
+  min-width: 0;
+}
+.happened-entry > time {
+  padding-top: 2px;
+  color: #a2a9b7;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.happened-entry-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0;
+  border-radius: 7px;
+}
+.happened-entry::before {
+  content: "";
+  position: absolute;
+  width: 1px;
+  background: #eef1f5;
+  left: 49px;
+  top: 23px;
+  bottom: 0;
+}
+.happened-entry:last-child::before {
+  display: none;
+}
+.happened-entry-body {
+  min-width: 0;
+  padding: 0 0 24px 5px;
+}
+.happened-entry-open {
+  display: block;
+  width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.happened-entry-open strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 550;
+  color: #404958;
+}
+.happened-entry-open p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #9199a9;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.happened-entry-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 5px 8px 3px 0;
+  color: #a0a8b6;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.happened-origin {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 5px;
+  color: #9bafca;
+  font-size: 10px;
+}
+.happened-tone-text,
+.happened-tone-photo,
+.happened-tone-knowledge,
+.happened-tone-diary {
+  color: #89acd2;
+  background: #eaf4fc;
+}
+.happened-tone-mood,
+.happened-tone-other {
+  color: #c6a356;
+  background: #fbf4e1;
+}
+.happened-tone-goal,
+.happened-tone-link,
+.happened-tone-checklist {
+  color: #83b5a9;
+  background: #e8f6f0;
+}
+.happened-tone-location,
+.happened-tone-file {
+  color: #a195c3;
+  background: #f1edf9;
+}
+.happened-tone-music {
+  color: #ce9ab1;
+  background: #fbecf1;
+}
+.happened-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 6px;
+  margin: 9px 0 6px;
+  max-width: 290px;
+}
+.happened-photo-grid > div {
+  position: relative;
+  min-width: 0;
+}
+.happened-photo-grid > div > button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: #7e8695;
+  background: #fffd;
+  border-radius: 50%;
+}
+.happened-photo {
+  display: block;
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f3f6fa;
+  color: #b2bdce;
+}
+.happened-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.happened-photo > svg {
+  position: absolute;
+  top: 35%;
+  left: 35%;
+}
+.happened-photo > button {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.happened-album-more {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  color: #a4afc1;
+  font-size: 13px;
+  background: #f6f8fb;
+  border-radius: 8px;
+}
+.happened-mini-tags,
+.happened-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.happened-mini-tags > *,
+.happened-tag-pills > button {
+  padding: 3px 8px;
+  border-radius: 9px;
+  font-size: 10px;
+}
+.happened-color-blue {
+  color: #829fc1;
+  background: var(--happened-blue);
+}
+.happened-color-pink {
+  color: #b18ca0;
+  background: var(--happened-pink);
+}
+.happened-color-purple {
+  color: #998db6;
+  background: var(--happened-purple);
+}
+.happened-color-yellow {
+  color: #b3a070;
+  background: var(--happened-yellow);
+}
+.happened-color-mint {
+  color: #82a79a;
+  background: var(--happened-mint);
+}
+.happened-empty {
+  padding: 65px 8px;
+  text-align: center;
+  color: #a5afbf;
+  font-size: 13px;
+  line-height: 1.9;
+}
+.happened-empty > svg {
+  margin: 0 auto 15px;
+  color: #b3c6e0;
+}
+.happened-empty h3 {
+  margin-bottom: 6px;
+  font-size: 15px;
+  color: #8493aa;
+  font-weight: 500;
+}
+.happened-empty button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  padding: 8px 24px;
+  border-radius: 12px;
+  color: white;
+  background: #abc2e4;
+}
+.happened-month-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 20px;
+  color: #8898b0;
+}
+.happened-month-picker h2,
+.happened-month-picker strong {
+  font-size: 16px;
+  font-weight: 550;
+  color: #4a5367;
+}
+.happened-month-picker label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 15px;
+}
+.happened-month-picker input {
+  max-width: 140px;
+  border: 0;
+  color: #9ba9bd;
+  background: transparent;
+  font-size: 11px;
+}
+.happened-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px 2px;
+}
+.happened-weekday {
+  text-align: center;
+  color: #abb3c1;
+  font-size: 11px;
+  padding-bottom: 10px;
+}
+.happened-calendar-grid > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  min-height: 42px;
+  padding: 3px;
+  border-radius: 12px;
+  font-size: 12px;
+  color: #798498;
+}
+.happened-calendar-grid > button[aria-pressed="true"] {
+  background: #eef5fd;
+}
+.happened-calendar-grid .happened-calendar-today {
+  color: #8daed6;
+}
+.happened-calendar-grid .happened-photo {
+  width: 19px;
+  height: 14px;
+  aspect-ratio: auto;
+  border-radius: 4px;
+}
+.happened-calendar-grid i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #b7c9e3;
+  margin-top: 5px;
+}
+.happened-day-preview {
+  margin-top: 26px;
+  padding-top: 17px;
+  border-top: 1px solid #f0f3f7;
+}
+.happened-day-preview > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.happened-day-preview > button strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+.happened-day-preview > button span {
+  display: flex;
+  align-items: center;
+  color: #acb4c4;
+  font-size: 11px;
+}
+.happened-day-preview > .happened-photo-grid {
+  margin-bottom: 20px;
+}
+.happened-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin: 0 0 27px;
+  color: #a9b0bf;
+  font-size: 12px;
+}
+.happened-tabs button {
+  padding: 5px 7px;
+  border-radius: 9px;
+}
+.happened-tabs button[aria-pressed="true"] {
+  background: #f0f5fc;
+  color: #90abd0;
+}
+.happened-memory-day,
+.happened-month-day {
+  padding: 15px 0 18px;
+  border-bottom: 1px solid #f1f3f7;
+}
+.happened-memory-day h3 {
+  font-size: 14px;
+  font-weight: 550;
+  margin-bottom: 15px;
+}
+.happened-month-day > button {
+  color: #99a8bc;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+.happened-section-title {
+  margin: 18px 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.happened-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  color: #a4adbd;
+  font-size: 12px;
+}
+.happened-tag-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 10px;
+}
+.happened-tag-list > div {
+  display: flex;
+  align-items: center;
+  border-radius: 11px;
+  padding: 7px 8px;
+}
+.happened-tag-list > div > button:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  font-size: 12px;
+}
+.happened-tag-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.happened-tag-list small {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 0 5px;
+}
+.happened-tag-list > div > button:last-child {
+  flex-shrink: 0;
+  padding: 3px;
+}
+.happened-tag-editor {
+  margin-top: 28px;
+  border-top: 1px solid #edf1f5;
+  padding-top: 18px;
+}
+.happened-tag-editor > input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #eef1f5;
+  padding: 8px 0;
+  font-size: 16px;
+  background: transparent;
+}
+.happened-tag-editor > div:last-child {
+  display: flex;
+  gap: 25px;
+  margin-top: 15px;
+  color: #94accf;
+  font-size: 13px;
+}
+.happened-color-picker {
+  display: flex;
+  gap: 12px;
+  padding-top: 17px;
+}
+.happened-color-picker button {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+}
+.happened-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 27px 0 31px;
+  border-bottom: 1px solid #eef2f6;
+  text-align: center;
+}
+.happened-stats strong {
+  display: block;
+  font-size: 24px;
+  color: #9fb9db;
+  font-weight: 500;
+}
+.happened-stats span {
+  color: #a8b0bf;
+  font-size: 10px;
+}
+.happened-note {
+  color: #a0a9b9;
+  font-size: 12px;
+  line-height: 1.9;
+  margin: 15px 0;
+}
+.happened-form-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 43px;
+  border-bottom: 1px solid #f0f3f7;
+  color: #959fb1;
+  font-size: 12px;
+}
+.happened-form-row > span {
+  flex-shrink: 0;
+}
+.happened-form-row input:not([type="checkbox"]),
+.happened-form-row select {
+  font-size: 16px;
+  flex: 1;
+  width: 100%;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  text-align: right;
+}
+.happened-form-row input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.happened-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 12px;
+  padding: 9px 12px;
+  margin: 5px 0 10px;
+  background: #f7f9fc;
+  color: #a2b0c6;
+}
+.happened-search input {
+  border: 0;
+  background: transparent;
+  width: 100%;
+  font-size: 16px;
+}
+.happened-detail {
+  padding: 5px 0 20px;
+}
+.happened-detail-time {
+  font-size: 11px;
+  color: #abb2bf;
+}
+.happened-detail h2 {
+  margin: 12px 0;
+  font-size: 19px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.happened-detail-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.9;
+}
+.happened-detail .happened-photo-grid {
+  max-width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 20px 0;
+}
+.happened-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+  color: #a0abc0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.happened-detail-meta button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-align: left;
+}
+.happened-music {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 12px;
+  border-radius: 13px;
+  background: #fdf4f8;
+  color: #c398af;
+}
+.happened-music div {
+  flex: 1;
+  min-width: 0;
+}
+.happened-music strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.happened-music small {
+  display: block;
+  font-size: 11px;
+  color: #bba6b3;
+}
+.happened-music a {
+  font-size: 11px;
+}
+.happened-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 8px 0;
+  color: #a2aec2;
+  font-size: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.happened-file-row > span {
+  flex: 1;
+  min-width: 0;
+}
+.happened-file-row small {
+  margin-left: auto;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.happened-checklist label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+.happened-checklist input {
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.happened-detail-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  padding-top: 20px;
+  margin-top: 20px;
+  border-top: 1px solid #f0f2f6;
+  color: #9fb1ce;
+  font-size: 12px;
+}
+.happened-detail-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.happened-danger {
+  color: #cb9cab;
+}
+.happened-overlay {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(66 77 98 / 0.16);
+}
+.happened-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 90%;
+  border-radius: 19px 19px 0 0;
+  background: #fff;
+  box-shadow: 0 -2px 15px #455c7d0a;
+}
+.happened-sheet > header {
+  display: grid;
+  grid-template-columns: 25px 1fr 25px;
+  align-items: center;
+  padding: 18px 20px 10px;
+  color: #79869c;
+  text-align: center;
+}
+.happened-sheet > header strong {
+  font-weight: 500;
+  font-size: 15px;
+}
+.happened-sheet-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 22px 13px;
+  overscroll-behavior: contain;
+}
+.happened-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 0 18px;
+}
+.happened-type-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 0;
+  border-radius: 12px;
+  font-size: 10px;
+  opacity: 0.75;
+}
+.happened-type-grid button[aria-pressed="true"] {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px #b6cbe33d;
+}
+.happened-title-input,
+.happened-write {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 5px 0;
+  font-size: 16px !important;
+}
+.happened-write {
+  min-height: 85px;
+  resize: vertical;
+  line-height: 1.8;
+}
+.happened-sheet > footer {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: none;
+  padding: 10px 22px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid #f1f4f7;
+  color: #a2aec2;
+  font-size: 13px;
+}
+.happened-sheet > footer button {
+  flex: 1;
+  padding: 8px;
+}
+.happened-sheet > footer .happened-save {
+  border-radius: 11px;
+  color: white;
+  background: #a9c0e3;
+}
+.happened-subtle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 9px 0;
+  color: #a1b6d3;
+  font-size: 12px;
+}
+.happened-small-details {
+  margin: 13px 0;
+  font-size: 12px;
+  color: #a1aabd;
+}
+.happened-small-details summary {
+  cursor: pointer;
+}
+.happened-small-details > input,
+.happened-music-fields input,
+.happened-link-input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #f1f3f7;
+  background: transparent;
+  padding: 9px 0;
+  font-size: 16px !important;
+}
+.happened-tag-pills button[aria-pressed="true"] {
+  outline: 1px solid #a8bedb;
+  outline-offset: 1px;
+}
+.happened-menu {
+  width: 100%;
+  padding: 10px 22px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0;
+  background: white;
+}
+.happened-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  border-bottom: 1px solid #f2f4f8;
+  font-size: 14px;
+  color: #9babc4;
+}
+.happened-menu > button:last-child {
+  justify-content: center;
+  border: 0;
+}
+.happened-error,
+.happened-warning,
+.happened-loading {
+  padding: 5px 20px;
+  color: #c894a2;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.happened-warning,
+.happened-loading {
+  color: #a7b3c6;
+}
+.happened-load {
+  display: block;
+  margin: 18px auto;
+  color: #a1b4d1;
+  font-size: 12px;
+}
+.happened-image-viewer {
+  position: absolute;
+  z-index: 50;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #27313cdb;
+  padding: 20px;
+}
+.happened-image-viewer > img {
+  max-width: 100%;
+  max-height: 85%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.happened-image-viewer > button {
+  position: absolute;
+  top: calc(20px + env(safe-area-inset-top));
+  right: 20px;
+  color: white;
+}
+@media (max-width: 350px) {
+  .happened-tag-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .happened-scroll {
+    padding-left: 13px;
+    padding-right: 13px;
+  }
+  .happened-header {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .happened-header > strong {
+    font-size: 16px;
+  }
+}

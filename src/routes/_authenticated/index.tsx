@@ -7,6 +7,7 @@ import {
   ContactRound,
   Image,
   Headphones,
+  History,
   MessageCircle,
   Settings,
   SwatchBook,
@@ -193,6 +194,15 @@ function PhoneHomePage() {
             tone="knowledge"
             onClick={(event) =>
               openApp("knowledge", event, () => navigate({ to: "/knowledge", search: {} }))
+            }
+          />
+          <AppIcon
+            label="发生过"
+            subtitle="生活的痕迹"
+            icon={History}
+            tone="happened"
+            onClick={(event) =>
+              openApp("happened", event, () => navigate({ to: "/happened", search: {} }))
             }
           />
         </DesktopPages>
