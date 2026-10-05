@@ -148,6 +148,23 @@ test("system events deduplicate by source ID, distinguish apps and preserve sour
     "2026-10-04",
   );
 });
+test("system events accept database timestamp offsets without changing their instant", () => {
+  for (const timestamp of [
+    "2026-10-05T00:00:00+00:00",
+    "2026-10-05T08:00:00+08:00",
+    "2026-10-05T00:00:00.123456+00:00",
+  ]) {
+    const entry = systemHappenedEvent("a", "diary", "d", timestamp, "日记", "正文", {
+      date: "2026-10-04",
+    });
+    const expected = new Date(timestamp).toISOString();
+    assert.equal(entry.timestamp, expected);
+    assert.equal(entry.createdAt, expected);
+    assert.equal(entry.updatedAt, expected);
+    assert.equal(entry.date, "2026-10-04");
+    assert.equal(happenedEntrySchema.safeParse(entry).success, true);
+  }
+});
 test("safe links reject script schemes; tags only have the five gentle palette choices", () => {
   assert.equal(safeHappenedUrl("javascript:alert(1)"), "");
   assert.equal(safeHappenedUrl("file:///etc/passwd"), "");

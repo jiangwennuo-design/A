@@ -165,12 +165,14 @@ export function systemHappenedEvent(
   summary: string,
   patch: Partial<HappenedEntry> = {},
 ) {
+  // Database timestamps can carry an offset; store the same instant in canonical UTC.
+  const eventTimestamp = new Date(timestamp).toISOString();
   return newHappenedEntry(userId, {
     ...patch,
     id: `event:${sourceApp}:${sourceId}`,
     type: sourceApp,
-    timestamp,
-    date: localDate(new Date(timestamp)),
+    timestamp: eventTimestamp,
+    date: localDate(new Date(eventTimestamp)),
     title: title.slice(0, 300),
     content: summary.slice(0, 600),
     summary: summary.slice(0, 600),
@@ -178,8 +180,8 @@ export function systemHappenedEvent(
     sourceApp,
     sourceId,
     isSystemEvent: true,
-    createdAt: timestamp,
-    updatedAt: timestamp,
+    createdAt: eventTimestamp,
+    updatedAt: eventTimestamp,
     ...patch,
   });
 }
