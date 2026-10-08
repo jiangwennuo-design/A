@@ -21,6 +21,7 @@ import { Route as AuthenticatedFoodRouteImport } from './routes/_authenticated/f
 import { Route as AuthenticatedGoalRouteImport } from './routes/_authenticated/goal'
 import { Route as AuthenticatedHappenedRouteImport } from './routes/_authenticated/happened'
 import { Route as AuthenticatedKnowledgeRouteImport } from './routes/_authenticated/knowledge'
+import { Route as AuthenticatedLedgerRouteImport } from './routes/_authenticated/ledger'
 import { Route as AuthenticatedListenRouteImport } from './routes/_authenticated/listen'
 import { Route as AuthenticatedMomentsRouteImport } from './routes/_authenticated/moments'
 import { Route as AuthenticatedPersonaRouteImport } from './routes/_authenticated/persona'
@@ -92,6 +93,11 @@ const AuthenticatedHappenedRoute = AuthenticatedHappenedRouteImport.update({
 const AuthenticatedKnowledgeRoute = AuthenticatedKnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLedgerRoute = AuthenticatedLedgerRouteImport.update({
+  id: '/ledger',
+  path: '/ledger',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedListenRoute = AuthenticatedListenRouteImport.update({
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/goal': typeof AuthenticatedGoalRoute
   '/happened': typeof AuthenticatedHappenedRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/ledger': typeof AuthenticatedLedgerRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByTo {
   '/goal': typeof AuthenticatedGoalRoute
   '/happened': typeof AuthenticatedHappenedRoute
   '/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/ledger': typeof AuthenticatedLedgerRoute
   '/listen': typeof AuthenticatedListenRoute
   '/moments': typeof AuthenticatedMomentsRoute
   '/persona': typeof AuthenticatedPersonaRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/_authenticated/goal': typeof AuthenticatedGoalRoute
   '/_authenticated/happened': typeof AuthenticatedHappenedRoute
   '/_authenticated/knowledge': typeof AuthenticatedKnowledgeRoute
+  '/_authenticated/ledger': typeof AuthenticatedLedgerRoute
   '/_authenticated/listen': typeof AuthenticatedListenRoute
   '/_authenticated/moments': typeof AuthenticatedMomentsRoute
   '/_authenticated/persona': typeof AuthenticatedPersonaRoute
@@ -256,6 +265,7 @@ export interface FileRouteTypes {
     | '/goal'
     | '/happened'
     | '/knowledge'
+    | '/ledger'
     | '/listen'
     | '/moments'
     | '/persona'
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/goal'
     | '/happened'
     | '/knowledge'
+    | '/ledger'
     | '/listen'
     | '/moments'
     | '/persona'
@@ -307,6 +318,7 @@ export interface FileRouteTypes {
     | '/_authenticated/goal'
     | '/_authenticated/happened'
     | '/_authenticated/knowledge'
+    | '/_authenticated/ledger'
     | '/_authenticated/listen'
     | '/_authenticated/moments'
     | '/_authenticated/persona'
@@ -412,6 +424,13 @@ declare module '@tanstack/react-router' {
       path: '/knowledge'
       fullPath: '/knowledge'
       preLoaderRoute: typeof AuthenticatedKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ledger': {
+      id: '/_authenticated/ledger'
+      path: '/ledger'
+      fullPath: '/ledger'
+      preLoaderRoute: typeof AuthenticatedLedgerRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/listen': {
@@ -539,6 +558,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedGoalRoute: typeof AuthenticatedGoalRoute
   AuthenticatedHappenedRoute: typeof AuthenticatedHappenedRoute
   AuthenticatedKnowledgeRoute: typeof AuthenticatedKnowledgeRoute
+  AuthenticatedLedgerRoute: typeof AuthenticatedLedgerRoute
   AuthenticatedListenRoute: typeof AuthenticatedListenRoute
   AuthenticatedMomentsRoute: typeof AuthenticatedMomentsRoute
   AuthenticatedPersonaRoute: typeof AuthenticatedPersonaRoute
@@ -559,6 +579,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedGoalRoute: AuthenticatedGoalRoute,
   AuthenticatedHappenedRoute: AuthenticatedHappenedRoute,
   AuthenticatedKnowledgeRoute: AuthenticatedKnowledgeRoute,
+  AuthenticatedLedgerRoute: AuthenticatedLedgerRoute,
   AuthenticatedListenRoute: AuthenticatedListenRoute,
   AuthenticatedMomentsRoute: AuthenticatedMomentsRoute,
   AuthenticatedPersonaRoute: AuthenticatedPersonaRoute,

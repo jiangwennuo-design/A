@@ -25,6 +25,7 @@ const apps = [
   ["goal", "规划"],
   ["knowledge", "知识库"],
   ["happened", "发生过"],
+  ["ledger", "账本"],
   ["roster", "名册"],
   ["wallpaper", "壁纸"],
   ["settings", "设置"],
@@ -348,7 +349,12 @@ function DesktopPreview({ value }: { value: AppearanceModule<DesktopAppearanceCo
       >
         {apps
           .filter(
-            ([id], index) => index < 4 || id === "goal" || id === "knowledge" || id === "happened",
+            ([id], index) =>
+              index < 4 ||
+              id === "goal" ||
+              id === "knowledge" ||
+              id === "happened" ||
+              id === "ledger",
           )
           .map(([id, label]) => {
             const visual = config.apps[id] ?? {};

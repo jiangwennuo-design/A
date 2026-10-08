@@ -8,6 +8,7 @@ import {
   Image,
   Headphones,
   History,
+  Wallet,
   MessageCircle,
   Settings,
   SwatchBook,
@@ -204,6 +205,13 @@ function PhoneHomePage() {
             onClick={(event) =>
               openApp("happened", event, () => navigate({ to: "/happened", search: {} }))
             }
+          />
+          <AppIcon
+            label="账本"
+            subtitle="收支与资产"
+            icon={Wallet}
+            tone="ledger"
+            onClick={(event) => openApp("ledger", event, () => navigate({ to: "/ledger" }))}
           />
         </DesktopPages>
 
